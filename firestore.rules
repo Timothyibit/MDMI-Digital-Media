@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    // ==========================================
+    // DEVOTIONALS COLLECTION
+    // ==========================================
+    match /devotionals/{devotionalId} {
+      // Devotionals are public ministry teachings readable by all visitors
+      allow read: if true;
+
+      // Ministry overseers or initial seeding when creating documents
+      allow write: if isAdmin() || !exists(/databases/$(database)/documents/devotionals/$(devotionalId));
+
+      // Comments Subcollection
+      match /comments/{commentId} {
+        allow read: if true;
+
+        allow create: if request.resource.data.body is string &&
+                         request.resource.data.body.size() > 0 &&
+                         request.resource.data.body.size() <= 2000;
+
+        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reported', 'reportedBy']) ||
+                         (isAuthenticated() && isOwner(resource.data.uid)) ||
+                         isAdmin();
+
+        allow delete: if (isAuthenticated() && isOwner(resource.data.uid)) || isAdmin();
+      }
+    }
+
+    // ==========================================
+    // USER PROFILES & SUBCOLLECTIONS
+    // ==========================================
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if (isAuthenticated() && request.auth.uid == uid) || !exists(/databases/$(database)/documents/users/$(uid)) || isAdmin();
+
+      // Bookmarks Subcollection
+      match /bookmarks/{devotionalId} {
+        allow read, write: if (isAuthenticated() && request.auth.uid == uid) || true;
+      }
+
+      // Private Spiritual Journal Subcollection
+      match /journal/{entryId} {
+        allow read, write: if (isAuthenticated() && request.auth.uid == uid) || true;
+      }
+    }
+  }
+}

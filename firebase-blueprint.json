@@ -1,0 +1,83 @@
+{
+  "$schema": "https://firebase.google.com/schemas/firestore/blueprint.json",
+  "entities": {
+    "devotionals": {
+      "collection": "devotionals",
+      "description": "Daily theological devotional expositions published by MDMI ministry leadership.",
+      "fields": {
+        "title": { "type": "string", "required": true },
+        "scripture": { "type": "string", "required": true },
+        "scriptureText": { "type": "string", "required": true },
+        "keyThought": { "type": "string", "required": true },
+        "body": { "type": "string", "required": true },
+        "prayerPrompt": { "type": "string", "required": true },
+        "authorId": { "type": "string", "required": true },
+        "authorName": { "type": "string", "required": true },
+        "authorRole": { "type": "string", "required": true },
+        "audioUrl": { "type": "string", "required": false },
+        "audioDurationSeconds": { "type": "number", "required": false },
+        "publishedAt": { "type": "timestamp", "required": false },
+        "tags": { "type": "array", "required": true },
+        "likeCount": { "type": "number", "required": true },
+        "viewCount": { "type": "number", "required": true },
+        "createdAt": { "type": "timestamp", "required": true }
+      },
+      "subcollections": {
+        "comments": {
+          "collection": "comments",
+          "description": "Public fellowship reflections shared on a specific devotional.",
+          "fields": {
+            "devotionalId": { "type": "string", "required": true },
+            "uid": { "type": "string", "required": true },
+            "displayName": { "type": "string", "required": true },
+            "body": { "type": "string", "required": true },
+            "createdAt": { "type": "timestamp", "required": true },
+            "reported": { "type": "boolean", "required": true },
+            "reportedBy": { "type": "array", "required": true }
+          }
+        }
+      }
+    },
+    "users": {
+      "collection": "users",
+      "description": "User profiles for disciples and ministry overseers.",
+      "fields": {
+        "uid": { "type": "string", "required": true },
+        "displayName": { "type": "string", "required": false },
+        "email": { "type": "string", "required": false },
+        "isAnonymous": { "type": "boolean", "required": true },
+        "role": { "type": "string", "required": true, "enum": ["user", "admin"] },
+        "streakCount": { "type": "number", "required": true },
+        "lastReadAt": { "type": "timestamp", "required": false },
+        "expoPushToken": { "type": "string", "required": false },
+        "notificationsEnabled": { "type": "boolean", "required": true },
+        "reminderTime": { "type": "string", "required": true },
+        "createdAt": { "type": "timestamp", "required": true }
+      },
+      "subcollections": {
+        "bookmarks": {
+          "collection": "bookmarks",
+          "description": "User saved devotionals.",
+          "fields": {
+            "devotionalId": { "type": "string", "required": true },
+            "createdAt": { "type": "timestamp", "required": true }
+          }
+        },
+        "journal": {
+          "collection": "journal",
+          "description": "Private encrypted prayer and scripture journal entries.",
+          "fields": {
+            "devotionalId": { "type": "string", "required": false },
+            "devotionalTitle": { "type": "string", "required": false },
+            "title": { "type": "string", "required": true },
+            "content": { "type": "string", "required": true },
+            "scriptureRef": { "type": "string", "required": false },
+            "prayerPoint": { "type": "string", "required": false },
+            "createdAt": { "type": "timestamp", "required": true },
+            "updatedAt": { "type": "timestamp", "required": true }
+          }
+        }
+      }
+    }
+  }
+}
