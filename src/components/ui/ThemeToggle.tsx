@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Moon, BookOpen, Monitor } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 import { ThemeMode } from '../../types';
 import { useUIStore } from '../../store/useUIStore';
 
@@ -18,15 +18,13 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
 
   const options: { mode: ThemeMode; label: string; icon: React.FC<{ className?: string }> }[] = [
     { mode: 'light', label: 'Light', icon: Sun },
-    { mode: 'dark', label: 'Dark OLED', icon: Moon },
-    { mode: 'sepia', label: 'Sepia Bible', icon: BookOpen },
-    { mode: 'system', label: 'System', icon: Monitor },
+    { mode: 'dark', label: 'Dark', icon: Moon },
   ];
 
   return (
     <div
       id={`theme-toggle-${scope}`}
-      className={`inline-flex items-center p-1 rounded-2xl bg-neutral-200/60 dark:bg-neutral-800/80 backdrop-blur-md border border-neutral-300/40 dark:border-neutral-700/50 ${className}`}
+      className={`inline-flex items-center p-0.5 rounded-md bg-[#F4F5FE] dark:bg-neutral-800 border border-[#E9ECEF] dark:border-neutral-700 ${className}`}
       role="radiogroup"
       aria-label="Theme mode selection"
     >
@@ -39,14 +37,10 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
             role="radio"
             aria-checked={isActive}
             onClick={() => setTheme(mode)}
-            className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+            className={`relative flex items-center gap-1.5 px-2 py-1 rounded text-xs font-bold transition-all ${
               isActive
-                ? mode === 'sepia'
-                  ? 'bg-[#F4ECD8] text-[#5B4636] shadow-sm font-semibold'
-                  : mode === 'dark'
-                  ? 'bg-black text-white shadow-sm font-semibold'
-                  : 'bg-white text-neutral-900 shadow-sm font-semibold'
-                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                ? 'bg-[#5E72E4] text-white shadow-[0_2px_4px_rgba(94,114,228,0.3)]'
+                : 'text-[#525F7F] dark:text-neutral-400 hover:text-[#172B4D] dark:hover:text-white'
             }`}
             title={`Switch to ${label} mode`}
           >

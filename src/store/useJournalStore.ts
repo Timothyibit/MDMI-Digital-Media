@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { JournalEntry } from '../types';
 import {
   db,
+  auth,
   collection,
   doc,
   setDoc,
@@ -14,61 +15,66 @@ interface JournalState {
   entries: JournalEntry[];
   currentUid: string | null;
   initializeJournal: (uid: string) => void;
+  resetJournal: () => void;
   addEntry: (entry: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateEntry: (id: string, updates: Partial<Pick<JournalEntry, 'title' | 'content' | 'prayerPoint'>>) => Promise<void>;
+  updateEntry: (id: string, updates: Partial<Omit<JournalEntry, 'id' | 'uid' | 'createdAt'>>) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
 }
 
-const STORAGE_KEY_JOURNAL = 'mdmi_journal_entries';
-
-const SEED_JOURNAL: JournalEntry[] = [
-  {
-    id: 'journal-1',
-    uid: 'user-default',
-    devotionalId: 'abide-in-the-vine',
-    devotionalTitle: 'Abiding in the Living Vine',
-    title: 'Surrendering My Morning Anxieties',
-    scriptureRef: 'John 15:5',
-    content: 'Today I woke up feeling weighed down by project deadlines and family health concerns. Reading Jesus’ words about the branch and the vine reminded me that carrying this burden myself is an illusion. He holds the sap, the sun, and the season.',
-    prayerPoint: 'Grant me patience to remain still in Your presence before leaping into action.',
-    createdAt: '2026-09-21T07:45:00Z',
-    updatedAt: '2026-09-21T07:45:00Z',
-  }
-];
+const getStorageKey = (uid?: string | null) => `mdmi_journal_${uid || 'guest'}`;
 
 export const useJournalStore = create<JournalState>((set, get) => {
-  let initialEntries = SEED_JOURNAL;
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY_JOURNAL);
-    if (stored) initialEntries = JSON.parse(stored);
-  } catch {
-    // fallback
-  }
-
-  const persist = (items: JournalEntry[]) => {
-    localStorage.setItem(STORAGE_KEY_JOURNAL, JSON.stringify(items));
+  const persist = (items: JournalEntry[], uid?: string | null) => {
+    try {
+      localStorage.setItem(getStorageKey(uid), JSON.stringify(items));
+    } catch {
+      // ignore
+    }
   };
 
   return {
-    entries: initialEntries,
+    entries: [],
     currentUid: null,
+
+    resetJournal: () => {
+      set({ entries: [], currentUid: null });
+    },
 
     initializeJournal: (uid: string) => {
       set({ currentUid: uid });
+
+      // Load cached entries for this specific user
+      try {
+        const stored = localStorage.getItem(getStorageKey(uid));
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            set({ entries: parsed });
+          }
+        } else {
+          set({ entries: [] });
+        }
+      } catch {
+        set({ entries: [] });
+      }
+
+      // Only attach Firestore listener for real authenticated users matching currentUser
+      if (!auth.currentUser || auth.currentUser.uid !== uid) {
+        return;
+      }
+
       try {
         const journalColRef = collection(db, 'users', uid, 'journal');
         onSnapshot(
           journalColRef,
           (snapshot) => {
-            if (!snapshot.empty) {
-              const list: JournalEntry[] = [];
-              snapshot.forEach((entryDoc) => {
-                list.push({ id: entryDoc.id, ...entryDoc.data() } as JournalEntry);
-              });
-              list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-              persist(list);
-              set({ entries: list });
-            }
+            const list: JournalEntry[] = [];
+            snapshot.forEach((entryDoc) => {
+              list.push({ id: entryDoc.id, ...entryDoc.data() } as JournalEntry);
+            });
+            list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            persist(list, uid);
+            set({ entries: list });
           },
           (err) => {
             console.info('Journal stored locally:', err.message);
@@ -88,11 +94,11 @@ export const useJournalStore = create<JournalState>((set, get) => {
         updatedAt: new Date().toISOString(),
       };
       const updated = [newEntry, ...get().entries];
-      persist(updated);
+      const uid = entryData.uid || get().currentUid;
+      persist(updated, uid);
       set({ entries: updated });
 
-      const uid = entryData.uid || get().currentUid;
-      if (uid) {
+      if (uid && auth.currentUser && auth.currentUser.uid === uid) {
         try {
           const entryRef = doc(db, 'users', uid, 'journal', id);
           await setDoc(entryRef, newEntry);
@@ -107,11 +113,11 @@ export const useJournalStore = create<JournalState>((set, get) => {
       const updated = get().entries.map((e) =>
         e.id === id ? { ...e, ...updates, updatedAt: now } : e
       );
-      persist(updated);
+      const uid = get().currentUid;
+      persist(updated, uid);
       set({ entries: updated });
 
-      const uid = get().currentUid;
-      if (uid) {
+      if (uid && auth.currentUser && auth.currentUser.uid === uid) {
         try {
           const entryRef = doc(db, 'users', uid, 'journal', id);
           await updateDoc(entryRef, { ...updates, updatedAt: now });
@@ -123,11 +129,11 @@ export const useJournalStore = create<JournalState>((set, get) => {
 
     deleteEntry: async (id) => {
       const updated = get().entries.filter((e) => e.id !== id);
-      persist(updated);
+      const uid = get().currentUid;
+      persist(updated, uid);
       set({ entries: updated });
 
-      const uid = get().currentUid;
-      if (uid) {
+      if (uid && auth.currentUser && auth.currentUser.uid === uid) {
         try {
           const entryRef = doc(db, 'users', uid, 'journal', id);
           await deleteDoc(entryRef);

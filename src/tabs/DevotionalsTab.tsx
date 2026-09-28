@@ -1,22 +1,36 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+} from 'react-native';
+import { FlatList } from '../lib/react-native';
 import {
   Search,
   Bookmark,
   BookOpen,
-  Volume2,
-  Clock,
-  Heart,
-  Eye,
   X,
   Filter,
+  Sparkles,
 } from 'lucide-react';
 import { useDevotionalStore } from '../store/useDevotionalStore';
 import { useBookmarkStore } from '../store/useBookmarkStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { useUIStore } from '../store/useUIStore';
 import { Devotional } from '../types';
+import { Input, Button } from '../components/common';
+import { ProductCardHorizontal, StackedDeckSlider } from '../components/cards';
+import { DateTimePicker } from '../components/ui/DateTimePicker';
+import { Calendar } from 'lucide-react';
+import { PaginationPageDefault } from '@/components/application/pagination/pagination';
+import { isDevotionalLive } from '../services/schedulingService';
+import { EditDevotionalModal } from '../components/admin/EditDevotionalModal';
 
 interface DevotionalsTabProps {
   onSelectDevotional: (devotional: Devotional) => void;
 }
+
+const ITEMS_PER_PAGE = 6;
 
 const TAG_FILTERS = [
   'All',
@@ -31,14 +45,26 @@ const TAG_FILTERS = [
 
 export const DevotionalsTab: React.FC<DevotionalsTabProps> = ({ onSelectDevotional }) => {
   const { devotionals, searchQuery, setSearchQuery } = useDevotionalStore();
-  const { bookmarkedIds, toggleBookmark } = useBookmarkStore();
+  const { bookmarkedIds, toggleBookmark, isBookmarked } = useBookmarkStore();
+  const { isAdmin } = useAuthStore();
+  const { playDevotionalAudio } = useUIStore();
 
   const [activeTag, setActiveTag] = useState<string>('All');
   const [onlyBookmarked, setOnlyBookmarked] = useState<boolean>(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [editingDevotional, setEditingDevotional] = useState<Devotional | null>(null);
+
+  // Reset page to 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeTag, onlyBookmarked, selectedDate]);
 
   const filteredDevotionals = useMemo(() => {
     return devotionals.filter((d) => {
-      // Must be published unless previewing
+      // Disciples only see live teachings unless admin
+      if (!isAdmin && !isDevotionalLive(d)) return false;
+
       const matchesSearch =
         searchQuery.trim() === '' ||
         d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -51,190 +77,263 @@ export const DevotionalsTab: React.FC<DevotionalsTabProps> = ({ onSelectDevotion
 
       const matchesBookmark = !onlyBookmarked || bookmarkedIds.includes(d.id);
 
-      return matchesSearch && matchesTag && matchesBookmark;
+      const matchesDate =
+        !selectedDate ||
+        (d.scheduledDate && d.scheduledDate === selectedDate) ||
+        (d.publishedAt && d.publishedAt.startsWith(selectedDate));
+
+      return matchesSearch && matchesTag && matchesBookmark && matchesDate;
     });
-  }, [devotionals, searchQuery, activeTag, onlyBookmarked, bookmarkedIds]);
+  }, [devotionals, searchQuery, activeTag, onlyBookmarked, bookmarkedIds, selectedDate, isAdmin]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredDevotionals.length / ITEMS_PER_PAGE));
+  const paginatedDevotionals = useMemo(() => {
+    const list =
+      filteredDevotionals.length <= ITEMS_PER_PAGE
+        ? filteredDevotionals
+        : filteredDevotionals.slice(
+            (currentPage - 1) * ITEMS_PER_PAGE,
+            currentPage * ITEMS_PER_PAGE
+          );
+
+    const seen = new Set<string>();
+    return list.filter((d) => {
+      if (!d || !d.id || seen.has(d.id)) return false;
+      seen.add(d.id);
+      return true;
+    });
+  }, [filteredDevotionals, currentPage]);
+
+  const featuredForDeck = useMemo(() => {
+    const seen = new Set<string>();
+    return devotionals
+      .filter((d) => {
+        if (!d || !d.id || seen.has(d.id)) return false;
+        seen.add(d.id);
+        return true;
+      })
+      .slice(0, 5);
+  }, [devotionals]);
+
+  const renderDevotionalItem = ({ item: devotional }: { item: Devotional }) => {
+    return (
+      <div className="mb-3.5">
+        <ProductCardHorizontal
+          devotional={devotional}
+          onPress={() => onSelectDevotional(devotional)}
+          onBookmark={toggleBookmark}
+          isBookmarked={isBookmarked(devotional.id)}
+          onAudio={playDevotionalAudio}
+          onEdit={isAdmin ? (dev) => setEditingDevotional(dev) : undefined}
+        />
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-5 pb-24 max-w-4xl mx-auto">
+    <View className="flex-1 max-w-4xl mx-auto w-full px-1">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold font-display-scripture text-neutral-900 dark:text-white">
+      <View className="mb-4">
+        <Text className="text-2xl sm:text-3xl font-extrabold font-display-scripture text-neutral-900 dark:text-white">
           Devotional Library
-        </h1>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+        </Text>
+        <Text className="text-xs text-neutral-600 dark:text-neutral-300 mt-1 leading-relaxed">
           Topical discipleship teachings grounded in Holy Scripture
-        </p>
-      </div>
+        </Text>
+      </View>
 
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-        <input
-          id="devotionals-search-input"
-          type="text"
-          placeholder="Search by title, scripture reference, or keywords..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-10 py-2.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 backdrop-blur-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
+      {/* 3D Stacked Deck Slider: Shown when no active search (Template 2 Spec) */}
+      {!searchQuery && activeTag === 'All' && !onlyBookmarked && (
+        <div className="mb-6">
+          <StackedDeckSlider
+            devotionals={featuredForDeck}
+            onSelect={onSelectDevotional}
+          />
+        </div>
+      )}
 
-      {/* Filter Chips & Bookmark Toggle */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 text-xs text-neutral-500 dark:text-neutral-400">
-            <Filter className="w-3 h-3" />
-            <span>Topics</span>
-          </div>
-
-          <button
-            id="toggle-bookmarked-filter-btn"
-            onClick={() => setOnlyBookmarked(!onlyBookmarked)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
-              onlyBookmarked
-                ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400'
-                : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-            }`}
-          >
-            <Bookmark className={`w-3.5 h-3.5 ${onlyBookmarked ? 'fill-current' : ''}`} />
-            <span>Bookmarked ({bookmarkedIds.length})</span>
-          </button>
+      {/* Sticky Search & Quick Suggestions Bar */}
+      <View className="mb-4">
+        <div className="relative">
+          <Input
+            id="devotionals-search-input"
+            placeholder="Search devotionals, scripture, topics..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            iconContent={<Search className="w-4 h-4 text-[#ADB5BD]" />}
+            iconPosition="left"
+          />
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          ) : null}
         </div>
 
-        {/* Horizontally scrollable chip container */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
-          {TAG_FILTERS.map((tag) => (
+        {/* Quick Suggested Searches */}
+        <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto pb-1 text-xs">
+          <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-[#5E72E4]" /> Suggested:
+          </span>
+          {['Vine', 'Prayer', 'Faith', 'Consecration', 'Fruit'].map((tag) => (
             <button
               key={tag}
-              onClick={() => setActiveTag(tag)}
-              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                activeTag === tag
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-              }`}
+              type="button"
+              onClick={() => setSearchQuery(tag)}
+              className="px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:border-[#5E72E4] hover:text-[#5E72E4] transition-colors shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
             >
               {tag}
             </button>
           ))}
         </div>
-      </div>
+      </View>
 
-      {/* Devotionals Count Bar */}
-      <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400 px-1">
-        <span>Showing {filteredDevotionals.length} writings</span>
-      </div>
+      {/* Filter Chips & Bookmark Toggle (Template 1 Spec: Clean Pill Tabs) */}
+      <View className="space-y-3 mb-4">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center gap-1.5">
+            <Filter className="w-3.5 h-3.5 text-[#5E72E4]" />
+            <Text className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+              Topic Filter
+            </Text>
+          </View>
 
-      {/* Devotionals List */}
-      {filteredDevotionals.length === 0 ? (
-        <div className="py-16 text-center text-neutral-400 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-3xl">
-          <BookOpen className="w-10 h-10 stroke-1 mx-auto mb-2 opacity-50" />
-          <p className="font-semibold text-sm text-neutral-700 dark:text-neutral-300">
-            No devotionals matched your search
-          </p>
-          <p className="text-xs text-neutral-400 mt-1 max-w-xs mx-auto">
-            Try adjusting your search terms or clearing your topic filters to explore our library.
-          </p>
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setActiveTag('All');
-              setOnlyBookmarked(false);
-            }}
-            className="mt-4 px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200"
+          <Button
+            small
+            color={onlyBookmarked ? 'warning' : 'secondary'}
+            id="toggle-bookmarked-filter-btn"
+            onPress={() => setOnlyBookmarked(!onlyBookmarked)}
+            className="flex-row items-center gap-1 min-h-[38px] px-3.5 rounded-full"
           >
-            Reset Filters
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredDevotionals.map((devotional) => {
-            const isBookmarkedItem = bookmarkedIds.includes(devotional.id);
+            <Bookmark
+              className={`w-3.5 h-3.5 mr-1 ${
+                onlyBookmarked ? 'fill-white text-white' : 'text-amber-500'
+              }`}
+            />
+            Bookmarked ({bookmarkedIds.length})
+          </Button>
+        </View>
 
+        {/* Template 1 Pill Menu Navigation */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {TAG_FILTERS.map((tag) => {
+            const isActive = activeTag === tag;
             return (
-              <div
-                key={devotional.id}
-                id={`devotional-card-${devotional.id}`}
-                onClick={() => onSelectDevotional(devotional)}
-                className="p-4 sm:p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white/70 dark:bg-neutral-900/60 backdrop-blur-md hover:border-neutral-300 dark:hover:border-neutral-700 transition-all cursor-pointer group flex flex-col justify-between"
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setActiveTag(tag)}
+                className={`px-4 py-1.5 rounded-[12px] text-xs font-extrabold uppercase tracking-wide transition-all whitespace-nowrap ${
+                  isActive
+                    ? 'bg-black text-white dark:bg-white dark:text-black shadow-md scale-[1.02]'
+                    : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
+                }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 font-display-scripture">
-                        {devotional.scripture}
-                      </span>
-                      {devotional.tags.map((t) => (
-                        <span
-                          key={t}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-
-                    <h3 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {devotional.title}
-                    </h3>
-
-                    <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1.5 line-clamp-2 leading-relaxed font-serif-reading italic">
-                      “{devotional.keyThought}”
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleBookmark(devotional.id);
-                    }}
-                    title={isBookmarkedItem ? 'Remove Bookmark' : 'Save Bookmark'}
-                    aria-label="Toggle Bookmark"
-                    className="p-2 rounded-xl text-neutral-400 hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
-                  >
-                    <Bookmark
-                      className={`w-4 h-4 ${
-                        isBookmarkedItem ? 'fill-amber-500 text-amber-500' : 'text-neutral-400'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-neutral-100 dark:border-neutral-800/80 flex flex-wrap items-center justify-between text-xs text-neutral-500 dark:text-neutral-400 gap-2">
-                  <div className="flex items-center gap-3">
-                    <span>By {devotional.authorName}</span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> 4 min
-                    </span>
-                    {devotional.audioUrl && (
-                      <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium">
-                        <Volume2 className="w-3 h-3" /> Audio
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1">
-                      <Eye className="w-3 h-3" /> {devotional.viewCount}
-                    </span>
-                    <span className="flex items-center gap-1 text-rose-500 font-semibold">
-                      <Heart className="w-3 h-3 fill-rose-500" /> {devotional.likeCount}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                {tag}
+              </button>
             );
           })}
         </div>
+
+        {/* Date Filter Bar using DateTimePicker */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-[#5E72E4] dark:text-[#7BDEB2] shrink-0" />
+            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+              Browse by Date:
+            </span>
+          </div>
+          <div className="flex items-center gap-2 flex-1 sm:max-w-xs">
+            <DateTimePicker
+              value={selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date()}
+              mode="date"
+              placeholder="Pick a publishing date..."
+              onChange={(event, date) => {
+                if (event.type === 'set' && date) {
+                  const y = date.getFullYear();
+                  const m = String(date.getMonth() + 1).padStart(2, '0');
+                  const d = String(date.getDate()).padStart(2, '0');
+                  setSelectedDate(`${y}-${m}-${d}`);
+                }
+              }}
+            />
+            {selectedDate && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate(null)}
+                className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 px-2.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-center gap-1 transition-colors shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Clear</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </View>
+
+      {/* Devotionals List: ProductCardHorizontal (Template 3 Spec) */}
+      <FlatList<Devotional>
+        data={paginatedDevotionals}
+        keyExtractor={(item: Devotional, idx: number) => (item?.id ? `${item.id}-${idx}` : `dev-${idx}`)}
+        renderItem={renderDevotionalItem}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 160 }}
+        ListFooterComponent={
+          filteredDevotionals.length > ITEMS_PER_PAGE ? (
+            <div className="pt-4 pb-6">
+              <PaginationPageDefault
+                page={currentPage}
+                total={totalPages}
+                onPageChange={(p) => {
+                  setCurrentPage(p);
+                  if (typeof window !== 'undefined') {
+                    window.scrollTo({ top: 320, behavior: 'smooth' });
+                  }
+                }}
+              />
+            </div>
+          ) : null
+        }
+        ListEmptyComponent={
+          <View className="py-16 sm:py-20 items-center justify-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 sm:p-8 bg-white dark:bg-neutral-900/50 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+            <div className="w-14 h-14 rounded-full bg-[#5E72E4]/10 flex items-center justify-center mb-3 text-[#5E72E4]">
+              <BookOpen className="w-7 h-7" />
+            </div>
+            <Text className="font-extrabold text-base text-neutral-900 dark:text-white">
+              No devotionals matched your query
+            </Text>
+            <Text className="text-xs text-neutral-500 dark:text-neutral-400 mt-1.5 max-w-sm text-center leading-relaxed">
+              We couldn't find matches for &ldquo;{searchQuery || activeTag}&rdquo;. Try another term, or reset your filters to browse the complete archive.
+            </Text>
+            <div className="mt-5">
+              <Button
+                color="primary"
+                onPress={() => {
+                  setSearchQuery('');
+                  setActiveTag('All');
+                  setOnlyBookmarked(false);
+                }}
+              >
+                Reset All Filters
+              </Button>
+            </div>
+          </View>
+        }
+      />
+
+      {/* Admin Quick Edit Devotional & Photo Modal */}
+      {isAdmin && (
+        <EditDevotionalModal
+          devotional={editingDevotional}
+          isOpen={!!editingDevotional}
+          onClose={() => setEditingDevotional(null)}
+        />
       )}
-    </div>
+    </View>
   );
 };

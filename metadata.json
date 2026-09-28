@@ -1,6 +1,6 @@
 {
   "name": "MDMI Devotionals",
-  "description": "Cross-platform daily devotional app for The Master's Discipleship Ministries featuring Bento dashboard, scripture reader with tri-state theming, audio narration, and prayer journaling.",
+  "description": "Cross-platform daily devotional app for The Master's Discipleship Ministries featuring Bento dashboard, scripture reader with Light & Dark theming, audio narration, and prayer journaling.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -1,42 +1,58 @@
 import { create } from 'zustand';
-import { db, doc, setDoc, deleteDoc, collection, onSnapshot } from '../lib/firebase';
+import { db, auth, doc, setDoc, deleteDoc, collection, onSnapshot } from '../lib/firebase';
 
 interface BookmarkState {
   bookmarkedIds: string[];
   currentUid: string | null;
   initializeBookmarks: (uid: string) => void;
+  resetBookmarks: () => void;
   toggleBookmark: (devotionalId: string) => Promise<boolean>;
   isBookmarked: (devotionalId: string) => boolean;
 }
 
-const STORAGE_KEY_BOOKMARKS = 'mdmi_bookmarks_subcollection';
+const getStorageKey = (uid?: string | null) => `mdmi_bookmarks_${uid || 'guest'}`;
 
 export const useBookmarkStore = create<BookmarkState>((set, get) => {
-  let initialBookmarks: string[] = ['abide-in-the-vine', 'unshakable-refuge'];
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY_BOOKMARKS);
-    if (stored) initialBookmarks = JSON.parse(stored);
-  } catch {
-    // fallback
-  }
-
   return {
-    bookmarkedIds: initialBookmarks,
+    bookmarkedIds: [],
     currentUid: null,
+
+    resetBookmarks: () => {
+      set({ bookmarkedIds: [], currentUid: null });
+    },
 
     initializeBookmarks: (uid: string) => {
       set({ currentUid: uid });
+
+      // Load cached bookmarks for this user
+      try {
+        const stored = localStorage.getItem(getStorageKey(uid));
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            set({ bookmarkedIds: parsed });
+          }
+        } else {
+          set({ bookmarkedIds: [] });
+        }
+      } catch {
+        set({ bookmarkedIds: [] });
+      }
+
+      // Only attach Firestore listener for real authenticated users matching currentUser
+      if (!auth.currentUser || auth.currentUser.uid !== uid) {
+        return;
+      }
+
       try {
         const bookmarksColRef = collection(db, 'users', uid, 'bookmarks');
         onSnapshot(
           bookmarksColRef,
           (snapshot) => {
-            if (!snapshot.empty) {
-              const ids: string[] = [];
-              snapshot.forEach((bDoc) => ids.push(bDoc.id));
-              localStorage.setItem(STORAGE_KEY_BOOKMARKS, JSON.stringify(ids));
-              set({ bookmarkedIds: ids });
-            }
+            const ids: string[] = [];
+            snapshot.forEach((bDoc) => ids.push(bDoc.id));
+            localStorage.setItem(getStorageKey(uid), JSON.stringify(ids));
+            set({ bookmarkedIds: ids });
           },
           (err) => {
             console.info('Bookmarks stored locally:', err.message);
@@ -54,10 +70,10 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => {
         ? bookmarkedIds.filter((id) => id !== devotionalId)
         : [...bookmarkedIds, devotionalId];
 
-      localStorage.setItem(STORAGE_KEY_BOOKMARKS, JSON.stringify(updated));
+      localStorage.setItem(getStorageKey(currentUid), JSON.stringify(updated));
       set({ bookmarkedIds: updated });
 
-      if (currentUid) {
+      if (currentUid && auth.currentUser && auth.currentUser.uid === currentUid) {
         try {
           const bookmarkRef = doc(db, 'users', currentUid, 'bookmarks', devotionalId);
           if (exists) {

@@ -28,8 +28,8 @@ When trials arise or schedules press, our immediate spiritual reflex must not be
     authorRole: 'Senior Overseer, MDMI',
     publishedAt: '2026-09-21T06:00:00Z',
     tags: ['Discipleship', 'Prayer', 'Spiritual Growth', 'Abiding'],
-    viewCount: 1420,
-    likeCount: 382,
+    viewCount: 0,
+    likeCount: 0,
     createdAt: '2026-09-20T18:00:00Z',
   },
   {
@@ -58,8 +58,8 @@ Notice the phrase *"very present"*. In the original Hebrew, it carries the force
     authorRole: 'Discipleship Curriculum Director',
     publishedAt: '2026-09-20T06:00:00Z',
     tags: ['Comfort', 'Faith', 'Psalms', 'Trust'],
-    viewCount: 1890,
-    likeCount: 512,
+    viewCount: 0,
+    likeCount: 0,
     createdAt: '2026-09-19T18:00:00Z',
   },
   {
@@ -88,8 +88,8 @@ The glory of Christ's call is that losing our self-centered life is the only gat
     authorRole: 'Senior Overseer, MDMI',
     publishedAt: '2026-09-19T06:00:00Z',
     tags: ['Discipleship', 'Consecration', 'Following Jesus'],
-    viewCount: 2310,
-    likeCount: 678,
+    viewCount: 0,
+    likeCount: 0,
     createdAt: '2026-09-18T18:00:00Z',
   },
   {
@@ -109,14 +109,13 @@ Filter your digital intake, meditate deeply on Holy Scripture, and allow the Hol
     keyThought: 'You become what you behold. Meditate upon Christ and be transformed into His likeness.',
     prayerPrompt: 'Holy Spirit, renew my mind today. Wash away cynical thoughts, anxious patterns, and worldly ambitions. Fill my thinking with the purity of Christ.',
     audioUrl: 'https://assets.mixkit.co/music/preview/mixkit-peaceful-piano-ambient-524.mp3',
-    audioDurationSeconds: 180,
     authorId: 'mdmi-director',
     authorName: 'Pastor Sarah Jenkins',
     authorRole: 'Discipleship Curriculum Director',
     publishedAt: '2026-09-18T06:00:00Z',
     tags: ['Mindset', 'Sanctification', 'Romans', 'Transformation'],
-    viewCount: 1650,
-    likeCount: 445,
+    viewCount: 0,
+    likeCount: 0,
     createdAt: '2026-09-17T18:00:00Z',
   },
   {
@@ -140,41 +139,10 @@ When you feel inadequate today, do not despair. Bring your empty hands to the Ma
     authorRole: 'Pastoral Care Minister',
     publishedAt: '2026-09-17T06:00:00Z',
     tags: ['Grace', 'Weakness', 'Endurance', 'Sufficiency'],
-    viewCount: 1980,
-    likeCount: 560,
+    viewCount: 0,
+    likeCount: 0,
     createdAt: '2026-09-16T18:00:00Z',
   }
 ];
 
-export const SEED_COMMENTS: Comment[] = [
-  {
-    id: 'comm-1',
-    devotionalId: 'abide-in-the-vine',
-    uid: 'user-ruth',
-    displayName: 'Ruth Campbell',
-    body: 'This spoke directly to my exhausted spirit this morning. I had been striving so hard in ministry and forgot that Jesus simply asked me to abide.',
-    createdAt: '2026-09-21T07:30:00Z',
-    reported: false,
-    reportedBy: [],
-  },
-  {
-    id: 'comm-2',
-    devotionalId: 'abide-in-the-vine',
-    uid: 'user-david',
-    displayName: 'David K. Mensah',
-    body: 'Amen! "Fruit is not manufactured; it is borne." What a liberating distinction for disciples of Christ.',
-    createdAt: '2026-09-21T08:15:00Z',
-    reported: false,
-    reportedBy: [],
-  },
-  {
-    id: 'comm-3',
-    devotionalId: 'unshakable-refuge',
-    uid: 'user-esther',
-    displayName: 'Esther Olatunji',
-    body: 'Psalm 46 has been our family rock this week as my mother undergoes surgery. God is truly our present help in trouble.',
-    createdAt: '2026-09-20T11:42:00Z',
-    reported: false,
-    reportedBy: [],
-  }
-];
+export const SEED_COMMENTS: Comment[] = [];

@@ -83,13 +83,13 @@ export const StreakConfetti: React.FC = () => {
             {particles.map((p) => (
               <motion.div
                 key={p.id}
-                initial={{ x: 0, y: 0, scale: 0, rotate: 0 }}
+                initial={{ x: 0, y: 0, scale: 0, rotate: 0, opacity: 1 }}
                 animate={{
                   x: p.x,
-                  y: [0, p.y, p.y + 400],
-                  scale: [0, 1.2, 0.8, 0],
-                  rotate: [0, p.rotation, p.rotation * 2],
-                  opacity: [0, 1, 0.9, 0],
+                  y: p.y + 400,
+                  scale: 0.8,
+                  rotate: p.rotation * 2,
+                  opacity: 0,
                 }}
                 transition={{ duration: 3.2, ease: 'easeOut' }}
                 style={{

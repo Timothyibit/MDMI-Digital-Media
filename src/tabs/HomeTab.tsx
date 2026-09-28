@@ -1,291 +1,308 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import {
-  Sparkles,
-  BookOpen,
   Volume2,
   ChevronRight,
-  Bookmark,
-  PenTool,
-  Clock,
-  Heart,
-  Share2,
+  PenLine,
+  Sparkles,
 } from 'lucide-react';
 import { useDevotionalStore } from '../store/useDevotionalStore';
 import { useUIStore } from '../store/useUIStore';
 import { useBookmarkStore } from '../store/useBookmarkStore';
-import { BentoCard } from '../components/ui/BentoGrid';
-import { StreakTracker } from '../components/ui/StreakTracker';
+import { useLayoutStore } from '../store/useLayoutStore';
 import { Devotional } from '../types';
+import { isDevotionalLive } from '../services/schedulingService';
+import { MdmiLogo } from '../components/ui/MdmiLogo';
+import {
+  OrganicFruitHeroCard,
+  StackedDeckSlider,
+  ProductCardHorizontal,
+  ActivityCardBarGraph,
+  TiltedCollageCard,
+} from '../components/cards';
+import { PaginationPageDefault } from '@/components/application/pagination/pagination';
 
 interface HomeTabProps {
   onSelectDevotional: (devotional: Devotional) => void;
 }
 
+const FEED_PAGE_SIZE = 6;
+
 export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
   const { devotionals } = useDevotionalStore();
-  const { setActiveTab, openVerseShare, playDevotionalAudio } = useUIStore();
-  const { isBookmarked } = useBookmarkStore();
+  const { setActiveTab, openVerseShare, playDevotionalAudio, openOnboarding } = useUIStore();
+  const { isBookmarked, toggleBookmark } = useBookmarkStore();
+  const { config, getFeaturedDevotional } = useLayoutStore();
+  const [feedPage, setFeedPage] = useState(1);
 
-  const published = devotionals.filter((d) => d.publishedAt !== null);
-  const featured = published[0] || devotionals[0];
+  const published = devotionals.filter((d) => isDevotionalLive(d));
+  const rawDisplayDevotionals = published.length > 0 ? published : devotionals;
+  const displayDevotionals = React.useMemo(() => {
+    const seen = new Set<string>();
+    return rawDisplayDevotionals.filter((d) => {
+      if (!d || !d.id || seen.has(d.id)) return false;
+      seen.add(d.id);
+      return true;
+    });
+  }, [rawDisplayDevotionals]);
 
-  return (
-    <div className="space-y-4 md:space-y-6 pb-24 max-w-5xl mx-auto">
-      {/* Header Banner */}
-      <div className="flex items-center justify-between px-1">
-        <div>
-          <span className="text-[11px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 font-display-scripture">
-            THE MASTER'S DISCIPLESHIP MINISTRIES
-          </span>
-          <h1 className="text-2xl md:text-3xl font-extrabold font-display-scripture text-neutral-900 dark:text-white tracking-tight">
-            Daily Devotional
-          </h1>
-        </div>
+  const featured = getFeaturedDevotional ? getFeaturedDevotional(devotionals) : (displayDevotionals[0] || null);
 
-        <StreakTracker variant="compact" />
-      </div>
+  const totalFeedPages = Math.max(1, Math.ceil(displayDevotionals.length / FEED_PAGE_SIZE));
+  const currentFeedDevotionals = displayDevotionals.slice(
+    (feedPage - 1) * FEED_PAGE_SIZE,
+    feedPage * FEED_PAGE_SIZE
+  );
 
-      {/* Bento Grid Layout (Flex / Wrap with explicit width fractions) */}
-      <div className="flex flex-wrap -m-2">
-        {/* Large Bento Card: Verse of the Day & Featured Devotional */}
-        <div className="w-full lg:w-2/3 p-2">
-          {featured && (
-            <BentoCard
-              id="verse-of-the-day-card"
-              index={0}
-              className="h-full flex flex-col justify-between min-h-[300px] md:min-h-[340px] bg-gradient-to-br from-blue-900/10 via-white/80 to-amber-500/10 dark:from-blue-950/40 dark:via-neutral-900/80 dark:to-neutral-950 border-blue-200/60 dark:border-blue-900/40"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600/10 dark:bg-blue-400/15 text-blue-700 dark:text-blue-300 text-xs font-bold font-display-scripture">
-                    <Sparkles className="w-3.5 h-3.5" /> Verse of the Day
-                  </span>
+  // Determine sections to display; provide safe default if config.sections is empty or unset
+  const configuredSections = config?.sections?.length
+    ? config.sections
+    : [
+        { id: 'headerBanner', enabled: true, order: 0 },
+        { id: 'featuredHero', enabled: true, order: 1 },
+        { id: 'stackedDeck', enabled: true, order: 2 },
+        { id: 'activityStats', enabled: true, order: 3 },
+        { id: 'horizontalFeed', enabled: true, order: 4 },
+        { id: 'tiltedCollage', enabled: true, order: 5 },
+      ];
 
-                  <button
-                    id="share-featured-verse-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openVerseShare({
-                        scripture: featured.scripture,
-                        scriptureText: featured.scriptureText,
-                        title: featured.title,
-                        author: featured.authorName,
-                      });
-                    }}
-                    className="p-1.5 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-                    title="Share Verse"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
-                </div>
+  const sortedSections = React.useMemo(() => {
+    const seen = new Set<string>();
+    return [...configuredSections]
+      .filter((s) => s.enabled !== false)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .filter((s) => {
+        if (!s || !s.id || seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+      });
+  }, [configuredSections]);
 
-                <h2 className="font-serif-reading italic text-lg sm:text-xl md:text-2xl leading-relaxed text-neutral-800 dark:text-neutral-100 font-medium">
-                  “{featured.scriptureText}”
-                </h2>
-
-                <p className="mt-2 text-sm font-bold text-blue-600 dark:text-blue-400 font-display-scripture">
-                  — {featured.scripture}
-                </p>
+  const renderSection = (id: string) => {
+    switch (id) {
+      case 'headerBanner':
+      case 'banner':
+        return (
+          <View
+            key="headerBanner"
+            className="flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 shadow-[0_2px_12px_rgba(0,0,0,0.04)]"
+          >
+            <View className="flex-row items-center gap-3.5">
+              <div className="shrink-0">
+                <MdmiLogo size={44} />
               </div>
+              <View className="flex-1 min-w-0">
+                <View className="flex-row items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-lime-500/10 text-lime-700 dark:text-lime-400">
+                    Discipling to Serve
+                  </span>
+                  <button
+                    onClick={() => openOnboarding()}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 text-[#5E72E4] transition-all"
+                    title="View Onboarding Welcome Screen"
+                  >
+                    <Sparkles className="w-2.5 h-2.5 text-amber-500" />
+                    <span>Welcome Tour</span>
+                  </button>
+                </View>
+                <Text className="text-xl sm:text-2xl font-extrabold font-display-scripture text-neutral-900 dark:text-white tracking-tight mt-0.5">
+                  The Master's Discipleship Ministries
+                </Text>
+                <Text className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {config?.customWelcomeMessage ||
+                    'Winning souls, maturing believers in Christ, and serving in love'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        );
 
-              <div className="mt-6 pt-4 border-t border-neutral-200/60 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
-                    {featured.title}
-                  </h3>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    By {featured.authorName} • 4 min read
+      case 'featuredHero':
+      case 'hero':
+        return featured ? (
+          <div key="featuredHero">
+            <OrganicFruitHeroCard
+              devotional={featured}
+              onRead={onSelectDevotional}
+              onAudio={playDevotionalAudio}
+              onShare={() => {
+                openVerseShare({
+                  scripture: featured.scripture,
+                  scriptureText: featured.scriptureText,
+                  title: featured.title,
+                  author: featured.authorName,
+                });
+              }}
+            />
+          </div>
+        ) : null;
+
+      case 'stackedDeck':
+      case 'deck':
+        return displayDevotionals.length > 1 ? (
+          <div key="stackedDeck" className="mt-2">
+            <StackedDeckSlider
+              devotionals={displayDevotionals.slice(0, 6)}
+              onSelect={onSelectDevotional}
+            />
+          </div>
+        ) : null;
+
+      case 'activityStats':
+      case 'activity':
+        return (
+          <div
+            key="activityStats"
+            className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch"
+          >
+            {/* Interactive 7-Day Spiritual Activity Card */}
+            <div className="lg:col-span-7">
+              <ActivityCardBarGraph
+                onMorePress={() => setActiveTab('profile')}
+                className="h-full"
+              />
+            </div>
+
+            {/* Quick Action Tiles */}
+            <div className="lg:col-span-5 flex flex-col justify-between gap-4">
+              {/* Audio Reflection Card */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => featured && playDevotionalAudio(featured)}
+                className="p-5 rounded-2xl bg-neutral-900 text-white border border-neutral-800 shadow-[0_10px_25px_rgba(0,0,0,0.2)] cursor-pointer hover:border-neutral-700 transition-all flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
+                    <Volume2 className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                    Voice Narration
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h4 className="text-sm font-bold text-white">Daily Spoken Reflection</h4>
+                  <p className="text-xs text-neutral-300 mt-1 line-clamp-2">
+                    Instant stream-first audio for quiet time, prayer, and meditation.
                   </p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {featured.audioUrl && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        playDevotionalAudio(featured);
-                      }}
-                      className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                      title="Play narration"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                      <span className="hidden sm:inline">Audio</span>
-                    </button>
-                  )}
-
-                  <button
-                    id="read-today-devotional-btn"
-                    onClick={() => onSelectDevotional(featured)}
-                    className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
-                  >
-                    <span>Read Today's Devotional</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                <div className="mt-3 pt-2 border-t border-neutral-800 flex items-center justify-between text-xs text-blue-400 font-semibold">
+                  <span>Listen Audio Now</span>
+                  <ChevronRight className="w-4 h-4" />
                 </div>
               </div>
-            </BentoCard>
-          )}
-        </div>
 
-        {/* Small Bento Card: Streak Tracker Tile */}
-        <div className="w-full sm:w-1/2 lg:w-1/3 p-2">
-          <BentoCard index={1} className="h-full p-0 overflow-visible">
-            <StreakTracker variant="card" />
-          </BentoCard>
-        </div>
-
-        {/* Medium Bento Card: Audio Word of the Day */}
-        <div className="w-full sm:w-1/2 lg:w-1/3 p-2">
-          <BentoCard
-            id="audio-daily-word-card"
-            index={2}
-            onClick={() => featured && playDevotionalAudio(featured)}
-            className="h-full flex flex-col justify-between bg-gradient-to-br from-neutral-900 to-neutral-950 text-white border-neutral-800"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center mb-3">
-                <Volume2 className="w-5 h-5 animate-pulse" />
+              {/* Prayer Journal Card */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setActiveTab('journal')}
+                className="p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 shadow-[0_10px_25px_rgba(0,0,0,0.05)] cursor-pointer hover:border-amber-400/40 transition-all flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center">
+                    <PenLine className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                    Private Sanctuary
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h4 className="text-sm font-bold text-neutral-900 dark:text-white">Prayer Journal</h4>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-2">
+                    Record what the Holy Spirit whispers during scripture reading.
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                  <span>Open Journal</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
-                Spoken Word
-              </span>
-              <h3 className="text-base font-bold text-white mt-1">
-                Audio Narration
-              </h3>
-              <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
-                Listen to reverent audio reflections narrated for prayer, driving, and meditation.
-              </p>
             </div>
-
-            <div className="mt-4 flex items-center justify-between text-xs text-blue-400 font-semibold">
-              <span>Listen Now ({featured?.audioDurationSeconds || 195}s)</span>
-              <ChevronRight className="w-4 h-4" />
-            </div>
-          </BentoCard>
-        </div>
-
-        {/* Medium Bento Card: Prayer Journal Prompt */}
-        <div className="w-full sm:w-1/2 lg:w-1/3 p-2">
-          <BentoCard
-            id="prayer-journal-prompt-card"
-            index={3}
-            onClick={() => setActiveTab('journal')}
-            className="h-full flex flex-col justify-between bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border-amber-500/20"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center mb-3">
-                <PenTool className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                Personal Discipleship
-              </span>
-              <h3 className="text-base font-bold text-neutral-900 dark:text-white mt-1">
-                Private Prayer Journal
-              </h3>
-              <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 leading-relaxed">
-                Record what the Lord is speaking to your heart. Keep your private spiritual reflections safe.
-              </p>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between text-xs text-amber-600 dark:text-amber-400 font-semibold">
-              <span>Write Reflection</span>
-              <ChevronRight className="w-4 h-4" />
-            </div>
-          </BentoCard>
-        </div>
-
-        {/* Medium Bento Card: Library Quick Jump */}
-        <div className="w-full sm:w-1/2 lg:w-1/3 p-2">
-          <BentoCard
-            id="explore-library-card"
-            index={4}
-            onClick={() => setActiveTab('devotionals')}
-            className="h-full flex flex-col justify-between border-neutral-200 dark:border-neutral-800"
-          >
-            <div>
-              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                Devotional Archives
-              </span>
-              <h3 className="text-base font-bold text-neutral-900 dark:text-white mt-1">
-                Explore All Devotionals
-              </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
-                Browse topical studies on Abiding, Faith, Consecration, and Spiritual Transformation.
-              </p>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
-              <span>Browse {devotionals.length} Writings</span>
-              <ChevronRight className="w-4 h-4" />
-            </div>
-          </BentoCard>
-        </div>
-      </div>
-
-      {/* Devotional Feed Preview Section */}
-      <section className="mt-8">
-        <div className="flex items-center justify-between mb-4 px-1">
-          <div>
-            <h3 className="text-lg font-bold font-display-scripture text-neutral-900 dark:text-white">
-              Recent Devotional Releases
-            </h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              Nourishing insights from The Master's Discipleship Ministries
-            </p>
           </div>
+        );
 
-          <button
-            onClick={() => setActiveTab('devotionals')}
-            className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1 hover:underline"
-          >
-            <span>View All</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {published.slice(1, 5).map((devotional, idx) => (
-            <div
-              key={devotional.id}
-              onClick={() => onSelectDevotional(devotional)}
-              className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-md hover:border-neutral-300 dark:hover:border-neutral-700 cursor-pointer transition-all flex flex-col justify-between group"
-            >
+      case 'horizontalFeed':
+      case 'recent':
+        return (
+          <div key="horizontalFeed" className="mt-4">
+            <div className="flex items-center justify-between mb-4 px-1">
               <div>
-                <div className="flex items-center justify-between text-[11px] text-neutral-400 mb-1.5">
-                  <span className="font-semibold text-blue-600 dark:text-blue-400">
-                    {devotional.scripture}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> 4 min
-                  </span>
-                </div>
-                <h4 className="text-sm font-bold text-neutral-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                  {devotional.title}
-                </h4>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-2">
-                  {devotional.keyThought}
+                <h2 className="text-lg font-bold font-display-scripture text-neutral-900 dark:text-white">
+                  Recent Devotional Releases
+                </h2>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Nourishing insights from The Master's Discipleship Ministries
                 </p>
               </div>
 
-              <div className="mt-3 pt-2.5 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
-                <span>By {devotional.authorName}</span>
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1">
-                    <Heart className="w-3 h-3 text-rose-500 fill-rose-500" />
-                    {devotional.likeCount}
-                  </span>
-                  {isBookmarked(devotional.id) && (
-                    <Bookmark className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  )}
-                </div>
-              </div>
+              <TouchableOpacity
+                onPress={() => setActiveTab('devotionals')}
+                className="px-3.5 py-1.5 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex-row items-center gap-1 shadow-sm"
+              >
+                <Text className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">
+                  View All
+                </Text>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </TouchableOpacity>
             </div>
-          ))}
-        </div>
-      </section>
-    </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {currentFeedDevotionals.map((devotional) => (
+                <ProductCardHorizontal
+                  key={devotional.id}
+                  devotional={devotional}
+                  onPress={() => onSelectDevotional(devotional)}
+                  onBookmark={toggleBookmark}
+                  isBookmarked={isBookmarked(devotional.id)}
+                  onAudio={playDevotionalAudio}
+                />
+              ))}
+            </div>
+
+            {displayDevotionals.length > FEED_PAGE_SIZE && (
+              <div className="mt-4">
+                <PaginationPageDefault
+                  page={feedPage}
+                  total={totalFeedPages}
+                  onPageChange={setFeedPage}
+                />
+              </div>
+            )}
+          </div>
+        );
+
+      case 'tiltedCollage':
+      case 'collage':
+        return (
+          <div key="tiltedCollage" className="mt-6">
+            <TiltedCollageCard
+              title="The Great Commission Vision"
+              message="Go therefore and make disciples of all the nations, baptizing them in the name of the Father and of the Son and of the Holy Spirit. Matthew 28:19."
+              actionText="Explore MDMI Ministry"
+              onAction={() => setActiveTab('about')}
+            />
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <ScrollView
+      className="flex-1"
+      contentContainerStyle={{ paddingBottom: 160 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <View className="flex flex-col gap-6 max-w-4xl mx-auto w-full px-2 sm:px-3">
+        {sortedSections.map((section, idx) => (
+          <React.Fragment key={section.id || `sec-${idx}`}>
+            {renderSection(section.id)}
+          </React.Fragment>
+        ))}
+      </View>
+    </ScrollView>
   );
 };

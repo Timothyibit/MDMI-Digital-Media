@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { Devotional, Comment } from '../types';
 import { SEED_DEVOTIONALS, SEED_COMMENTS } from '../data/seedDevotionals';
+import { useAuthStore } from './useAuthStore';
+import {
+  isDevotionalLive,
+  computeIsoFromZonedDateTime,
+} from '../services/schedulingService';
 import {
   db,
   collection,
@@ -9,19 +14,24 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
+  increment,
 } from '../lib/firebase';
+
+let autoPublishTimer: any = null;
 
 interface DevotionalState {
   devotionals: Devotional[];
   comments: Comment[];
   likedIds: string[];
   searchQuery: string;
+  filterDate: string | null;
   selectedTag: string | null;
   activeDevotionalId: string | null;
   isLoading: boolean;
 
   initializeDevotionals: () => Promise<void>;
   setSearchQuery: (query: string) => void;
+  setFilterDate: (date: string | null) => void;
   setSelectedTag: (tag: string | null) => void;
   setActiveDevotionalId: (id: string | null) => void;
 
@@ -30,7 +40,15 @@ interface DevotionalState {
 
   // Comments
   fetchCommentsForDevotional: (devotionalId: string) => void;
-  addComment: (devotionalId: string, uid: string, displayName: string, body: string) => Promise<void>;
+  addComment: (
+    devotionalId: string,
+    uid: string,
+    displayName: string,
+    body: string,
+    photoUrl?: string | null,
+    imageUrl?: string | null
+  ) => Promise<void>;
+  editComment: (commentId: string, newBody: string, devotionalId?: string) => Promise<void>;
   reportComment: (commentId: string, uid: string, devotionalId?: string) => Promise<void>;
   approveComment: (commentId: string, devotionalId?: string) => Promise<void>;
   removeComment: (commentId: string, devotionalId?: string) => Promise<void>;
@@ -40,34 +58,77 @@ interface DevotionalState {
   updateDevotional: (id: string, updates: Partial<Devotional>) => Promise<void>;
   deleteDevotional: (id: string) => Promise<void>;
   publishDevotional: (id: string) => Promise<void>;
+  autoPublishScheduledDrafts: () => Promise<void>;
 }
 
 const STORAGE_KEY_DEVOTIONALS = 'mdmi_devotionals_data';
 const STORAGE_KEY_COMMENTS = 'mdmi_comments_data';
 const STORAGE_KEY_LIKES = 'mdmi_liked_ids';
 
+const DUMMY_LIKE_COUNTS = new Set([382, 512, 678, 445, 560]);
+const DUMMY_VIEW_COUNTS = new Set([1420, 1890, 2310, 1650, 1980]);
+const DUMMY_COMMENT_IDS = new Set(['comm-1', 'comm-2', 'comm-3', 'c1', 'c2', 'e1', 'e2', 'e3']);
+
+export function deduplicateDevotionals(items: Devotional[]): Devotional[] {
+  const seen = new Set<string>();
+  return items.filter((d) => {
+    if (!d || !d.id || seen.has(d.id)) return false;
+    seen.add(d.id);
+    return true;
+  });
+}
+
+export function deduplicateComments(items: Comment[]): Comment[] {
+  const seen = new Set<string>();
+  return items.filter((c) => {
+    if (!c || !c.id || seen.has(c.id)) return false;
+    seen.add(c.id);
+    return true;
+  });
+}
+
 export const useDevotionalStore = create<DevotionalState>((set, get) => {
-  let initialDevotionals = SEED_DEVOTIONALS;
-  let initialComments = SEED_COMMENTS;
-  let initialLikes: string[] = ['abide-in-the-vine'];
+  let initialDevotionals = deduplicateDevotionals(SEED_DEVOTIONALS);
+  let initialComments: Comment[] = [];
+  let initialLikes: string[] = [];
 
   try {
     const storedD = localStorage.getItem(STORAGE_KEY_DEVOTIONALS);
-    if (storedD) initialDevotionals = JSON.parse(storedD);
+    if (storedD) {
+      const parsed = JSON.parse(storedD);
+      if (Array.isArray(parsed)) {
+        initialDevotionals = deduplicateDevotionals(
+          parsed.map((d: Devotional) => ({
+            ...d,
+            likeCount: DUMMY_LIKE_COUNTS.has(d.likeCount) ? 0 : (d.likeCount || 0),
+            viewCount: DUMMY_VIEW_COUNTS.has(d.viewCount) ? 0 : (d.viewCount || 0),
+          }))
+        );
+      }
+    }
     const storedC = localStorage.getItem(STORAGE_KEY_COMMENTS);
-    if (storedC) initialComments = JSON.parse(storedC);
+    if (storedC) {
+      const parsedC = JSON.parse(storedC);
+      if (Array.isArray(parsedC)) {
+        initialComments = deduplicateComments(
+          parsedC.filter((c: Comment) => !DUMMY_COMMENT_IDS.has(c.id))
+        );
+      }
+    }
     const storedL = localStorage.getItem(STORAGE_KEY_LIKES);
-    if (storedL) initialLikes = JSON.parse(storedL);
+    if (storedL) initialLikes = Array.from(new Set(JSON.parse(storedL)));
   } catch {
     // fallback
   }
 
   const persistDevotionals = (items: Devotional[]) => {
-    localStorage.setItem(STORAGE_KEY_DEVOTIONALS, JSON.stringify(items));
+    const deduped = deduplicateDevotionals(items);
+    localStorage.setItem(STORAGE_KEY_DEVOTIONALS, JSON.stringify(deduped));
   };
 
   const persistComments = (items: Comment[]) => {
-    localStorage.setItem(STORAGE_KEY_COMMENTS, JSON.stringify(items));
+    const deduped = deduplicateComments(items);
+    localStorage.setItem(STORAGE_KEY_COMMENTS, JSON.stringify(deduped));
   };
 
   const persistLikes = (items: string[]) => {
@@ -79,6 +140,7 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
     comments: initialComments,
     likedIds: initialLikes,
     searchQuery: '',
+    filterDate: null,
     selectedTag: null,
     activeDevotionalId: initialDevotionals[0]?.id || null,
     isLoading: false,
@@ -94,43 +156,81 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
             if (!snapshot.empty) {
               const remoteDevotionals: Devotional[] = [];
               snapshot.forEach((dDoc) => {
-                remoteDevotionals.push({ id: dDoc.id, ...dDoc.data() } as Devotional);
+                const data = dDoc.data() as Partial<Devotional>;
+                let likeCount = data.likeCount ?? 0;
+                let viewCount = data.viewCount ?? 0;
+                let needsDocUpdate = false;
+
+                if (DUMMY_LIKE_COUNTS.has(likeCount)) {
+                  likeCount = 0;
+                  needsDocUpdate = true;
+                }
+                if (DUMMY_VIEW_COUNTS.has(viewCount)) {
+                  viewCount = 0;
+                  needsDocUpdate = true;
+                }
+
+                if (needsDocUpdate) {
+                  try {
+                    updateDoc(doc(db, 'devotionals', dDoc.id), {
+                      likeCount,
+                      viewCount,
+                    });
+                  } catch {
+                    // ignore
+                  }
+                }
+
+                remoteDevotionals.push({
+                  id: dDoc.id,
+                  ...data,
+                  likeCount,
+                  viewCount,
+                } as Devotional);
               });
-              persistDevotionals(remoteDevotionals);
-              set({ devotionals: remoteDevotionals, isLoading: false });
-            } else {
-              // Remote collection is empty; seed initial teachings
-              try {
-                for (const dev of SEED_DEVOTIONALS) {
-                  const { id, ...data } = dev;
-                  await setDoc(doc(db, 'devotionals', id), data);
-                }
-                for (const comm of SEED_COMMENTS) {
-                  const { id, devotionalId, ...cData } = comm;
-                  await setDoc(doc(db, 'devotionals', devotionalId, 'comments', id), {
-                    ...cData,
-                    devotionalId,
-                  });
-                }
-              } catch (seedErr) {
-                console.info('Initial Firestore seeding notice:', seedErr);
+              const dedupedRemote = deduplicateDevotionals(remoteDevotionals);
+              persistDevotionals(dedupedRemote);
+              set({ devotionals: dedupedRemote, isLoading: false });
+              // Auto-publish drafts if any are scheduled for today
+              get().autoPublishScheduledDrafts();
+
+              if (!autoPublishTimer && typeof window !== 'undefined') {
+                autoPublishTimer = setInterval(() => {
+                  get().autoPublishScheduledDrafts();
+                }, 30000);
               }
-              set({ devotionals: SEED_DEVOTIONALS, isLoading: false });
+            } else {
+              // Remote collection is empty; seed initial teachings if admin, otherwise use local seed
+              if (useAuthStore.getState().isAdmin) {
+                try {
+                  for (const dev of SEED_DEVOTIONALS) {
+                    const { id, ...data } = dev;
+                    await setDoc(doc(db, 'devotionals', id), data);
+                  }
+                } catch (seedErr) {
+                  console.info('Initial Firestore seeding notice:', seedErr);
+                }
+              }
+              const dedupedSeed = deduplicateDevotionals(SEED_DEVOTIONALS);
+              set({ devotionals: dedupedSeed, isLoading: false });
+              get().autoPublishScheduledDrafts();
             }
           },
           (snapshotError) => {
             // Gracefully fall back to local storage / seed data without throwing unhandled error
             console.info('Operating with offline devotional cache:', snapshotError.message);
-            set({ devotionals: get().devotionals || SEED_DEVOTIONALS, isLoading: false });
+            set({ devotionals: deduplicateDevotionals(get().devotionals || SEED_DEVOTIONALS), isLoading: false });
+            get().autoPublishScheduledDrafts();
           }
         );
       } catch (err) {
         console.warn('Devotionals connection notice:', err);
-        set({ devotionals: get().devotionals || SEED_DEVOTIONALS, isLoading: false });
+        set({ devotionals: deduplicateDevotionals(get().devotionals || SEED_DEVOTIONALS), isLoading: false });
       }
     },
 
     setSearchQuery: (searchQuery) => set({ searchQuery }),
+    setFilterDate: (filterDate) => set({ filterDate }),
     setSelectedTag: (selectedTag) => set({ selectedTag }),
     setActiveDevotionalId: (activeDevotionalId) => set({ activeDevotionalId }),
 
@@ -142,14 +242,17 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
           (snapshot) => {
             const loaded: Comment[] = [];
             snapshot.forEach((cDoc) => {
-              loaded.push({ id: cDoc.id, ...cDoc.data() } as Comment);
+              if (!DUMMY_COMMENT_IDS.has(cDoc.id)) {
+                loaded.push({ id: cDoc.id, ...cDoc.data() } as Comment);
+              }
             });
-            if (loaded.length > 0) {
-              const otherComments = get().comments.filter((c) => c.devotionalId !== devotionalId);
-              const combined = [...loaded, ...otherComments];
-              persistComments(combined);
-              set({ comments: combined });
-            }
+
+            const otherComments = get().comments.filter(
+              (c) => c.devotionalId !== devotionalId && !DUMMY_COMMENT_IDS.has(c.id)
+            );
+            const combined = deduplicateComments([...loaded, ...otherComments]);
+            persistComments(combined);
+            set({ comments: combined });
           },
           (err) => {
             console.info('Comments offline cache active:', err.message);
@@ -206,26 +309,28 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
 
       try {
         const dRef = doc(db, 'devotionals', devotionalId);
-        await updateDoc(dRef, { viewCount: updatedCount });
+        await updateDoc(dRef, { viewCount: increment(1) });
       } catch (err) {
         console.info('View counted locally:', err);
       }
     },
 
-    addComment: async (devotionalId, uid, displayName, body) => {
+    addComment: async (devotionalId, uid, displayName, body, photoUrl, imageUrl) => {
       const commentId = 'comm_' + Date.now();
       const newComment: Comment = {
         id: commentId,
         devotionalId,
         uid,
         displayName: displayName || 'Disciple of Christ',
+        photoUrl: photoUrl || null,
         body: body.trim(),
+        imageUrl: imageUrl || null,
         createdAt: new Date().toISOString(),
         reported: false,
         reportedBy: [],
       };
 
-      const updated = [newComment, ...get().comments];
+      const updated = deduplicateComments([newComment, ...get().comments]);
       persistComments(updated);
       set({ comments: updated });
 
@@ -234,6 +339,27 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
         await setDoc(commRef, newComment);
       } catch (err) {
         console.info('Comment stored locally:', err);
+      }
+    },
+
+    editComment: async (commentId, newBody, devotionalId) => {
+      const now = new Date().toISOString();
+      const targetDevotionalId =
+        devotionalId || get().comments.find((c) => c.id === commentId)?.devotionalId;
+
+      const updated = get().comments.map((c) =>
+        c.id === commentId ? { ...c, body: newBody.trim(), updatedAt: now } : c
+      );
+      persistComments(updated);
+      set({ comments: updated });
+
+      if (targetDevotionalId) {
+        try {
+          const commRef = doc(db, 'devotionals', targetDevotionalId, 'comments', commentId);
+          await updateDoc(commRef, { body: newBody.trim(), updatedAt: now });
+        } catch (err) {
+          console.info('Comment edit saved locally:', err);
+        }
       }
     },
 
@@ -302,14 +428,28 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
 
     createDevotional: async (devotionalData) => {
       const id = 'dev_' + Date.now().toString(36);
+      let scheduledPublishAt = devotionalData.scheduledPublishAt || null;
+      if (
+        !scheduledPublishAt &&
+        devotionalData.scheduledDate &&
+        devotionalData.scheduledTimezone !== 'user_local'
+      ) {
+        scheduledPublishAt = computeIsoFromZonedDateTime(
+          devotionalData.scheduledDate,
+          devotionalData.scheduledTime || '06:00',
+          devotionalData.scheduledTimezone || 'Africa/Lagos'
+        );
+      }
+
       const newDevotional: Devotional = {
         ...devotionalData,
         id,
+        scheduledPublishAt,
         viewCount: 0,
         likeCount: 0,
         createdAt: new Date().toISOString(),
       };
-      const updated = [newDevotional, ...get().devotionals];
+      const updated = deduplicateDevotionals([newDevotional, ...get().devotionals]);
       persistDevotionals(updated);
       set({ devotionals: updated });
 
@@ -322,14 +462,41 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
     },
 
     updateDevotional: async (id, updates) => {
-      const updated = get().devotionals.map((d) => (d.id === id ? { ...d, ...updates } : d));
+      const current = get().devotionals;
+      const target = current.find((d) => d.id === id);
+
+      const effectiveDate =
+        updates.scheduledDate !== undefined ? updates.scheduledDate : target?.scheduledDate;
+      const effectiveTime =
+        updates.scheduledTime !== undefined ? updates.scheduledTime : target?.scheduledTime;
+      const effectiveTimezone =
+        updates.scheduledTimezone !== undefined ? updates.scheduledTimezone : target?.scheduledTimezone;
+
+      let scheduledPublishAt: string | null = null;
+      if (effectiveDate && effectiveTimezone !== 'user_local') {
+        scheduledPublishAt = computeIsoFromZonedDateTime(
+          effectiveDate,
+          effectiveTime || '06:00',
+          effectiveTimezone || 'Africa/Lagos'
+        );
+      }
+
+      const merged: Devotional = target
+        ? { ...target, ...updates, scheduledPublishAt }
+        : ({ id, ...updates, scheduledPublishAt } as Devotional);
+
+      const updated = deduplicateDevotionals(
+        !current.some((d) => d.id === id) ? [merged, ...current] : current.map((d) => (d.id === id ? merged : d))
+      );
       persistDevotionals(updated);
       set({ devotionals: updated });
 
       try {
-        await updateDoc(doc(db, 'devotionals', id), updates);
+        const { id: _, ...dataToSave } = merged;
+        await setDoc(doc(db, 'devotionals', id), dataToSave, { merge: true });
+        console.info('Devotional updated successfully in Firestore:', id);
       } catch (err) {
-        console.info('Update saved locally:', err);
+        console.warn('Update saved locally, cloud sync notice:', err);
       }
     },
 
@@ -341,22 +508,64 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
       try {
         await deleteDoc(doc(db, 'devotionals', id));
       } catch (err) {
-        console.info('Deletion saved locally:', err);
+        console.info('Deletion completed locally:', err);
       }
     },
 
     publishDevotional: async (id) => {
       const now = new Date().toISOString();
-      const updated = get().devotionals.map((d) =>
+      const current = get().devotionals;
+      const target = current.find((d) => d.id === id);
+      const updated = current.map((d) =>
         d.id === id ? { ...d, publishedAt: now } : d
       );
       persistDevotionals(updated);
       set({ devotionals: updated });
 
       try {
-        await updateDoc(doc(db, 'devotionals', id), { publishedAt: now });
+        if (target) {
+          const { id: _, ...data } = { ...target, publishedAt: now };
+          await setDoc(doc(db, 'devotionals', id), data, { merge: true });
+        } else {
+          await updateDoc(doc(db, 'devotionals', id), { publishedAt: now });
+        }
       } catch (err) {
         console.info('Publish status saved locally:', err);
+      }
+    },
+
+    autoPublishScheduledDrafts: async () => {
+      const { devotionals } = get();
+
+      // Find all draft devotionals that are due to publish based on date, time, and timezone
+      const toAutoPublish = devotionals.filter(
+        (d) =>
+          d.publishedAt === null &&
+          Boolean(d.scheduledDate || d.scheduledPublishAt) &&
+          isDevotionalLive(d)
+      );
+
+      if (toAutoPublish.length === 0) return;
+
+      const now = new Date().toISOString();
+      const publishIds = new Set(toAutoPublish.map((d) => d.id));
+
+      const updated = devotionals.map((d) =>
+        publishIds.has(d.id) ? { ...d, publishedAt: now } : d
+      );
+
+      persistDevotionals(updated);
+      set({ devotionals: updated });
+
+      if (useAuthStore.getState().isAdmin) {
+        for (const dev of toAutoPublish) {
+          try {
+            await updateDoc(doc(db, 'devotionals', dev.id), { publishedAt: now });
+            console.info('Automatically published scheduled devotional:', dev.title);
+          } catch (err) {
+            console.info('Scheduled draft auto-publish noted locally:', err);
+          }
+        }
       }
     },
   };

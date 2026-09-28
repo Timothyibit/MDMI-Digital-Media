@@ -19,6 +19,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@untitledui/icons": [
+        "./src/lib/untitledui-icons.tsx"
       ]
     },
     "allowImportingTsExtensions": true,

@@ -28,9 +28,9 @@ export const StreakTracker: React.FC<StreakTrackerProps> = ({
       <div
         id="streak-tracker-compact"
         onClick={onPress}
-        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-semibold ${className}`}
+        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FB6340]/10 border border-[#FB6340]/25 text-[#FB6340] text-xs font-bold ${className}`}
       >
-        <Flame className="w-4 h-4 fill-amber-500 text-amber-500 animate-pulse" />
+        <Flame className="w-4 h-4 fill-[#FB6340] text-[#FB6340] animate-pulse" />
         <span className="tabular-nums">{streak}d streak</span>
       </div>
     );
@@ -40,16 +40,16 @@ export const StreakTracker: React.FC<StreakTrackerProps> = ({
     return (
       <div
         id="streak-tracker-badge"
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 ${className}`}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#FB6340]/10 border border-[#FB6340]/25 ${className}`}
       >
-        <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-500">
-          <Flame className="w-4 h-4 fill-amber-500" />
+        <div className="w-7 h-7 rounded-lg bg-[#FB6340]/20 flex items-center justify-center text-[#FB6340]">
+          <Flame className="w-4 h-4 fill-[#FB6340]" />
         </div>
         <div className="text-left">
-          <div className="text-xs font-bold text-neutral-900 dark:text-white tabular-nums">
+          <div className="text-xs font-bold text-[#172B4D] dark:text-white tabular-nums">
             {streak} Day Streak
           </div>
-          <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
+          <div className="text-[10px] text-[#525F7F] dark:text-neutral-400">
             {nextMilestone - streak} days to {nextMilestone}d badge
           </div>
         </div>
@@ -61,23 +61,23 @@ export const StreakTracker: React.FC<StreakTrackerProps> = ({
     <div
       id="streak-tracker-card"
       onClick={onPress}
-      className={`relative overflow-hidden rounded-3xl p-5 bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent border border-amber-500/25 transition-all hover:border-amber-500/40 cursor-pointer ${className}`}
+      className={`relative overflow-hidden rounded-lg p-5 bg-white dark:bg-neutral-900 border border-[#E9ECEF] dark:border-neutral-800 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_20px_rgba(50,50,93,0.12)] transition-all cursor-pointer ${className}`}
     >
       <div className="flex items-start justify-between">
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5" /> Daily Walk
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#FB6340] flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-[#FB6340]" /> Daily Walk
           </span>
           <div className="mt-1 flex items-baseline gap-1.5">
             <motion.span
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 300 }}
-              className="text-4xl font-extrabold font-display-scripture text-neutral-950 dark:text-amber-100 tabular-nums"
+              className="text-4xl font-extrabold font-display-scripture text-[#172B4D] dark:text-white tabular-nums"
             >
               {streak}
             </motion.span>
-            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+            <span className="text-xs font-semibold text-[#525F7F] dark:text-neutral-400">
               {streak === 1 ? 'day' : 'days active'}
             </span>
           </div>
@@ -90,25 +90,25 @@ export const StreakTracker: React.FC<StreakTrackerProps> = ({
           }}
           title="Milestone celebration"
           aria-label="Celebrate streak"
-          className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 hover:scale-105 transition-transform"
+          className="w-11 h-11 rounded-lg bg-[#FB6340]/15 border border-[#FB6340]/30 flex items-center justify-center text-[#FB6340] hover:scale-105 transition-transform"
         >
-          <Flame className="w-6 h-6 fill-amber-500 animate-bounce" />
+          <Flame className="w-6 h-6 fill-[#FB6340] animate-bounce" />
         </button>
       </div>
 
       <div className="mt-4">
-        <div className="flex justify-between text-[11px] text-neutral-600 dark:text-neutral-400 mb-1">
-          <span className="flex items-center gap-1 font-medium">
-            <Award className="w-3 h-3 text-amber-500" /> Next Milestone: {nextMilestone} Days
+        <div className="flex justify-between text-[11px] text-[#525F7F] dark:text-neutral-400 mb-1.5">
+          <span className="flex items-center gap-1 font-semibold">
+            <Award className="w-3.5 h-3.5 text-[#FB6340]" /> Next Milestone: {nextMilestone} Days
           </span>
-          <span className="font-semibold tabular-nums">{progressPercent}%</span>
+          <span className="font-bold tabular-nums text-[#172B4D] dark:text-neutral-200">{progressPercent}%</span>
         </div>
-        <div className="w-full h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+        <div className="w-full h-2 rounded-full bg-[#E9ECEF] dark:bg-neutral-800 overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${progressPercent}%` }}
             transition={{ duration: 0.8, ease: 'easeOut' }}
-            className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
+            className="h-full bg-gradient-to-r from-[#FB6340] to-[#fbb140] rounded-full"
           />
         </div>
       </div>

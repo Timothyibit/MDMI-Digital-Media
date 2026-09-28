@@ -11,12 +11,34 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == uid;
     }
 
+    // Runtime bootstrapped admin from metadata
+    function isBootstrappedAdmin() {
+      return isAuthenticated() &&
+        ('email' in request.auth.token) &&
+        request.auth.token.email.lower() == 'ibitoyetimothy5@gmail.com';
+    }
+
+    // Trusted Admin validation
     function isAdmin() {
       return isAuthenticated() && (
-        request.auth.token.role == 'admin' ||
+        isBootstrappedAdmin() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
+    }
+
+    // Connection testing
+    match /test/{testId} {
+      allow read: if true;
+    }
+
+    // ==========================================
+    // ADMINS ROLES COLLECTION
+    // ==========================================
+    match /admins/{uid} {
+      allow read: if isAuthenticated();
+      allow write: if isBootstrappedAdmin() || isAdmin();
     }
 
     // ==========================================
@@ -26,8 +48,13 @@ service cloud.firestore {
       // Devotionals are public ministry teachings readable by all visitors
       allow read: if true;
 
-      // Ministry overseers or initial seeding when creating documents
-      allow write: if isAdmin() || !exists(/databases/$(database)/documents/devotionals/$(devotionalId));
+      // Only ministry overseers and admins can author or delete teachings.
+      allow create, delete: if isBootstrappedAdmin() || isAdmin();
+
+      // Disciples can update likeCount and viewCount.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'viewCount']) ||
+                       isAdmin() ||
+                       isBootstrappedAdmin();
 
       // Comments Subcollection
       match /comments/{commentId} {
@@ -39,9 +66,12 @@ service cloud.firestore {
 
         allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reported', 'reportedBy']) ||
                          (isAuthenticated() && isOwner(resource.data.uid)) ||
-                         isAdmin();
+                         isAdmin() ||
+                         isBootstrappedAdmin();
 
-        allow delete: if (isAuthenticated() && isOwner(resource.data.uid)) || isAdmin();
+        allow delete: if (isAuthenticated() && isOwner(resource.data.uid)) ||
+                         isAdmin() ||
+                         isBootstrappedAdmin();
       }
     }
 
@@ -49,18 +79,66 @@ service cloud.firestore {
     // USER PROFILES & SUBCOLLECTIONS
     // ==========================================
     match /users/{uid} {
-      allow read: if true;
-      allow write: if (isAuthenticated() && request.auth.uid == uid) || !exists(/databases/$(database)/documents/users/$(uid)) || isAdmin();
+      // Admins can see all registered users; individuals can read their own profile
+      allow list: if isAdmin() || isBootstrappedAdmin();
+      allow get: if isOwner(uid) || isAdmin() || isBootstrappedAdmin();
+
+      // Creation: Disciples can create their own profile with role='user'. Only bootstrapped or existing admins can create an admin profile.
+      allow create: if (isAuthenticated() && request.auth.uid == uid && (
+        request.resource.data.role == 'user' ||
+        isBootstrappedAdmin() ||
+        isAdmin()
+      )) || isAdmin() || isBootstrappedAdmin();
+
+      // Updates: Disciples can update their profile information, but CANNOT modify their 'role' (no self-promotion).
+      // Admins can update any user's profile and promote or demote roles.
+      allow update: if (
+        (isAuthenticated() && request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])) ||
+        isAdmin() ||
+        isBootstrappedAdmin()
+      );
+
+      allow delete: if isAdmin() || isBootstrappedAdmin();
 
       // Bookmarks Subcollection
       match /bookmarks/{devotionalId} {
-        allow read, write: if (isAuthenticated() && request.auth.uid == uid) || true;
+        allow read, write: if isOwner(uid) || isAdmin() || isBootstrappedAdmin();
       }
 
       // Private Spiritual Journal Subcollection
       match /journal/{entryId} {
-        allow read, write: if (isAuthenticated() && request.auth.uid == uid) || true;
+        allow read, write: if isOwner(uid) || isAdmin() || isBootstrappedAdmin();
       }
+
+      // Reading History Subcollection
+      match /readingHistory/{logId} {
+        allow read, write: if isOwner(uid) || isAdmin() || isBootstrappedAdmin();
+      }
+    }
+
+    // ==========================================
+    // APP CONFIG & PAGE TEMPLATES
+    // ==========================================
+    match /appConfig/{configId} {
+      allow read: if true;
+      allow write: if isAdmin() || isBootstrappedAdmin();
+    }
+
+    // ==========================================
+    // NOTIFICATIONS & BROADCASTS
+    // ==========================================
+    match /notifications/{notificationId} {
+      allow read: if true;
+      allow create, update: if isAdmin() || isBootstrappedAdmin() || isAuthenticated();
+      allow delete: if true;
+    }
+
+    // ==========================================
+    // NOTIFICATION SCHEDULES, TIMERS & AUTO RULES
+    // ==========================================
+    match /notificationSchedules/{scheduleId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() || isBootstrappedAdmin() || isAuthenticated();
     }
   }
 }

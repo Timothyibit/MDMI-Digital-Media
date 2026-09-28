@@ -1,19 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { View, Text, TouchableOpacity, SafeAreaView } from 'react-native';
 import {
-  Home,
+  Compass,
   BookOpen,
-  PenTool,
+  BookHeart,
   User,
-  Shield,
-  Volume2,
-  Sparkles,
+  ShieldCheck,
+  Flame,
+  Search,
 } from 'lucide-react';
 import { useAuthStore } from './store/useAuthStore';
 import { useUIStore } from './store/useUIStore';
 import { useDevotionalStore } from './store/useDevotionalStore';
 import { useJournalStore } from './store/useJournalStore';
 import { useBookmarkStore } from './store/useBookmarkStore';
-import { Devotional } from './types';
+import { Devotional, TabType } from './types';
 
 // Components & Tabs
 import { HomeTab } from './tabs/HomeTab';
@@ -29,26 +30,95 @@ import { AudioPlayer } from './components/ui/AudioPlayer';
 import { AuthGateSheet } from './features/auth/AuthGateSheet';
 import { CommentsSheet } from './components/comments/CommentsSheet';
 import { VerseShareCard } from './components/share/VerseShareCard';
+import { VoiceSelectorModal } from './components/ui/VoiceSelectorModal';
 import { StreakConfetti } from './components/celebration/StreakConfetti';
+import { NotificationDrawer } from './components/notifications/NotificationDrawer';
+import { IntroLoadingScreen } from './components/onboarding/IntroLoadingScreen';
+import { OnboardingModal } from './components/onboarding/OnboardingModal';
+import { ThemeToggle } from './components/ui/ThemeToggle';
+import { MdmiLogo } from './components/ui/MdmiLogo';
+import { AnimatedNavFramer, NavItem } from './components/animated-nav-framer';
+import { CodeherenceHeader } from './components/header/CodeherenceHeader';
+import { AboutTab } from './tabs/AboutTab';
+import { useNotificationStore } from './store/useNotificationStore';
+import { useLayoutStore } from './store/useLayoutStore';
 
 export default function App() {
   const { initialize: initAuth, isAdmin, user } = useAuthStore();
-  const { activeTab, setActiveTab, theme } = useUIStore();
-  const { devotionals, initializeDevotionals } = useDevotionalStore();
+  const {
+    activeTab,
+    setActiveTab,
+    theme,
+    introSplashOpen,
+    openIntroSplash,
+    closeIntroSplash,
+    onboardingOpen,
+    openOnboarding,
+    closeOnboarding,
+  } = useUIStore();
+  const { devotionals, initializeDevotionals, activeDevotionalId, setActiveDevotionalId } = useDevotionalStore();
   const { initializeJournal } = useJournalStore();
   const { initializeBookmarks } = useBookmarkStore();
+  const { initializeNotifications } = useNotificationStore();
+  const { initialize: initializeLayout } = useLayoutStore();
 
-  const [selectedDevotional, setSelectedDevotional] = useState<Devotional | null>(
-    devotionals[0] || null
-  );
-  const [previousTab, setPreviousTab] = useState<'home' | 'devotionals' | 'journal' | 'profile' | 'admin'>('home');
+  const selectedDevotional = useMemo(() => {
+    if (activeDevotionalId) {
+      const found = devotionals.find((d) => d.id === activeDevotionalId);
+      if (found) return found;
+    }
+    return devotionals[0] || null;
+  }, [devotionals, activeDevotionalId]);
+
+  const [previousTab, setPreviousTab] = useState<TabType>('home');
+
+  // First-launch opening flow: prioritize onboarding for first-time users or ?onboarding param
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('onboarding') || urlParams.has('welcome')) {
+        openOnboarding();
+        return;
+      }
+
+      const completedOnboarding = localStorage.getItem('mdmi_onboarding_completed');
+      if (!completedOnboarding) {
+        openOnboarding();
+      } else {
+        const seenIntro = localStorage.getItem('mdmi_has_seen_intro');
+        if (!seenIntro) {
+          localStorage.setItem('mdmi_has_seen_intro', 'true');
+          openIntroSplash();
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [openIntroSplash, openOnboarding]);
+
+  const handleFinishIntro = () => {
+    closeIntroSplash();
+    try {
+      const completedOnboarding = localStorage.getItem('mdmi_onboarding_completed');
+      if (!completedOnboarding) {
+        openOnboarding();
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     initAuth();
     initializeDevotionals();
-  }, [initAuth, initializeDevotionals]);
+    initializeLayout();
+    const unsubNotifs = initializeNotifications();
+    return () => {
+      unsubNotifs?.();
+    };
+  }, [initAuth, initializeDevotionals, initializeLayout, initializeNotifications]);
 
-  // When user is authenticated (anonymous or Google), connect user subcollections
+  // Connect user subcollections when authenticated
   useEffect(() => {
     if (user?.uid) {
       initializeJournal(user.uid);
@@ -56,28 +126,21 @@ export default function App() {
     }
   }, [user?.uid, initializeJournal, initializeBookmarks]);
 
-  // Apply dark mode class to HTML root element based on user theme
+  // Guard admin tab from unauthorized access
   useEffect(() => {
-    const root = document.documentElement;
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (activeTab === 'admin' && !isAdmin) {
+      setActiveTab('home');
+    }
+  }, [activeTab, isAdmin, setActiveTab]);
 
+  // Keep DOM theme class in sync with Zustand UI state
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
-      root.classList.remove('theme-sepia');
-    } else if (theme === 'sepia') {
-      root.classList.remove('dark');
-      root.classList.add('theme-sepia');
-    } else if (theme === 'light') {
-      root.classList.remove('dark');
-      root.classList.remove('theme-sepia');
     } else {
-      // system
-      root.classList.remove('theme-sepia');
-      if (prefersDark) {
-        root.classList.add('dark');
-      } else {
-        root.classList.remove('dark');
-      }
+      root.classList.remove('dark');
     }
   }, [theme]);
 
@@ -85,34 +148,47 @@ export default function App() {
     if (activeTab !== 'reader') {
       setPreviousTab(activeTab as any);
     }
-    setSelectedDevotional(devotional);
+    setActiveDevotionalId(devotional.id);
     setActiveTab('reader');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleBackFromReader = () => {
     setActiveTab(previousTab);
   };
 
-  const isSepia = theme === 'sepia';
   const isDark = theme === 'dark';
 
-  const containerBg = isSepia
-    ? 'bg-[#F4ECD8] text-[#5B4636]'
-    : isDark
-    ? 'bg-black text-[#EDEDED]'
+  const containerBg = isDark
+    ? 'bg-neutral-950 text-[#EDEDED]'
     : 'bg-[#F8F9FA] text-neutral-900';
 
-  const navBg = isSepia
-    ? 'bg-[#EFE6D0]/95 border-[#DFD1B5] text-[#5B4636]'
-    : isDark
-    ? 'bg-black/95 border-neutral-900 text-white'
-    : 'bg-white/95 border-neutral-200 text-neutral-900';
+  const navBg = isDark
+    ? 'bg-neutral-950/95 border-neutral-800'
+    : 'bg-white/95 border-neutral-200';
+
+  const tabs = [
+    { id: 'home', label: 'Today', icon: Compass },
+    { id: 'devotionals', label: 'Library', icon: BookOpen },
+    { id: 'journal', label: 'Journal', icon: BookHeart },
+    { id: 'profile', label: 'Profile', icon: User },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: ShieldCheck }] : []),
+  ];
+
+  const framerNavItems: NavItem[] = tabs.map(({ id, label, icon: Icon }) => ({
+    id,
+    name: label,
+    icon: Icon,
+    active: activeTab === id,
+    onClick: () => setActiveTab(id as any),
+  }));
 
   return (
-    <div
+    <SafeAreaView
       id="app-root"
-      className={`min-h-screen flex flex-col font-sans transition-colors selection:bg-blue-500 selection:text-white ${containerBg}`}
+      className={`min-h-screen flex-1 flex flex-col font-sans transition-colors ${containerBg}`}
     >
       {/* Offline Status Slide-down Banner */}
       <OfflineBanner />
@@ -120,71 +196,28 @@ export default function App() {
       {/* Global Streak Confetti Celebration */}
       <StreakConfetti />
 
-      {/* Persistent Narration Player (Floats above tab bar) */}
+      {/* Persistent Narration Player */}
       <AudioPlayer />
+
+      {/* Intro Loading Screen & Craft Onboarding Tour */}
+      <IntroLoadingScreen isOpen={introSplashOpen} onFinish={handleFinishIntro} />
+      <OnboardingModal isOpen={onboardingOpen} onClose={closeOnboarding} />
 
       {/* Modal & Sheet Overlays */}
       <AuthGateSheet />
       <CommentsSheet />
       <VerseShareCard />
+      <VoiceSelectorModal />
+      <NotificationDrawer />
 
-      {/* Desktop Navigation Top Bar (hidden on reader mode) */}
-      {activeTab !== 'reader' && (
-        <header
-          id="desktop-header"
-          className={`sticky top-0 z-30 border-b backdrop-blur-md px-4 sm:px-8 py-3 transition-colors ${navBg}`}
-        >
-          <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <div
-              className="flex items-center gap-3 cursor-pointer select-none"
-              onClick={() => setActiveTab('home')}
-            >
-              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-display-scripture font-bold text-sm shadow-md">
-                M
-              </div>
-              <div>
-                <span className="text-[10px] font-bold tracking-widest text-blue-600 dark:text-blue-400 uppercase font-display-scripture block leading-none">
-                  MDMI DEVOTIONALS
-                </span>
-                <span className="text-sm font-extrabold font-display-scripture text-neutral-900 dark:text-white leading-tight">
-                  The Master's Discipleship
-                </span>
-              </div>
-            </div>
+      {/* Constant Sticky Header - Identical Across All Screens */}
+      <CodeherenceHeader
+        activeTab={activeTab}
+        onSelectTab={(tab) => setActiveTab(tab)}
+      />
 
-            {/* Desktop Nav Links */}
-            <nav className="hidden md:flex items-center gap-1">
-              {[
-                { id: 'home', label: 'Today', icon: Home },
-                { id: 'devotionals', label: 'Library', icon: BookOpen },
-                { id: 'journal', label: 'Journal', icon: PenTool },
-                { id: 'profile', label: 'Profile & Walk', icon: User },
-                ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Shield }] : []),
-              ].map(({ id, label, icon: Icon }) => {
-                const isActive = activeTab === id;
-                return (
-                  <button
-                    key={id}
-                    id={`desktop-nav-${id}`}
-                    onClick={() => setActiveTab(id as any)}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </header>
-      )}
-
-      {/* Main Content Viewport */}
-      <div className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6">
+      {/* Main Content Viewport - Centralized across all views */}
+      <View className="flex-1 w-full max-w-5xl mx-auto px-3.5 sm:px-6 pt-3 sm:pt-6 pb-28 sm:pb-32">
         {activeTab === 'reader' && selectedDevotional ? (
           <DevotionalReader
             devotional={selectedDevotional}
@@ -200,45 +233,25 @@ export default function App() {
           <ProfileTab onSelectDevotional={handleOpenDevotional} />
         ) : activeTab === 'admin' ? (
           <AdminTab />
+        ) : activeTab === 'about' ? (
+          <AboutTab
+            onBack={() => setActiveTab('profile')}
+            onNavigate={(tab) => setActiveTab(tab)}
+          />
         ) : null}
-      </div>
+      </View>
 
-      {/* Mobile Bottom Navigation Bar (Hidden when in Reader view to maximize reading immersion) */}
+      {/* Sticky Floating Bottom Animated Nav - Framer Motion spring physics with scroll collapse for mobile & tablet */}
       {activeTab !== 'reader' && (
-        <nav
-          id="mobile-bottom-nav"
-          aria-label="Mobile Navigation"
-          className={`md:hidden fixed bottom-0 inset-x-0 z-30 border-t backdrop-blur-xl px-2 py-1.5 transition-colors ${navBg}`}
-        >
-          <div className="flex items-center justify-around max-w-md mx-auto">
-            {[
-              { id: 'home', label: 'Today', icon: Home },
-              { id: 'devotionals', label: 'Library', icon: BookOpen },
-              { id: 'journal', label: 'Journal', icon: PenTool },
-              { id: 'profile', label: 'Profile', icon: User },
-              ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Shield }] : []),
-            ].map(({ id, label, icon: Icon }) => {
-              const isActive = activeTab === id;
-              return (
-                <button
-                  key={id}
-                  id={`mobile-tab-${id}`}
-                  onClick={() => setActiveTab(id as any)}
-                  aria-label={label}
-                  className={`flex flex-col items-center justify-center py-1 px-3 rounded-2xl transition-all ${
-                    isActive
-                      ? 'text-blue-600 dark:text-blue-400 font-bold scale-105'
-                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
-                  }`}
-                >
-                  <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.4]' : 'stroke-[1.8]'}`} />
-                  <span className="text-[10px] mt-0.5">{label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+        <AnimatedNavFramer
+          position="bottom"
+          items={framerNavItems}
+          activeId={activeTab}
+          onSelect={(id) => setActiveTab(id as any)}
+          logo={<MdmiLogo size={22} />}
+          className="flex xl:hidden"
+        />
       )}
-    </div>
+    </SafeAreaView>
   );
 }

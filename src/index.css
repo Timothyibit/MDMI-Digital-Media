@@ -1,10 +1,92 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Montserrat', 'Proxima Nova', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-montserrat: 'Montserrat', sans-serif;
+  --font-proxima: 'Proxima Nova', 'Montserrat', sans-serif;
+  --font-serif: 'Newsreader', Georgia, serif;
+  --font-display: 'Montserrat', 'Cinzel', Georgia, sans-serif;
+
+  /* shadcn color token mappings */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
 
 @layer base {
   :root {
-    --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-sans: 'Montserrat', 'Proxima Nova', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-montserrat: 'Montserrat', sans-serif;
+    --font-proxima: 'Proxima Nova', 'Montserrat', sans-serif;
     --font-serif: 'Newsreader', Georgia, serif;
-    --font-display: 'Cinzel', Georgia, serif;
+    --font-display: 'Montserrat', 'Cinzel', Georgia, sans-serif;
+
+    --background: #f8f9fa;
+    --foreground: #172b4d;
+    --card: #ffffff;
+    --card-foreground: #172b4d;
+    --popover: #ffffff;
+    --popover-foreground: #172b4d;
+    --primary: #5e72e4;
+    --primary-foreground: #ffffff;
+    --secondary: #f4f5f7;
+    --secondary-foreground: #172b4d;
+    --muted: #f1f3f5;
+    --muted-foreground: #6b778c;
+    --accent: #f4f5f7;
+    --accent-foreground: #172b4d;
+    --destructive: #f5365c;
+    --destructive-foreground: #ffffff;
+    --border: #cad1d7;
+    --input: #cad1d7;
+    --ring: #5e72e4;
+  }
+
+  .dark {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --card: #141414;
+    --card-foreground: #ededed;
+    --popover: #141414;
+    --popover-foreground: #ededed;
+    --primary: #5e72e4;
+    --primary-foreground: #ffffff;
+    --secondary: #222222;
+    --secondary-foreground: #ededed;
+    --muted: #262626;
+    --muted-foreground: #a3a3a3;
+    --accent: #262626;
+    --accent-foreground: #ededed;
+    --destructive: #f5365c;
+    --destructive-foreground: #ffffff;
+    --border: #2e2e2e;
+    --input: #333333;
+    --ring: #5e72e4;
+  }
+
+  html, body, #root {
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
   }
 
   body {
@@ -13,12 +95,20 @@
   }
 }
 
+.font-montserrat {
+  font-family: 'Montserrat', sans-serif;
+}
+
+.font-proxima {
+  font-family: 'Proxima Nova', 'Montserrat', sans-serif;
+}
+
 .font-serif-reading {
   font-family: 'Newsreader', Georgia, serif;
 }
 
 .font-display-scripture {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Montserrat', 'Cinzel', Georgia, sans-serif;
 }
 
 /* Custom smooth scrollbar */
@@ -36,3 +126,372 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(150, 150, 150, 0.45);
 }
+
+/* ==========================================================================
+   Music Player Card Specifications & Keyframes
+   ========================================================================== */
+
+@keyframes bounce {
+  0%,
+  100% {
+    height: 6px;
+  }
+  50% {
+    height: 26px;
+  }
+}
+
+@keyframes timer {
+  0% { content: "0:00"; }
+  2.22% { content: "0:01"; }
+  4.44% { content: "0:02"; }
+  6.67% { content: "0:03"; }
+  8.89% { content: "0:04"; }
+  11.11% { content: "0:05"; }
+  13.33% { content: "0:06"; }
+  15.56% { content: "0:07"; }
+  17.78% { content: "0:08"; }
+  20.00% { content: "0:09"; }
+  22.22% { content: "0:10"; }
+  24.44% { content: "0:11"; }
+  26.67% { content: "0:12"; }
+  28.89% { content: "0:13"; }
+  31.11% { content: "0:14"; }
+  33.33% { content: "0:15"; }
+  35.56% { content: "0:16"; }
+  37.78% { content: "0:17"; }
+  40.00% { content: "0:18"; }
+  42.22% { content: "0:19"; }
+  44.44% { content: "0:20"; }
+  46.67% { content: "0:21"; }
+  48.89% { content: "0:22"; }
+  51.11% { content: "0:23"; }
+  53.33% { content: "0:24"; }
+  55.56% { content: "0:25"; }
+  57.78% { content: "0:26"; }
+  60.00% { content: "0:27"; }
+  62.22% { content: "0:28"; }
+  64.44% { content: "0:29"; }
+  66.67% { content: "0:30"; }
+  68.89% { content: "0:31"; }
+  71.11% { content: "0:32"; }
+  73.33% { content: "0:33"; }
+  75.56% { content: "0:34"; }
+  77.78% { content: "0:35"; }
+  80.00% { content: "0:36"; }
+  82.22% { content: "0:37"; }
+  84.44% { content: "0:38"; }
+  86.67% { content: "0:39"; }
+  88.89% { content: "0:40"; }
+  91.11% { content: "0:41"; }
+  93.33% { content: "0:42"; }
+  95.56% { content: "0:43"; }
+  97.78% { content: "0:44"; }
+  100% { content: "0:45"; }
+}
+
+@keyframes timerDown {
+  0% { content: "0:45"; }
+  2.22% { content: "0:44"; }
+  4.44% { content: "0:43"; }
+  6.67% { content: "0:42"; }
+  8.89% { content: "0:41"; }
+  11.11% { content: "0:40"; }
+  13.33% { content: "0:39"; }
+  15.56% { content: "0:38"; }
+  17.78% { content: "0:37"; }
+  20.00% { content: "0:36"; }
+  22.22% { content: "0:35"; }
+  24.44% { content: "0:34"; }
+  26.67% { content: "0:33"; }
+  28.89% { content: "0:32"; }
+  31.11% { content: "0:31"; }
+  33.33% { content: "0:30"; }
+  35.56% { content: "0:29"; }
+  37.78% { content: "0:28"; }
+  40.00% { content: "0:27"; }
+  42.22% { content: "0:26"; }
+  44.44% { content: "0:25"; }
+  46.67% { content: "0:24"; }
+  48.89% { content: "0:23"; }
+  51.11% { content: "0:22"; }
+  53.33% { content: "0:21"; }
+  55.56% { content: "0:20"; }
+  57.78% { content: "0:19"; }
+  60.00% { content: "0:18"; }
+  62.22% { content: "0:17"; }
+  64.44% { content: "0:16"; }
+  66.67% { content: "0:15"; }
+  68.89% { content: "0:14"; }
+  71.11% { content: "0:13"; }
+  73.33% { content: "0:12"; }
+  75.56% { content: "0:11"; }
+  77.78% { content: "0:10"; }
+  80.00% { content: "0:09"; }
+  82.22% { content: "0:08"; }
+  84.44% { content: "0:07"; }
+  86.67% { content: "0:06"; }
+  88.89% { content: "0:05"; }
+  91.11% { content: "0:04"; }
+  93.33% { content: "0:03"; }
+  95.56% { content: "0:02"; }
+  97.78% { content: "0:01"; }
+  100% { content: "0:00"; }
+}
+
+@keyframes progressAnim {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes handleAnim {
+  from { left: 0%; }
+  to { left: 100%; }
+}
+
+/* Card layout & typography styling */
+.music-player-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.main-music-card {
+  width: 100%;
+  max-width: 380px;
+  background: #18181b;
+  border-radius: 24px;
+  padding: 20px;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.dark .main-music-card {
+  background: #121214;
+  box-shadow: 0 24px 50px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.track-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.album-art {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #27272a;
+  flex-shrink: 0;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.track-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.track-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.artist-name {
+  font-size: 13px;
+  color: #a1a1aa;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.volume-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.volume-bars .bar {
+  width: 3.5px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #5e72e4;
+  transition: height 0.12s ease;
+}
+
+.volume-bars .bar:nth-child(1) { animation-delay: -0.1s; }
+.volume-bars .bar:nth-child(2) { animation-delay: -0.4s; }
+.volume-bars .bar:nth-child(3) { animation-delay: -0.2s; }
+.volume-bars .bar:nth-child(4) { animation-delay: -0.6s; }
+.volume-bars .bar:nth-child(5) { animation-delay: -0.3s; }
+.volume-bars .bar:nth-child(6) { animation-delay: -0.7s; }
+.volume-bars .bar:nth-child(7) { animation-delay: -0.5s; }
+.volume-bars .bar:nth-child(8) { animation-delay: -0.25s; }
+
+#play-toggle:checked ~ .track-info .volume-bars .bar.animate-bounce-bar {
+  animation: bounce 1.2s infinite ease-in-out;
+}
+
+.playback-controls {
+  margin-top: 18px;
+}
+
+.time-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #a1a1aa;
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.current-time,
+.remaining-time {
+  min-width: 32px;
+}
+
+/* Fallback pure CSS timers when no text content injected */
+.current-time:empty::after {
+  content: "0:00";
+}
+.remaining-time:empty::after {
+  content: "0:45";
+}
+#play-toggle:checked ~ .playback-controls .time-info .current-time:empty::after {
+  animation: timer 45s steps(1) infinite;
+}
+#play-toggle:checked ~ .playback-controls .time-info .remaining-time:empty::after {
+  animation: timerDown 45s steps(1) infinite;
+}
+
+.progress-bar {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  cursor: pointer;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #5e72e4, #84cc16);
+  pointer-events: none;
+}
+
+.progress-handle {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 10px rgba(94, 114, 228, 0.7);
+  pointer-events: none;
+}
+
+#play-toggle:checked ~ .playback-controls .progress-bar .progress-fill.pure-css-fill {
+  animation: progressAnim 45s linear infinite;
+}
+#play-toggle:checked ~ .playback-controls .progress-bar .progress-handle.pure-css-handle {
+  animation: handleAnim 45s linear infinite;
+}
+
+.button-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.main-control-btns {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.control-button {
+  background: transparent;
+  border: none;
+  color: #a1a1aa;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.control-button:hover {
+  color: #ffffff;
+  transform: scale(1.08);
+}
+
+.control-button:active {
+  transform: scale(0.95);
+}
+
+.play-pause-btns {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-pause-button {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #5e72e4, #4a5ec4);
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(94, 114, 228, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.play-pause-button:hover {
+  box-shadow: 0 8px 22px rgba(94, 114, 228, 0.6);
+  transform: scale(1.05);
+}
+
+.play-pause-button:active {
+  transform: scale(0.96);
+}
+
+/* Toggle play/pause visibility */
+#play-toggle:checked ~ .playback-controls .play-pause-btns .icon-play {
+  display: none;
+}
+#play-toggle:checked ~ .playback-controls .play-pause-btns .icon-pause {
+  display: block;
+}
+#play-toggle:not(:checked) ~ .playback-controls .play-pause-btns .icon-play {
+  display: block;
+}
+#play-toggle:not(:checked) ~ .playback-controls .play-pause-btns .icon-pause {
+  display: none;
+}
+

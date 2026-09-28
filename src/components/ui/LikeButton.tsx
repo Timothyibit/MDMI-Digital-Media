@@ -51,8 +51,8 @@ export const LikeButton: React.FC<LikeButtonProps> = ({
         } ${className}`}
       >
         <motion.div
-          animate={isAnimating ? { scale: [1, 1.45, 0.9, 1] } : { scale: 1 }}
-          transition={{ type: 'spring', stiffness: 450, damping: 14 }}
+          animate={isAnimating ? { scale: 1.28 } : { scale: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
         >
           <Heart className={`w-4 h-4 ${isLiked ? 'fill-rose-500 stroke-rose-500' : 'stroke-current'}`} />
         </motion.div>
@@ -73,8 +73,8 @@ export const LikeButton: React.FC<LikeButtonProps> = ({
         } ${className}`}
       >
         <motion.div
-          animate={isAnimating ? { scale: [1, 1.5, 0.85, 1], rotate: [0, -15, 15, 0] } : { scale: 1 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+          animate={isAnimating ? { scale: 1.25, rotate: -8 } : { scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
         >
           <Heart className={`w-4 h-4 ${isLiked ? 'fill-rose-500 stroke-rose-500' : 'stroke-current'}`} />
         </motion.div>
@@ -95,8 +95,8 @@ export const LikeButton: React.FC<LikeButtonProps> = ({
       aria-label={isLiked ? 'Unlike' : 'Like'}
     >
       <motion.div
-        animate={isAnimating ? { scale: [1, 1.6, 0.8, 1.1, 1] } : { scale: 1 }}
-        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+        animate={isAnimating ? { scale: 1.28 } : { scale: 1 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 15 }}
       >
         <Heart className={`w-5 h-5 ${isLiked ? 'fill-rose-500 stroke-rose-500' : 'stroke-current'}`} />
       </motion.div>

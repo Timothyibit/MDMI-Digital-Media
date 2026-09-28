@@ -8,7 +8,10 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
+        '@untitledui/icons': path.resolve(import.meta.dirname, 'src/lib/untitledui-icons.tsx'),
+        'react-native': path.resolve(import.meta.dirname, 'src/lib/react-native.tsx'),
+        'lucide-react-native': 'lucide-react',
       },
     },
     server: {

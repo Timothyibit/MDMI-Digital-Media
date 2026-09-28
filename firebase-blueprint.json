@@ -16,6 +16,10 @@
         "authorRole": { "type": "string", "required": true },
         "audioUrl": { "type": "string", "required": false },
         "audioDurationSeconds": { "type": "number", "required": false },
+        "imageUrl": { "type": "string", "required": false },
+        "scheduledDate": { "type": "string", "required": false },
+        "isFeatured": { "type": "boolean", "required": false },
+        "templateLayout": { "type": "string", "required": false },
         "publishedAt": { "type": "timestamp", "required": false },
         "tags": { "type": "array", "required": true },
         "likeCount": { "type": "number", "required": true },
@@ -32,22 +36,87 @@
             "displayName": { "type": "string", "required": true },
             "body": { "type": "string", "required": true },
             "createdAt": { "type": "timestamp", "required": true },
+            "updatedAt": { "type": "timestamp", "required": false },
             "reported": { "type": "boolean", "required": true },
             "reportedBy": { "type": "array", "required": true }
           }
         }
       }
     },
+    "appConfig": {
+      "collection": "appConfig",
+      "description": "Global ministry layout configurations and template structure settings managed by overseers.",
+      "fields": {
+        "featuredDevotionalId": { "type": "string", "required": false },
+        "heroCardStyle": { "type": "string", "required": false },
+        "sections": { "type": "array", "required": false },
+        "customWelcomeMessage": { "type": "string", "required": false },
+        "updatedAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "notifications": {
+      "collection": "notifications",
+      "description": "In-app announcements and push notifications broadcasted by ministry overseers.",
+      "fields": {
+        "title": { "type": "string", "required": true },
+        "body": { "type": "string", "required": true },
+        "type": { "type": "string", "required": true },
+        "devotionalId": { "type": "string", "required": false },
+        "createdAt": { "type": "timestamp", "required": true },
+        "createdBy": { "type": "string", "required": true }
+      }
+    },
+    "notificationSchedules": {
+      "collection": "notificationSchedules",
+      "description": "Timer triggers, recurring notifications, and automatic notification rules managed by ministry overseers.",
+      "fields": {
+        "title": { "type": "string", "required": true },
+        "body": { "type": "string", "required": true },
+        "type": { "type": "string", "required": true },
+        "triggerType": { "type": "string", "required": true },
+        "status": { "type": "string", "required": true },
+        "enabled": { "type": "boolean", "required": true },
+        "scheduledAt": { "type": "string", "required": false },
+        "delayMinutes": { "type": "number", "required": false },
+        "recurrence": { "type": "object", "required": false },
+        "autoEventType": { "type": "string", "required": false },
+        "devotionalId": { "type": "string", "required": false },
+        "lastTriggeredAt": { "type": "string", "required": false },
+        "nextTriggerAt": { "type": "string", "required": false },
+        "triggerCount": { "type": "number", "required": true },
+        "createdAt": { "type": "timestamp", "required": true },
+        "createdBy": { "type": "string", "required": true }
+      }
+    },
+    "admins": {
+      "collection": "admins",
+      "description": "Explicit role authorization records granting elevated overseer management access.",
+      "fields": {
+        "uid": { "type": "string", "required": true },
+        "email": { "type": "string", "required": false },
+        "promotedBy": { "type": "string", "required": false },
+        "promotedAt": { "type": "timestamp", "required": true }
+      }
+    },
     "users": {
       "collection": "users",
-      "description": "User profiles for disciples and ministry overseers.",
+      "description": "User profiles for disciples and ministry overseers with bio, church, and contact details.",
       "fields": {
         "uid": { "type": "string", "required": true },
         "displayName": { "type": "string", "required": false },
         "email": { "type": "string", "required": false },
+        "photoUrl": { "type": "string", "required": false },
+        "bio": { "type": "string", "required": false },
+        "churchAttending": { "type": "string", "required": false },
+        "contact": { "type": "string", "required": false },
+        "address": { "type": "string", "required": false },
+        "spiritualGifts": { "type": "string", "required": false },
         "isAnonymous": { "type": "boolean", "required": true },
         "role": { "type": "string", "required": true, "enum": ["user", "admin"] },
         "streakCount": { "type": "number", "required": true },
+        "totalMinutesRead": { "type": "number", "required": false },
+        "completedDevotionalsCount": { "type": "number", "required": false },
+        "readingLogs": { "type": "object", "required": false },
         "lastReadAt": { "type": "timestamp", "required": false },
         "expoPushToken": { "type": "string", "required": false },
         "notificationsEnabled": { "type": "boolean", "required": true },
@@ -61,6 +130,16 @@
           "fields": {
             "devotionalId": { "type": "string", "required": true },
             "createdAt": { "type": "timestamp", "required": true }
+          }
+        },
+        "readingHistory": {
+          "collection": "readingHistory",
+          "description": "Daily devotional reading sessions and minutes tracked for the disciple.",
+          "fields": {
+            "date": { "type": "string", "required": true },
+            "minutes": { "type": "number", "required": true },
+            "devotionalId": { "type": "string", "required": true },
+            "timestamp": { "type": "timestamp", "required": true }
           }
         },
         "journal": {
