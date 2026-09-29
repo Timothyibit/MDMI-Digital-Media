@@ -871,7 +871,7 @@ export const AdminBroadcastManager: React.FC = () => {
 
             <div className="pt-2 flex items-center justify-between">
               <span className="text-[11px] text-neutral-500 font-medium">
-                Active timers sync to Firestore and trigger in background even across tab restarts
+                Timers are saved securely and will send on schedule even if you close this page
               </span>
               <button
                 type="submit"
@@ -879,7 +879,7 @@ export const AdminBroadcastManager: React.FC = () => {
                 className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95"
               >
                 <Timer className="w-3.5 h-3.5" />
-                <span>{isSavingTimer ? 'Arming...' : 'Arm Timer Trigger'}</span>
+                <span>{isSavingTimer ? 'Scheduling...' : 'Schedule Countdown'}</span>
               </button>
             </div>
           </form>
@@ -890,7 +890,7 @@ export const AdminBroadcastManager: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-amber-500" />
                 <h4 className="font-bold text-sm text-[#172B4D] dark:text-white">
-                  Active Countdown Triggers ({activeTimers.length})
+                  Scheduled Countdowns ({activeTimers.length})
                 </h4>
               </div>
               <span className="text-[11px] text-neutral-500">Live 1-second ticking</span>
@@ -900,10 +900,10 @@ export const AdminBroadcastManager: React.FC = () => {
               <div className="p-8 text-center rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 text-neutral-400">
                 <Timer className="w-8 h-8 mx-auto mb-1.5 opacity-40 text-amber-500" />
                 <p className="text-xs font-bold text-neutral-600 dark:text-neutral-300">
-                  No active timer triggers armed
+                  No countdowns scheduled yet
                 </p>
                 <p className="text-[11px] text-neutral-400 mt-0.5">
-                  Set a quick 5-min or custom countdown trigger above to queue automated delivery.
+                  Set a quick 5-min or custom countdown above to send your message at the exact time.
                 </p>
               </div>
             ) : (
@@ -997,12 +997,12 @@ export const AdminBroadcastManager: React.FC = () => {
                     Configure Recurring Notification Schedule
                   </h3>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Automate daily prayer calls, weekly study reminders, or recurring discipleship broadcasts
+                    Set up daily prayer calls, weekly study reminders, or recurring announcements
                   </p>
                 </div>
               </div>
               <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
-                Automated Cadence
+                Recurring Schedule
               </span>
             </div>
 
@@ -1352,7 +1352,7 @@ export const AdminBroadcastManager: React.FC = () => {
                   No Automatic Trigger Rules
                 </p>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                  Click the button above to register an automatic trigger for devotional releases, streaks, or prayer hours.
+                  Click the button above to add an alert for devotional releases, reading streaks, or prayer hours.
                 </p>
               </div>
             ) : (

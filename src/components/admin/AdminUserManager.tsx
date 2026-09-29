@@ -220,7 +220,7 @@ export const AdminUserManager: React.FC = () => {
             <span className="text-2xl sm:text-3xl font-extrabold font-display-scripture text-neutral-900 dark:text-white tabular-nums">
               {totalUsersCount}
             </span>
-            <p className="text-[11px] text-neutral-500 mt-0.5">Firestore cloud profiles</p>
+            <p className="text-[11px] text-neutral-500 mt-0.5">Registered members</p>
           </div>
         </div>
 
@@ -339,7 +339,7 @@ export const AdminUserManager: React.FC = () => {
               onClick={() => loadUsers(true)}
               disabled={refreshing || loading}
               className="px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
-              title="Refresh users from Firestore"
+              title="Refresh member list"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-[#5E72E4]' : ''}`} />
               <span className="hidden sm:inline">Refresh</span>
@@ -379,7 +379,7 @@ export const AdminUserManager: React.FC = () => {
       {loading ? (
         <div className="py-16 text-center text-neutral-400">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#5E72E4] mb-3" />
-          <p className="text-sm font-semibold">Loading registered disciples from Firestore...</p>
+          <p className="text-sm font-semibold">Loading disciples...</p>
         </div>
       ) : filteredUsers.length === 0 ? (
         <div className="py-16 text-center text-neutral-400 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl bg-white/40 dark:bg-neutral-900/40">
@@ -853,7 +853,7 @@ export const AdminUserManager: React.FC = () => {
               {/* Technical / Cloud Sync Info */}
               <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2 text-[11px] text-neutral-500">
                 <div className="flex items-center justify-between">
-                  <span>Firestore UID:</span>
+                  <span>Account ID:</span>
                   <span className="font-mono text-neutral-700 dark:text-neutral-300 font-semibold">
                     {selectedUser.uid}
                   </span>

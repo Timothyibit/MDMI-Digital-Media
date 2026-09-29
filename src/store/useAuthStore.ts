@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { UserProfile, DailyActivityItem, ReadingSessionRecord } from '../types';
 import { useJournalStore } from './useJournalStore';
 import { useBookmarkStore } from './useBookmarkStore';
+import { useDevotionalStore } from './useDevotionalStore';
 import {
   auth,
   db,
@@ -288,9 +289,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             const updatedProfile: UserProfile = {
               ...data,
               uid: fbUser.uid,
-              displayName: fbUser.displayName || data.displayName,
+              displayName: data.displayName || fbUser.displayName,
               email: fbUser.email || data.email,
               emailVerified: fbUser.emailVerified,
+              photoUrl: data.photoUrl || fbUser.photoURL || null,
+              bannerUrl: data.bannerUrl || null,
               role: finalRole,
               isAnonymous: false,
               streakCount: data.streakCount ?? 0,
@@ -323,6 +326,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               displayName: fbUser.displayName || 'Devoted Disciple',
               email: fbUser.email || null,
               emailVerified: fbUser.emailVerified,
+              photoUrl: fbUser.photoURL || null,
+              bannerUrl: null,
               isAnonymous: false,
               role: finalRole,
               streakCount: 0,
@@ -587,8 +592,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.warn('Registration error:', err);
       let errorMsg = 'Failed to register account. Please check your details.';
       if (err.code === 'auth/operation-not-allowed') {
-        errorMsg =
-          'Email/Password sign-in is disabled in Firebase console. Please enable it in Firebase Console under Authentication > Sign-in method > Email/Password.';
+        errorMsg = 'Email sign-in is temporarily unavailable. Please sign in with Google or contact support.';
       } else if (err.code === 'auth/email-already-in-use') {
         errorMsg = 'This email is already registered. Please sign in or use Forgot Password.';
       } else if (err.code === 'auth/weak-password') {
@@ -728,8 +732,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.warn('Sign-in error:', err);
       let errorMsg = 'Failed to sign in. Please verify your credentials.';
       if (err.code === 'auth/operation-not-allowed') {
-        errorMsg =
-          'Email/Password sign-in is disabled in Firebase console. Please enable it in Firebase Console under Authentication > Sign-in method > Email/Password.';
+        errorMsg = 'Email sign-in is temporarily unavailable. Please sign in with Google or contact support.';
       } else if (
         err.code === 'auth/user-not-found' ||
         err.code === 'auth/wrong-password' ||
@@ -1259,12 +1262,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updated));
     set({ user: updated });
 
+    // Sync with Firebase Auth user profile if active
+    if (auth.currentUser) {
+      try {
+        await updateProfile(auth.currentUser, {
+          displayName: updated.displayName || undefined,
+          photoURL: updated.photoUrl || undefined,
+        });
+      } catch (authProfileErr) {
+        console.warn('Firebase Auth profile sync notice:', authProfileErr);
+      }
+    }
+
     if (auth.currentUser && auth.currentUser.uid === current.uid) {
       try {
         const userDocRef = doc(db, 'users', current.uid);
         await setDoc(userDocRef, safeUpdates, { merge: true });
       } catch (err) {
         console.warn('Firestore profile update notice:', err);
+      }
+    }
+
+    // Propagate updated profile details (including photo and name) to all authored reflections/comments
+    if (updates.displayName !== undefined || updates.photoUrl !== undefined) {
+      try {
+        await useDevotionalStore.getState().syncUserToComments(current.uid, {
+          displayName: updated.displayName,
+          photoUrl: updated.photoUrl,
+        });
+      } catch (syncErr) {
+        console.warn('Comments user sync notice:', syncErr);
       }
     }
   },

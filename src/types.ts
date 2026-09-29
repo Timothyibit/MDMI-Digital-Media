@@ -1,6 +1,6 @@
 export type ThemeMode = 'light' | 'dark';
 
-export type TabType = 'home' | 'devotionals' | 'journal' | 'profile' | 'admin' | 'reader' | 'about';
+export type TabType = 'home' | 'devotionals' | 'journal' | 'profile' | 'admin' | 'reader' | 'about' | 'notifications';
 
 export interface UserProfile {
   uid: string;
@@ -166,7 +166,7 @@ export interface JournalEntry {
   title: string;
   content: string;
   scriptureRef?: string;
-  prayerPoint?: string;
+  prayerPoint?: string | null;
   imageUrl?: string | null;
   createdAt: string;
   updatedAt: string;

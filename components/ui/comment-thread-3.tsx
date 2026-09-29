@@ -7,6 +7,10 @@ import {
   Share2,
   UserPlus,
   ChevronDown,
+  Edit2,
+  Check,
+  Trash2,
+  ExternalLink,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,7 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useDevotionalStore } from "../../src/store/useDevotionalStore";
+import { useDevotionalStore, isMyComment } from "../../src/store/useDevotionalStore";
 import { useAuthStore } from "../../src/store/useAuthStore";
 import { useUIStore } from "../../src/store/useUIStore";
 
@@ -57,13 +61,16 @@ export function CommentThread3({
   onViewAll,
   maxInitial = 2,
 }: CommentThread3Props = {}) {
-  const { comments, addComment } = useDevotionalStore();
-  const { user } = useAuthStore();
+  const { comments, addComment, editComment, removeComment } = useDevotionalStore();
+  const { user, isAdmin } = useAuthStore();
   const { openAuthGate, openCommentsSheet } = useUIStore();
 
   const [expanded, setExpanded] = useState(false);
   const [localEntries, setEntries] = useState<Entry[]>(INITIAL);
   const [draft, setDraft] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const devotionalComments = useMemo(() => {
     if (!devotionalId) return null;
@@ -82,7 +89,7 @@ export function CommentThread3({
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
     return sorted.map((c) => {
-      const isSelf = !!(user?.uid && c.uid === user.uid);
+      const isSelf = isMyComment(c, user);
       const name = isSelf && user?.displayName ? user.displayName : (c.displayName || "Devoted Disciple");
       const avatar = isSelf && user?.photoUrl ? user.photoUrl : (c.photoUrl || "");
 
@@ -155,25 +162,50 @@ export function CommentThread3({
     <Card className="border border-border/80 bg-card text-card-foreground shadow-sm rounded-xl overflow-hidden">
       <CardHeader className="pb-3 border-b border-border/40">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base font-bold">
+          <CardTitle
+            onClick={handleOpenAll}
+            className="flex items-center gap-2 text-base font-bold cursor-pointer hover:text-primary transition-colors"
+          >
             <MessageSquare className="size-4 text-primary" />
             <span>Reflections &amp; Community Activity</span>
           </CardTitle>
-          {entries.length > 0 && (
-            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
-              {entries.length} {entries.length === 1 ? "entry" : "entries"}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {entries.length > 0 && (
+              <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
+                {entries.length} {entries.length === 1 ? "entry" : "entries"}
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenAll}
+              className="text-xs font-bold text-primary hover:text-primary/90 h-7 px-2.5 flex items-center gap-1 cursor-pointer"
+            >
+              <span>Reflections Sheet</span>
+              <ExternalLink className="size-3" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3.5 pt-4">
         {entries.length === 0 ? (
-          <div className="py-6 flex flex-col items-center justify-center text-center text-muted-foreground">
-            <MessageSquare className="size-7 opacity-40 mb-1.5 text-primary" />
-            <p className="text-xs font-semibold text-foreground">No reflections shared yet</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
+          <div
+            onClick={handleOpenAll}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleOpenAll()}
+            className="py-6 px-4 flex flex-col items-center justify-center text-center text-muted-foreground hover:bg-muted/30 rounded-xl transition-all cursor-pointer group"
+          >
+            <MessageSquare className="size-7 opacity-40 mb-1.5 text-primary group-hover:scale-110 transition-transform" />
+            <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+              No reflections shared yet
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xs">
               Be the first disciple to share a spiritual insight or prayer from this scripture.
             </p>
+            <span className="mt-2 text-xs font-bold text-primary underline underline-offset-2">
+              Share First Reflection &amp; View Comments
+            </span>
           </div>
         ) : (
           visibleEntries.map((entry, idx) =>
@@ -192,7 +224,7 @@ export function CommentThread3({
                 </Avatar>
                 <div className="flex flex-1 flex-col gap-0.5">
                   <div className="flex items-baseline justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-bold text-foreground">
                         {entry.name}
                       </span>
@@ -201,14 +233,90 @@ export function CommentThread3({
                           You
                         </span>
                       )}
+                      {(entry.isSelf || isAdmin) && editingId !== entry.id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingId(entry.id);
+                            setEditingText(entry.text);
+                          }}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold text-primary hover:bg-primary/10 transition-colors flex items-center gap-0.5 cursor-pointer ml-1"
+                          title="Edit your reflection"
+                        >
+                          <Edit2 className="size-2.5" />
+                          <span>Edit</span>
+                        </button>
+                      )}
+                      {(entry.isSelf || isAdmin) && editingId !== entry.id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (devotionalId) {
+                              removeComment(entry.id, devotionalId);
+                            } else {
+                              setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+                            }
+                          }}
+                          className="p-0.5 rounded text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                          title="Delete reflection"
+                        >
+                          <Trash2 className="size-2.5" />
+                        </button>
+                      )}
                     </div>
-                    <span className="text-muted-foreground text-[11px]">
+                    <span className="text-muted-foreground text-[11px] shrink-0">
                       {entry.time}
                     </span>
                   </div>
-                  <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-sans">
-                    {entry.text}
-                  </p>
+
+                  {editingId === entry.id ? (
+                    <div className="mt-1 space-y-2">
+                      <textarea
+                        value={editingText}
+                        onChange={(e) => setEditingText(e.target.value)}
+                        rows={2}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-primary bg-background text-xs text-foreground focus:outline-none"
+                      />
+                      <div className="flex items-center gap-2 justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditingId(null);
+                            setEditingText("");
+                          }}
+                          className="h-7 px-2 text-xs cursor-pointer"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={!editingText.trim() || isSavingEdit}
+                          onClick={async () => {
+                            setIsSavingEdit(true);
+                            if (devotionalId) {
+                              await editComment(entry.id, editingText.trim(), devotionalId);
+                            } else {
+                              setEntries((prev) =>
+                                prev.map((e) => (e.id === entry.id ? { ...e, text: editingText.trim() } : e))
+                              );
+                            }
+                            setIsSavingEdit(false);
+                            setEditingId(null);
+                            setEditingText("");
+                          }}
+                          className="h-7 px-3 text-xs font-bold gap-1 cursor-pointer"
+                        >
+                          <Check className="size-3" />
+                          <span>{isSavingEdit ? "Saving..." : "Save"}</span>
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-sans">
+                      {entry.text}
+                    </p>
+                  )}
                   {entry.image && (
                     <div className="mt-2 max-w-xs rounded-xl overflow-hidden border border-border bg-muted/40">
                       <img
@@ -256,12 +364,22 @@ export function CommentThread3({
       </CardContent>
       <CardFooter className="pt-3 border-t border-border/40 bg-muted/20">
         <div className="flex w-full gap-2 items-center">
+          {user && !user.isAnonymous && (
+            <Avatar className="size-8 ring-1 ring-border shrink-0">
+              <AvatarImage src={user.photoUrl || undefined} alt={user.displayName || "You"} />
+              <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                {user.displayName
+                  ? user.displayName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+                  : "U"}
+              </AvatarFallback>
+            </Avatar>
+          )}
           <Input
             placeholder="Share your spiritual reflection..."
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            className="text-xs sm:text-sm h-9 bg-background"
+            className="text-xs sm:text-sm h-9 bg-background flex-1"
           />
           <Button
             onClick={send}

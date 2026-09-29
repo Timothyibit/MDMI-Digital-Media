@@ -5,11 +5,13 @@ import {
   ChevronRight,
   PenLine,
   Sparkles,
+  Flame,
 } from 'lucide-react';
 import { useDevotionalStore } from '../store/useDevotionalStore';
 import { useUIStore } from '../store/useUIStore';
 import { useBookmarkStore } from '../store/useBookmarkStore';
 import { useLayoutStore } from '../store/useLayoutStore';
+import { useAuthStore } from '../store/useAuthStore';
 import { Devotional } from '../types';
 import { isDevotionalLive } from '../services/schedulingService';
 import { MdmiLogo } from '../components/ui/MdmiLogo';
@@ -33,6 +35,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
   const { setActiveTab, openVerseShare, playDevotionalAudio, openOnboarding } = useUIStore();
   const { isBookmarked, toggleBookmark } = useBookmarkStore();
   const { config, getFeaturedDevotional } = useLayoutStore();
+  const { user } = useAuthStore();
   const [feedPage, setFeedPage] = useState(1);
 
   const published = devotionals.filter((d) => isDevotionalLive(d));
@@ -114,6 +117,39 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
                 </Text>
               </View>
             </View>
+
+            {user && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className="flex items-center gap-3 p-2.5 sm:p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700/80 hover:border-[#5E72E4]/40 transition-all text-left shrink-0 cursor-pointer self-start sm:self-auto"
+                title="View your Disciple profile"
+              >
+                {user.photoUrl ? (
+                  <img
+                    src={user.photoUrl}
+                    alt={user.displayName || 'Profile'}
+                    className="w-10 h-10 rounded-full object-cover ring-2 ring-[#5E72E4]/30 shadow-xs shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-[#5E72E4] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                    {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'D'}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-neutral-400 block">
+                    Welcome Disciple
+                  </span>
+                  <span className="text-xs font-bold text-neutral-900 dark:text-white truncate block max-w-[130px]">
+                    {user.displayName || 'Devoted Disciple'}
+                  </span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-0.5">
+                    <Flame className="w-3 h-3 fill-current inline" />
+                    <span>{user.streakCount ?? 0} {(user.streakCount ?? 0) === 1 ? 'day streak' : 'day streak'}</span>
+                  </span>
+                </div>
+              </button>
+            )}
           </View>
         );
 

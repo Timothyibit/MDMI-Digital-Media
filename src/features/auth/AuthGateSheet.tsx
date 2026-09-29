@@ -280,7 +280,7 @@ export const AuthGateSheet: React.FC = () => {
           <div className="mt-3.5 p-3 rounded-xl bg-[#F4F5FE] dark:bg-[#5E72E4]/10 border border-[#5E72E4]/20 text-xs text-[#172B4D] dark:text-blue-200 leading-relaxed">
             <p className="font-bold flex items-center gap-1.5 text-[#5E72E4] dark:text-blue-300">
               <Sparkles className="w-3.5 h-3.5 text-[#5E72E4]" />
-              Persistent Discipleship Account
+              Your Discipleship Account
             </p>
             <p className="mt-0.5 text-[11px] text-[#525F7F] dark:text-neutral-300">
               {authGateReason}
@@ -293,11 +293,6 @@ export const AuthGateSheet: React.FC = () => {
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="leading-snug">
                 <span>{error}</span>
-                {error.includes('Firebase Console') && (
-                  <p className="mt-1 font-semibold text-[11px] underline">
-                    Enable Authentication → Email/Password in your Firebase project.
-                  </p>
-                )}
               </div>
             </div>
           )}

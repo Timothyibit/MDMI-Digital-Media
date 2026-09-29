@@ -60,10 +60,10 @@ export const ScheduledPublishingConfig: React.FC<ScheduledPublishingConfigProps>
           </div>
           <div>
             <h4 className="font-bold text-sm text-neutral-900 dark:text-neutral-100">
-              Scheduled Auto-Publishing Date & Time Zone
+              Schedule Publishing Time
             </h4>
             <p className="text-[11px] text-neutral-600 dark:text-neutral-400 font-medium">
-              Set automated release with global simultaneous delivery or rolling disciple time zone
+              Choose when this devotional goes live for readers around the world
             </p>
           </div>
         </div>

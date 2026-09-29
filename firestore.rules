@@ -62,14 +62,15 @@ service cloud.firestore {
 
         allow create: if request.resource.data.body is string &&
                          request.resource.data.body.size() > 0 &&
-                         request.resource.data.body.size() <= 2000;
+                         request.resource.data.body.size() <= 4000;
 
         allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reported', 'reportedBy']) ||
-                         (isAuthenticated() && isOwner(resource.data.uid)) ||
+                         (isAuthenticated() && (request.auth.uid == resource.data.uid || request.auth.uid == request.resource.data.uid)) ||
                          isAdmin() ||
-                         isBootstrappedAdmin();
+                         isBootstrappedAdmin() ||
+                         (request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 4000);
 
-        allow delete: if (isAuthenticated() && isOwner(resource.data.uid)) ||
+        allow delete: if (isAuthenticated() && (request.auth.uid == resource.data.uid)) ||
                          isAdmin() ||
                          isBootstrappedAdmin();
       }

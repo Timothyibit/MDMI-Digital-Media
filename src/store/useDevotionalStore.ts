@@ -48,10 +48,16 @@ interface DevotionalState {
     photoUrl?: string | null,
     imageUrl?: string | null
   ) => Promise<void>;
-  editComment: (commentId: string, newBody: string, devotionalId?: string) => Promise<void>;
+  editComment: (
+    commentId: string,
+    newBody: string,
+    devotionalId?: string,
+    newImageUrl?: string | null
+  ) => Promise<void>;
   reportComment: (commentId: string, uid: string, devotionalId?: string) => Promise<void>;
   approveComment: (commentId: string, devotionalId?: string) => Promise<void>;
   removeComment: (commentId: string, devotionalId?: string) => Promise<void>;
+  syncUserToComments: (uid: string, profile: { displayName?: string | null; photoUrl?: string | null }) => Promise<void>;
 
   // Admin Management
   createDevotional: (devotional: Omit<Devotional, 'id' | 'viewCount' | 'likeCount' | 'createdAt'>) => Promise<void>;
@@ -85,6 +91,22 @@ export function deduplicateComments(items: Comment[]): Comment[] {
     seen.add(c.id);
     return true;
   });
+}
+
+export function isMyComment(comment: Comment, user: { uid?: string | null; displayName?: string | null } | null): boolean {
+  if (!comment) return false;
+  if (user?.uid && comment.uid === user.uid) return true;
+  if (user?.displayName && comment.displayName && comment.displayName.toLowerCase() === user.displayName.toLowerCase()) return true;
+  try {
+    const stored = localStorage.getItem('mdmi_my_comment_ids');
+    if (stored) {
+      const setIds = new Set(JSON.parse(stored));
+      if (setIds.has(comment.id)) return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
 }
 
 export const useDevotionalStore = create<DevotionalState>((set, get) => {
@@ -335,6 +357,15 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
       set({ comments: updated });
 
       try {
+        const stored = localStorage.getItem('mdmi_my_comment_ids');
+        const setIds = stored ? new Set(JSON.parse(stored)) : new Set<string>();
+        setIds.add(commentId);
+        localStorage.setItem('mdmi_my_comment_ids', JSON.stringify(Array.from(setIds)));
+      } catch {
+        // ignore
+      }
+
+      try {
         const commRef = doc(db, 'devotionals', devotionalId, 'comments', commentId);
         await setDoc(commRef, newComment);
       } catch (err) {
@@ -342,21 +373,33 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
       }
     },
 
-    editComment: async (commentId, newBody, devotionalId) => {
+    editComment: async (commentId, newBody, devotionalId, newImageUrl) => {
       const now = new Date().toISOString();
       const targetDevotionalId =
         devotionalId || get().comments.find((c) => c.id === commentId)?.devotionalId;
 
-      const updated = get().comments.map((c) =>
-        c.id === commentId ? { ...c, body: newBody.trim(), updatedAt: now } : c
-      );
+      const updated = get().comments.map((c) => {
+        if (c.id === commentId) {
+          return {
+            ...c,
+            body: newBody.trim(),
+            ...(newImageUrl !== undefined ? { imageUrl: newImageUrl } : {}),
+            updatedAt: now,
+          };
+        }
+        return c;
+      });
       persistComments(updated);
       set({ comments: updated });
 
       if (targetDevotionalId) {
         try {
           const commRef = doc(db, 'devotionals', targetDevotionalId, 'comments', commentId);
-          await updateDoc(commRef, { body: newBody.trim(), updatedAt: now });
+          const fieldsToMerge: Record<string, any> = { body: newBody.trim(), updatedAt: now };
+          if (newImageUrl !== undefined) {
+            fieldsToMerge.imageUrl = newImageUrl;
+          }
+          await setDoc(commRef, fieldsToMerge, { merge: true });
         } catch (err) {
           console.info('Comment edit saved locally:', err);
         }
@@ -422,6 +465,36 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
           await deleteDoc(commRef);
         } catch (err) {
           console.info('Deletion completed locally:', err);
+        }
+      }
+    },
+
+    syncUserToComments: async (uid, profile) => {
+      const currentComments = get().comments;
+      const updatedComments = currentComments.map((c) => {
+        if (c.uid === uid) {
+          return {
+            ...c,
+            displayName: profile.displayName !== undefined ? (profile.displayName || 'Devoted Disciple') : c.displayName,
+            photoUrl: profile.photoUrl !== undefined ? profile.photoUrl : c.photoUrl,
+          };
+        }
+        return c;
+      });
+      persistComments(updatedComments);
+      set({ comments: updatedComments });
+
+      // If matching comments exist in database, update them in Firestore
+      const matching = currentComments.filter((c) => c.uid === uid);
+      for (const c of matching) {
+        try {
+          const commRef = doc(db, 'devotionals', c.devotionalId, 'comments', c.id);
+          const updates: Record<string, any> = {};
+          if (profile.displayName !== undefined) updates.displayName = profile.displayName || 'Devoted Disciple';
+          if (profile.photoUrl !== undefined) updates.photoUrl = profile.photoUrl || null;
+          await updateDoc(commRef, updates);
+        } catch (err) {
+          // silently handle
         }
       }
     },

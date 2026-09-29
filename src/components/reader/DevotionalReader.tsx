@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,12 +21,17 @@ import {
   Mic,
   Camera,
   Edit3,
+  BookHeart,
+  ShieldCheck,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
-import { Devotional } from '../../types';
+import { Devotional, JournalEntry } from '../../types';
 import { useUIStore } from '../../store/useUIStore';
 import { useDevotionalStore } from '../../store/useDevotionalStore';
 import { useBookmarkStore } from '../../store/useBookmarkStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useJournalStore } from '../../store/useJournalStore';
 import {
   calculateAudioDuration,
   formatAudioDuration,
@@ -37,6 +42,7 @@ import { ThemeToggle } from '../ui/ThemeToggle';
 import { CommentThread3 } from '@/components/ui/comment-thread-3';
 import { RichTextRenderer } from '../ui/RichTextRenderer';
 import { EditDevotionalModal } from '../admin/EditDevotionalModal';
+import { EditJournalModal } from '../journal/EditJournalModal';
 
 interface DevotionalReaderProps {
   devotional: Devotional;
@@ -57,10 +63,76 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
 
   const { isBookmarked, toggleBookmark } = useBookmarkStore();
   const { recordReadingSession, user, isAdmin } = useAuthStore();
-  const { devotionals, incrementViewCount, fetchCommentsForDevotional } = useDevotionalStore();
+  const {
+    devotionals,
+    incrementViewCount,
+    fetchCommentsForDevotional,
+    comments,
+    updateDevotional,
+  } = useDevotionalStore();
+  const { entries, addEntry } = useJournalStore();
 
   const [isEditingDevotional, setIsEditingDevotional] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [journalModalEntry, setJournalModalEntry] = useState<JournalEntry | null>(null);
+  const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+
+  const existingJournal = entries.find((e) => e.devotionalId === devotional.id);
   const currentDevotional = devotionals.find((d) => d.id === devotional.id) || devotional;
+
+  const commentsCount = useMemo(() => {
+    return comments.filter((c) => c.devotionalId === devotional.id).length;
+  }, [comments, devotional.id]);
+
+  const handleTogglePublish = async () => {
+    setIsUpdatingStatus(true);
+    try {
+      const isCurrentlyPublished = !!currentDevotional.publishedAt;
+      await updateDevotional(currentDevotional.id, {
+        publishedAt: isCurrentlyPublished ? null : new Date().toISOString(),
+      });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleOpenJournal = async () => {
+    if (user?.isAnonymous) {
+      useUIStore.getState().openAuthGate('Link your account to write and edit your private devotional prayer journal.');
+      return;
+    }
+    if (existingJournal) {
+      setJournalModalEntry(existingJournal);
+      setIsJournalModalOpen(true);
+    } else {
+      const id = 'jrnl_' + Date.now().toString(36);
+      const newEntry: JournalEntry = {
+        id,
+        uid: user?.uid || 'user',
+        devotionalId: devotional.id,
+        devotionalTitle: devotional.title,
+        title: `${devotional.title} - Reflection`,
+        scriptureRef: devotional.scripture,
+        content: `Reflecting on ${devotional.scripture}:\n\nKey Thought: "${devotional.keyThought}"\n\n`,
+        prayerPoint: devotional.prayerPrompt,
+        imageUrl: devotional.imageUrl || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await addEntry({
+        uid: newEntry.uid,
+        devotionalId: newEntry.devotionalId,
+        devotionalTitle: newEntry.devotionalTitle,
+        title: newEntry.title,
+        scriptureRef: newEntry.scriptureRef,
+        content: newEntry.content,
+        prayerPoint: newEntry.prayerPoint,
+        imageUrl: newEntry.imageUrl,
+      });
+      setJournalModalEntry(newEntry);
+      setIsJournalModalOpen(true);
+    }
+  };
 
   const [scrollProgress, setScrollProgress] = useState(0);
   const [hasFinishedReading, setHasFinishedReading] = useState(false);
@@ -190,6 +262,20 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
           <ThemeToggle scope="reader" />
 
           <TouchableOpacity
+            id="reader-comments-header-btn"
+            onPress={() => openCommentsSheet(devotional.id)}
+            accessibilityLabel="View reflections and comments"
+            className="h-10 px-2.5 rounded-lg flex-row items-center gap-1.5 border border-[#CAD1D7]/50 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-sm"
+          >
+            <MessageSquare className="w-4 h-4 text-[#5E72E4]" />
+            {commentsCount > 0 && (
+              <span className="text-[11px] font-bold text-[#5E72E4] tabular-nums">
+                {commentsCount}
+              </span>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
             id="reader-audio-btn"
             onPress={() => playDevotionalAudio(devotional)}
             accessibilityLabel="Listen to audio"
@@ -235,6 +321,85 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
         contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 24, paddingBottom: 90 }}
         className="flex-1 max-w-2xl mx-auto w-full"
       >
+        {/* Admin Devotional Management Bar */}
+        {isAdmin && (
+          <div className="mb-5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-[#5E72E4]/10 via-[#5E72E4]/5 to-transparent border border-[#5E72E4]/30 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#5E72E4] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-neutral-900 dark:text-white">
+                      Admin Controls
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        currentDevotional.publishedAt
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+                          : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                      }`}
+                    >
+                      {currentDevotional.publishedAt ? '● Live Published' : '○ Draft Only'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Teaching ID: <code className="font-mono text-[10px]">{currentDevotional.id}</code>
+                  </p>
+                </div>
+              </div>
+
+              {/* Admin Action Buttons (Responsive on Mobile) */}
+              <div className="grid grid-cols-2 sm:flex sm:flex-row items-center gap-2">
+                <button
+                  type="button"
+                  id="admin-bar-edit-btn"
+                  onClick={() => setIsEditingDevotional(true)}
+                  className="px-3 py-2 rounded-lg bg-[#5E72E4] hover:bg-[#4d61d1] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit Teaching</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="admin-bar-publish-btn"
+                  disabled={isUpdatingStatus}
+                  onClick={handleTogglePublish}
+                  className={`px-3 py-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                    currentDevotional.publishedAt
+                      ? 'border-amber-400/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20'
+                      : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
+                  }`}
+                >
+                  {currentDevotional.publishedAt ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>{isUpdatingStatus ? 'Updating...' : 'Set to Draft'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>{isUpdatingStatus ? 'Updating...' : 'Publish Now'}</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  id="admin-bar-reflections-btn"
+                  onClick={() => openCommentsSheet(devotional.id)}
+                  className="col-span-2 sm:col-auto px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-[#5E72E4]" />
+                  <span>Reflections ({commentsCount})</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Category Tags & Meta */}
         <View className="flex-row flex-wrap items-center gap-2 mb-3">
           {devotional.tags.map((tag) => (
@@ -499,8 +664,8 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
               </View>
               <Text className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
                 {readingCompletedStats
-                  ? `Daily streak: ${readingCompletedStats.streak} ${readingCompletedStats.streak === 1 ? 'day' : 'days'} • Total Word time: ${readingCompletedStats.totalMinutes} mins`
-                  : `Daily streak: ${user?.streakCount ?? 0} ${(user?.streakCount ?? 0) === 1 ? 'day' : 'days'} • Daily activity synced`}
+                  ? `Reading streak: ${readingCompletedStats.streak} ${readingCompletedStats.streak === 1 ? 'day' : 'days'} • Time in Word: ${readingCompletedStats.totalMinutes} mins`
+                  : `Reading streak: ${user?.streakCount ?? 0} ${(user?.streakCount ?? 0) === 1 ? 'day' : 'days'} • Saved to your profile`}
               </Text>
             </View>
           ) : (
@@ -517,15 +682,15 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
         </View>
 
         {/* Interaction Action Bar */}
-        <View className="my-6 pt-5 border-t border-black/10 dark:border-white/10 flex-row items-center justify-between">
+        <View className="my-6 pt-5 border-t border-black/10 dark:border-white/10 flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <LikeButton devotionalId={devotional.id} count={devotional.likeCount} variant="pill" />
 
-          <View className="flex-row items-center gap-2">
+          <View className="flex-row flex-wrap items-center gap-2">
             {isAdmin && (
               <TouchableOpacity
                 id="admin-edit-devotional-btn"
                 onPress={() => setIsEditingDevotional(true)}
-                className={`flex-row items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-lg border shadow-sm transition-colors ${
+                className={`flex-1 sm:flex-initial flex-row items-center justify-center gap-1.5 px-3.5 py-2 min-h-[42px] rounded-xl border shadow-sm transition-colors ${
                   isDark
                     ? 'bg-[#5E72E4]/20 border-[#5E72E4]/40 hover:bg-[#5E72E4]/30'
                     : 'bg-[#5E72E4]/10 border-[#5E72E4]/30 hover:bg-[#5E72E4]/20'
@@ -533,23 +698,42 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
               >
                 <Edit3 className="w-3.5 h-3.5 text-[#5E72E4]" />
                 <Text className="text-xs font-bold text-[#5E72E4]">
-                  Edit Teaching & Photo
+                  Edit Teaching
                 </Text>
               </TouchableOpacity>
             )}
 
             <TouchableOpacity
+              id="reader-journal-action-btn"
+              onPress={handleOpenJournal}
+              className={`flex-1 sm:flex-initial flex-row items-center justify-center gap-1.5 px-3.5 py-2 min-h-[42px] rounded-xl border shadow-sm transition-colors ${
+                existingJournal
+                  ? isDark
+                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-700'
+                  : isDark
+                  ? 'bg-neutral-900 border-neutral-800 hover:bg-neutral-800'
+                  : 'bg-white border-[#CAD1D7] hover:bg-neutral-50'
+              }`}
+            >
+              <BookHeart className={`w-3.5 h-3.5 ${existingJournal ? 'text-amber-500' : 'text-neutral-700 dark:text-neutral-300'}`} />
+              <Text className={`text-xs font-bold ${existingJournal ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-700 dark:text-neutral-300'}`}>
+                {existingJournal ? 'Edit Journal' : 'Journal'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               id="open-comments-action-btn"
               onPress={() => openCommentsSheet(devotional.id)}
-              className={`flex-row items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-lg border shadow-sm transition-colors ${
+              className={`flex-1 sm:flex-initial flex-row items-center justify-center gap-1.5 px-3.5 py-2 min-h-[42px] rounded-xl border shadow-sm transition-colors ${
                 isDark
                   ? 'bg-neutral-900 border-neutral-800 hover:bg-neutral-800'
                   : 'bg-white border-[#CAD1D7] hover:bg-neutral-50'
               }`}
             >
-              <MessageSquare className="w-3.5 h-3.5 text-neutral-700 dark:text-neutral-300" />
-              <Text className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
-                Reflections
+              <MessageSquare className="w-3.5 h-3.5 text-[#5E72E4]" />
+              <Text className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                Reflections {commentsCount > 0 ? `(${commentsCount})` : ''}
               </Text>
             </TouchableOpacity>
 
@@ -562,7 +746,7 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
                   author: devotional.authorName,
                 })
               }
-              className={`flex-row items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-lg border shadow-sm transition-colors ${
+              className={`flex-1 sm:flex-initial flex-row items-center justify-center gap-1.5 px-3.5 py-2 min-h-[42px] rounded-xl border shadow-sm transition-colors ${
                 isDark
                   ? 'bg-neutral-900 border-neutral-800 hover:bg-neutral-800'
                   : 'bg-white border-[#CAD1D7] hover:bg-neutral-50'
@@ -594,6 +778,13 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
           onClose={() => setIsEditingDevotional(false)}
         />
       )}
+
+      {/* Complete Journal Reflection Editor Modal */}
+      <EditJournalModal
+        entry={journalModalEntry}
+        isOpen={isJournalModalOpen}
+        onClose={() => setIsJournalModalOpen(false)}
+      />
     </View>
   );
 };

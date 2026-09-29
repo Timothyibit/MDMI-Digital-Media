@@ -48,13 +48,28 @@ export const ActivityCardBarGraph: React.FC<ActivityCardBarGraphProps> = ({
     >
       {/* Header (Template 4 Spec: activity__header) */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-            <Flame className="w-4 h-4 fill-emerald-500 text-emerald-500" />
+        <div className="flex items-center gap-2.5">
+          {user?.photoUrl ? (
+            <img
+              src={user.photoUrl}
+              alt={user.displayName || 'You'}
+              className="w-7 h-7 rounded-full object-cover ring-1 ring-emerald-500/40 shrink-0"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <Flame className="w-4 h-4 fill-emerald-500 text-emerald-500" />
+            </div>
+          )}
+          <div>
+            <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-neutral-800 dark:text-neutral-100 block leading-tight">
+              Spiritual Walk & Activity
+            </span>
+            {user?.displayName && (
+              <span className="text-[10px] text-neutral-400 font-medium">
+                {user.displayName}
+              </span>
+            )}
           </div>
-          <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-neutral-800 dark:text-neutral-100">
-            Spiritual Walk & Activity
-          </span>
         </div>
 
         <button

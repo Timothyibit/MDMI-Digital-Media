@@ -57,6 +57,7 @@ export const EditJournalModal: React.FC<EditJournalModalProps> = ({
   const [prayerPoint, setPrayerPoint] = useState('');
   const [devotionalId, setDevotionalId] = useState<string>('');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [entryDate, setEntryDate] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -68,6 +69,16 @@ export const EditJournalModal: React.FC<EditJournalModalProps> = ({
       setPrayerPoint(entry.prayerPoint || '');
       setDevotionalId(entry.devotionalId || '');
       setImageUrl(entry.imageUrl || null);
+      if (entry.createdAt) {
+        try {
+          const d = new Date(entry.createdAt);
+          setEntryDate(d.toISOString().slice(0, 10));
+        } catch {
+          setEntryDate('');
+        }
+      } else {
+        setEntryDate('');
+      }
       setConfirmDelete(false);
     }
   }, [entry, isOpen]);
@@ -81,14 +92,27 @@ export const EditJournalModal: React.FC<EditJournalModalProps> = ({
     setSaving(true);
     const selectedDev = devotionals.find((d) => d.id === devotionalId);
 
+    let finalCreatedAt = entry.createdAt;
+    if (entryDate) {
+      try {
+        const d = new Date(entryDate);
+        if (!isNaN(d.getTime())) {
+          finalCreatedAt = d.toISOString();
+        }
+      } catch {
+        // keep existing
+      }
+    }
+
     await updateEntry(entry.id, {
       title: title.trim(),
       scriptureRef: scriptureRef.trim() || 'Holy Scripture',
       content: content.trim(),
-      prayerPoint: prayerPoint.trim() || undefined,
+      prayerPoint: prayerPoint.trim() ? prayerPoint.trim() : null,
       devotionalId: devotionalId || null,
-      devotionalTitle: selectedDev ? selectedDev.title : entry.devotionalTitle,
+      devotionalTitle: selectedDev ? selectedDev.title : (devotionalId ? entry.devotionalTitle : undefined),
       imageUrl: imageUrl || null,
+      createdAt: finalCreatedAt,
     });
 
     setSaving(false);
@@ -112,7 +136,7 @@ export const EditJournalModal: React.FC<EditJournalModalProps> = ({
               <div>
                 <span>Edit Journal Reflection</span>
                 <p className="text-[11px] font-normal text-neutral-500 dark:text-neutral-400">
-                  Update and preserve your private spiritual impressions
+                  Update and keep your personal reflections safe
                 </p>
               </div>
             </div>
@@ -217,28 +241,43 @@ export const EditJournalModal: React.FC<EditJournalModalProps> = ({
             />
           </div>
 
-          {/* Entry Metadata & Timestamps */}
-          <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-[11px] text-neutral-400">
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5" />
-              <span>Created: {new Date(entry.createdAt).toLocaleDateString()}</span>
+          {/* Entry Date & Metadata */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-journal-date" className="text-xs font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[#5E72E4]" />
+                <span>Reflection Date</span>
+              </Label>
+              <Input
+                id="edit-journal-date"
+                type="date"
+                value={entryDate}
+                onChange={(e) => setEntryDate(e.target.value)}
+                className="text-xs rounded-xl"
+              />
             </div>
-            {entry.updatedAt && (
-              <span>Last updated: {new Date(entry.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            )}
+
+            <div className="space-y-1.5 flex flex-col justify-end text-[11px] text-neutral-500 dark:text-neutral-400 pb-2">
+              <div className="flex items-center gap-1.5">
+                <span>Created: {new Date(entry.createdAt).toLocaleDateString()}</span>
+              </div>
+              {entry.updatedAt && (
+                <span>Last edited: {new Date(entry.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              )}
+            </div>
           </div>
         </form>
 
         <DialogFooter className="border-t border-neutral-200 dark:border-neutral-800 px-6 py-3.5 bg-neutral-50 dark:bg-neutral-900/90 rounded-b-2xl flex items-center justify-between gap-2">
           {confirmDelete ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-rose-600 dark:text-rose-400 font-bold">Delete permanently?</span>
+              <span className="text-xs text-rose-600 dark:text-rose-400 font-bold">Are you sure you want to delete this note?</span>
               <button
                 type="button"
                 onClick={handleDelete}
                 className="px-2.5 py-1 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors cursor-pointer"
               >
-                Yes, Delete
+                Delete note
               </button>
               <button
                 type="button"
@@ -255,7 +294,7 @@ export const EditJournalModal: React.FC<EditJournalModalProps> = ({
               className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 font-semibold cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete Entry</span>
+              <span>Delete Note</span>
             </button>
           )}
 

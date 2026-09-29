@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ThemeMode, Devotional, TabType } from '../types';
 import { generateDevotionalSpeech } from '../services/aiAudioService';
+import { useDevotionalStore } from './useDevotionalStore';
 
 interface UIState {
   activeTab: TabType;
@@ -56,7 +57,7 @@ interface UIState {
   openIntroSplash: () => void;
   closeIntroSplash: () => void;
 
-  openCommentsSheet: (devotionalId: string) => void;
+  openCommentsSheet: (devotionalId?: string | null) => void;
   closeCommentsSheet: () => void;
 
   openVerseShare: (data: { scripture: string; scriptureText: string; title: string; author: string }) => void;
@@ -164,8 +165,14 @@ export const useUIStore = create<UIState>((set, get) => {
     openIntroSplash: () => set({ introSplashOpen: true }),
     closeIntroSplash: () => set({ introSplashOpen: false }),
 
-    openCommentsSheet: (commentsDevotionalId) =>
-      set({ commentsSheetOpen: true, commentsDevotionalId }),
+    openCommentsSheet: (commentsDevotionalId) => {
+      const activeId =
+        commentsDevotionalId ||
+        useDevotionalStore.getState().activeDevotionalId ||
+        useDevotionalStore.getState().devotionals[0]?.id ||
+        null;
+      set({ commentsSheetOpen: true, commentsDevotionalId: activeId });
+    },
 
     closeCommentsSheet: () => set({ commentsSheetOpen: false, commentsDevotionalId: null }),
 

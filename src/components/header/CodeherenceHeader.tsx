@@ -91,7 +91,8 @@ export function CodeherenceHeader({
               type="button"
               onClick={() => onSelectTab("profile")}
               className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-[#FB6340]/10 border border-[#FB6340]/25 text-[#FB6340] hover:bg-[#FB6340]/20 transition-colors cursor-pointer"
-              aria-label="Spiritual Streak"
+              aria-label="Daily reading streak"
+              title={`${user.streakCount ?? 0} day reading streak`}
             >
               <Flame className="w-3.5 h-3.5 fill-current" />
               <span className="text-xs font-extrabold">{user.streakCount ?? 0}d</span>

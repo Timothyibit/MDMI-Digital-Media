@@ -17,7 +17,7 @@ interface JournalState {
   initializeJournal: (uid: string) => void;
   resetJournal: () => void;
   addEntry: (entry: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateEntry: (id: string, updates: Partial<Omit<JournalEntry, 'id' | 'uid' | 'createdAt'>>) => Promise<void>;
+  updateEntry: (id: string, updates: Partial<Omit<JournalEntry, 'id' | 'uid'>>) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
 }
 
@@ -120,7 +120,13 @@ export const useJournalStore = create<JournalState>((set, get) => {
       if (uid && auth.currentUser && auth.currentUser.uid === uid) {
         try {
           const entryRef = doc(db, 'users', uid, 'journal', id);
-          await updateDoc(entryRef, { ...updates, updatedAt: now });
+          const sanitizedUpdates: Record<string, any> = { updatedAt: now };
+          for (const [key, value] of Object.entries(updates)) {
+            if (value !== undefined) {
+              sanitizedUpdates[key] = value;
+            }
+          }
+          await setDoc(entryRef, sanitizedUpdates, { merge: true });
         } catch (err) {
           console.info('Journal update persisted locally:', err);
         }

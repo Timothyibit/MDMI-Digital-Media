@@ -217,7 +217,7 @@ export const NotificationDrawer: React.FC = () => {
                 <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               )}
               <span className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-                {platform.toUpperCase()} Device Status:
+                Device Notifications:
               </span>
               <span
                 className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
@@ -228,7 +228,7 @@ export const NotificationDrawer: React.FC = () => {
                     : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
                 }`}
               >
-                {permission === 'granted' ? 'Active & Receiving' : permission}
+                {permission === 'granted' ? 'Turned On' : permission === 'denied' ? 'Blocked in Settings' : 'Not Enabled Yet'}
               </span>
             </div>
 

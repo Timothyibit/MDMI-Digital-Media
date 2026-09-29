@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
-import { useDevotionalStore } from '../../store/useDevotionalStore';
+import { useDevotionalStore, isMyComment } from '../../store/useDevotionalStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Comment } from '../../types';
 import { RichTextToolbar } from '../ui/RichTextToolbar';
@@ -23,7 +23,7 @@ import { processImageFile } from '../../lib/imageUtils';
 
 export const CommentsSheet: React.FC = () => {
   const { commentsSheetOpen, commentsDevotionalId, closeCommentsSheet, openAuthGate } = useUIStore();
-  const { comments, addComment, editComment, reportComment } = useDevotionalStore();
+  const { comments, addComment, editComment, removeComment, reportComment } = useDevotionalStore();
   const { user, isAdmin } = useAuthStore();
 
   const [newCommentText, setNewCommentText] = useState('');
@@ -34,13 +34,15 @@ export const CommentsSheet: React.FC = () => {
   // Edit Comment State
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [editingImage, setEditingImage] = useState<string | null>(null);
+  const [isProcessingEditImage, setIsProcessingEditImage] = useState(false);
   const editInputRef = useRef<HTMLTextAreaElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
   const newCommentInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!commentsSheetOpen || !commentsDevotionalId) return null;
-
   const devotionalComments = useMemo(() => {
+    if (!commentsDevotionalId) return [];
     const list = comments.filter((c) => c.devotionalId === commentsDevotionalId);
     const seen = new Set<string>();
     return list.filter((c) => {
@@ -71,8 +73,30 @@ export const CommentsSheet: React.FC = () => {
     }
   };
 
+  const handleDeviceEditImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsProcessingEditImage(true);
+      const dataUrl = await processImageFile(file, { maxDimension: 1000, quality: 0.85 });
+      setEditingImage(dataUrl);
+    } catch (err) {
+      console.warn('Error reading edit image:', err);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setEditingImage(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsProcessingEditImage(false);
+      if (editFileInputRef.current) editFileInputRef.current.value = '';
+    }
+  };
+
   const handlePost = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!commentsDevotionalId) return;
     if (!newCommentText.trim() && !commentImage) return;
 
     if (user?.isAnonymous) {
@@ -94,36 +118,45 @@ export const CommentsSheet: React.FC = () => {
     setCommentImage(null);
   };
 
-  const handleStartEdit = (comment: { id: string; body: string }) => {
+  const handleStartEdit = (comment: Comment) => {
     setEditingCommentId(comment.id);
     setEditingText(comment.body);
+    setEditingImage(comment.imageUrl || null);
   };
 
   const handleSaveEdit = async (commentId: string) => {
     if (!editingText.trim()) return;
-    await editComment(commentId, editingText, commentsDevotionalId);
+    await editComment(
+      commentId,
+      editingText,
+      commentsDevotionalId || undefined,
+      editingImage
+    );
     setEditingCommentId(null);
     setEditingText('');
+    setEditingImage(null);
   };
 
   const handleCancelEdit = () => {
     setEditingCommentId(null);
     setEditingText('');
+    setEditingImage(null);
   };
 
   const handleReport = (commentId: string) => {
-    reportComment(commentId, user?.uid || 'anonymous', commentsDevotionalId);
+    reportComment(commentId, user?.uid || 'anonymous', commentsDevotionalId || undefined);
     setReportSuccessId(commentId);
     setTimeout(() => setReportSuccessId(null), 3000);
   };
 
   return (
     <AnimatePresence>
-      <div
-        id="comments-sheet-overlay"
-        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm"
-        onClick={closeCommentsSheet}
-      >
+      {commentsSheetOpen && commentsDevotionalId && (
+        <div
+          id="comments-sheet-overlay"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm"
+          onClick={closeCommentsSheet}
+        >
         <motion.div
           id="comments-bottom-sheet"
           initial={{ y: '100%' }}
@@ -173,7 +206,7 @@ export const CommentsSheet: React.FC = () => {
               </div>
             ) : (
               devotionalComments.map((comment: Comment, idx: number) => {
-                const isAuthor = user?.uid && comment.uid === user.uid;
+                const isAuthor = isMyComment(comment, user);
                 const canEdit = isAuthor || isAdmin;
                 const isEditingThis = editingCommentId === comment.id;
                 const authorName = isAuthor && user?.displayName ? user.displayName : (comment.displayName || 'Devoted Disciple');
@@ -215,23 +248,34 @@ export const CommentsSheet: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Action buttons (Edit & Report) */}
-                      <div className="flex items-center gap-1">
+                      {/* Action buttons (Edit, Delete & Report) */}
+                      <div className="flex items-center gap-1.5">
                         {canEdit && !isEditingThis && (
                           <button
                             type="button"
                             onClick={() => handleStartEdit(comment)}
                             title="Edit your reflection"
-                            className="p-1 text-neutral-400 hover:text-[#5E72E4] rounded-md transition-colors"
+                            className="px-2 py-1 rounded-md text-[11px] font-bold text-[#5E72E4] bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 border border-[#5E72E4]/25 flex items-center gap-1 transition-colors cursor-pointer"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                        {canEdit && !isEditingThis && (
+                          <button
+                            type="button"
+                            onClick={() => removeComment(comment.id, commentsDevotionalId || undefined)}
+                            title="Delete reflection"
+                            className="p-1 text-neutral-400 hover:text-rose-500 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                         <button
                           id={`report-comment-btn-${comment.id}`}
                           onClick={() => handleReport(comment.id)}
                           title="Report reflection"
-                          className="p-1 text-neutral-400 hover:text-[#F5365C] rounded-md transition-colors"
+                          className="p-1 text-neutral-400 hover:text-[#F5365C] rounded-md transition-colors cursor-pointer"
                         >
                           <Flag className="w-3.5 h-3.5" />
                         </button>
@@ -239,7 +283,7 @@ export const CommentsSheet: React.FC = () => {
                     </div>
 
                     {isEditingThis ? (
-                      /* Inline Comment Editor with Rich Text Formatting */
+                      /* Inline Comment Editor with Rich Text Formatting & Photo management */
                       <div className="space-y-2 pl-9">
                         <RichTextToolbar
                           textareaRef={editInputRef}
@@ -253,21 +297,59 @@ export const CommentsSheet: React.FC = () => {
                           onChange={(e) => setEditingText(e.target.value)}
                           className="w-full px-3 py-2 rounded-lg border border-[#5E72E4] bg-white dark:bg-neutral-900 text-xs text-neutral-900 dark:text-white focus:outline-none"
                         />
-                        <div className="flex items-center justify-end gap-2">
+
+                        {/* Edit attached photo */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <input
+                            type="file"
+                            ref={editFileInputRef}
+                            onChange={handleDeviceEditImageUpload}
+                            accept="image/*"
+                            className="hidden"
+                          />
+                          {editingImage ? (
+                            <div className="relative inline-block">
+                              <img
+                                src={editingImage}
+                                alt="Reflection attachment preview"
+                                className="w-16 h-16 rounded-lg object-cover border border-neutral-300 dark:border-neutral-700"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setEditingImage(null)}
+                                title="Remove photo"
+                                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-sm hover:bg-rose-600 cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => editFileInputRef.current?.click()}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <ImagePlus className="w-3.5 h-3.5 text-[#5E72E4]" />
+                              <span>{isProcessingEditImage ? 'Processing...' : 'Attach Photo'}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-1">
                           <button
                             type="button"
                             onClick={handleCancelEdit}
-                            className="px-3 py-1 rounded-md text-xs text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                            className="px-3 py-1 rounded-md text-xs text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 cursor-pointer"
                           >
                             Cancel
                           </button>
                           <button
                             type="button"
                             onClick={() => handleSaveEdit(comment.id)}
-                            className="px-3 py-1 rounded-md text-xs font-bold bg-[#5E72E4] text-white hover:bg-[#4a5ec4] flex items-center gap-1 shadow-sm"
+                            className="px-3 py-1 rounded-md text-xs font-bold bg-[#5E72E4] text-white hover:bg-[#4a5ec4] flex items-center gap-1 shadow-sm cursor-pointer"
                           >
                             <Check className="w-3 h-3" />
-                            <span>Save</span>
+                            <span>Save Changes</span>
                           </button>
                         </div>
                       </div>
@@ -330,6 +412,23 @@ export const CommentsSheet: React.FC = () => {
               </div>
             ) : (
               <form onSubmit={handlePost} className="space-y-2">
+                <div className="flex items-center gap-2 px-0.5">
+                  {user?.photoUrl ? (
+                    <img
+                      src={user.photoUrl}
+                      alt={user.displayName || 'You'}
+                      className="w-5 h-5 rounded-full object-cover ring-1 ring-neutral-300 dark:ring-neutral-700 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-[#5E72E4] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                      {user?.displayName ? user.displayName.charAt(0).toUpperCase() : 'D'}
+                    </div>
+                  )}
+                  <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400 truncate">
+                    Sharing reflection as <strong className="text-neutral-900 dark:text-neutral-200">{user?.displayName || 'Devoted Disciple'}</strong>
+                  </span>
+                </div>
+
                 <RichTextToolbar
                   textareaRef={newCommentInputRef}
                   value={newCommentText}
@@ -395,6 +494,7 @@ export const CommentsSheet: React.FC = () => {
           </div>
         </motion.div>
       </div>
+      )}
     </AnimatePresence>
   );
 };

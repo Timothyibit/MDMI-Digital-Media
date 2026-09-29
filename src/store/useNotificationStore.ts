@@ -50,9 +50,31 @@ export interface NotificationStoreState {
   permission: NotificationPermission;
   platform: PlatformType;
   isLoading: boolean;
+  soundEnabled: boolean;
+  autoReadOnOpen: boolean;
+  dailyReminderTime: string;
+  categoryPreferences: {
+    devotional: boolean;
+    prayer: boolean;
+    fellowship: boolean;
+    broadcast: boolean;
+  };
+  selectedNotificationDetail: AppNotification | null;
   initializeNotifications: () => () => void;
   openDrawer: () => void;
   closeDrawer: () => void;
+  toggleSoundEnabled: (val?: boolean) => void;
+  toggleAutoReadOnOpen: (val?: boolean) => void;
+  setDailyReminderTime: (time: string) => void;
+  toggleCategoryPreference: (
+    category: 'devotional' | 'prayer' | 'fellowship' | 'broadcast',
+    val?: boolean
+  ) => void;
+  openNotificationDetail: (notif: AppNotification | string) => void;
+  closeNotificationDetail: () => void;
+  clearArchivedNotifications: () => void;
+  archiveAllRead: () => void;
+  restoreAllArchived: () => void;
   requestPermission: () => Promise<NotificationPermission>;
   markAsRead: (id: string, read?: boolean) => void;
   markAllAsRead: () => void;
@@ -110,6 +132,48 @@ const STORAGE_KEY_READ_IDS = 'mdmi_read_notification_ids';
 const STORAGE_KEY_ARCHIVED_IDS = 'mdmi_archived_notification_ids';
 const STORAGE_KEY_RESOLVED_ACTIONS = 'mdmi_notification_resolved_actions';
 const STORAGE_KEY_SCHEDULES = 'mdmi_notification_schedules_cache';
+const STORAGE_KEY_SOUND_ENABLED = 'mdmi_notif_sound_enabled';
+const STORAGE_KEY_AUTOREAD = 'mdmi_notif_autoread';
+const STORAGE_KEY_REMINDER_TIME = 'mdmi_notif_reminder_time';
+const STORAGE_KEY_CATEGORIES = 'mdmi_notif_categories';
+
+function getStoredCategories(): {
+  devotional: boolean;
+  prayer: boolean;
+  fellowship: boolean;
+  broadcast: boolean;
+} {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CATEGORIES);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // ignore
+  }
+  return {
+    devotional: true,
+    prayer: true,
+    fellowship: true,
+    broadcast: true,
+  };
+}
+
+function getStoredBoolean(key: string, defaultValue: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return defaultValue;
+    return raw === 'true';
+  } catch {
+    return defaultValue;
+  }
+}
+
+function getStoredString(key: string, defaultValue: string): string {
+  try {
+    return localStorage.getItem(key) || defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
 
 function getStoredArray(key: string): string[] {
   try {
@@ -217,9 +281,106 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
   permission: getDeviceNotificationPermission(),
   platform: detectPlatform(),
   isLoading: false,
+  soundEnabled: getStoredBoolean(STORAGE_KEY_SOUND_ENABLED, true),
+  autoReadOnOpen: getStoredBoolean(STORAGE_KEY_AUTOREAD, false),
+  dailyReminderTime: getStoredString(STORAGE_KEY_REMINDER_TIME, '07:00'),
+  categoryPreferences: getStoredCategories(),
+  selectedNotificationDetail: null,
 
   openDrawer: () => set({ isOpen: true }),
   closeDrawer: () => set({ isOpen: false }),
+
+  toggleCategoryPreference: (category, val) => {
+    const current = get().categoryPreferences;
+    const nextVal = val !== undefined ? val : !current[category];
+    const updated = { ...current, [category]: nextVal };
+    try {
+      localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+    set({ categoryPreferences: updated });
+  },
+
+  openNotificationDetail: (notifOrId) => {
+    if (!notifOrId) return;
+    if (typeof notifOrId === 'string') {
+      const found = get().notifications.find((n) => n.id === notifOrId) || null;
+      set({ selectedNotificationDetail: found });
+      if (found) {
+        get().markAsRead(found.id, true);
+      }
+    } else {
+      set({ selectedNotificationDetail: notifOrId });
+      if (notifOrId && notifOrId.id) {
+        get().markAsRead(notifOrId.id, true);
+      }
+    }
+  },
+
+  closeNotificationDetail: () => set({ selectedNotificationDetail: null }),
+
+  archiveAllRead: () => {
+    const current = get().notifications;
+    const readIds = current.filter((n) => n.read).map((n) => n.id);
+    const existing = new Set(get().archivedIds);
+    readIds.forEach((id) => existing.add(id));
+    const nextArchived = Array.from(existing);
+    saveStoredArray(STORAGE_KEY_ARCHIVED_IDS, nextArchived);
+    set({ archivedIds: nextArchived });
+  },
+
+  restoreAllArchived: () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY_ARCHIVED_IDS);
+    } catch {
+      // ignore
+    }
+    set({ archivedIds: [] });
+  },
+
+  toggleSoundEnabled: (val) => {
+    const next = val !== undefined ? val : !get().soundEnabled;
+    try {
+      localStorage.setItem(STORAGE_KEY_SOUND_ENABLED, String(next));
+    } catch {
+      // ignore
+    }
+    set({ soundEnabled: next });
+    if (next) {
+      playNotificationSound();
+    }
+  },
+
+  toggleAutoReadOnOpen: (val) => {
+    const next = val !== undefined ? val : !get().autoReadOnOpen;
+    try {
+      localStorage.setItem(STORAGE_KEY_AUTOREAD, String(next));
+    } catch {
+      // ignore
+    }
+    set({ autoReadOnOpen: next });
+  },
+
+  setDailyReminderTime: (time) => {
+    try {
+      localStorage.setItem(STORAGE_KEY_REMINDER_TIME, time);
+    } catch {
+      // ignore
+    }
+    set({ dailyReminderTime: time });
+  },
+
+  clearArchivedNotifications: () => {
+    const archivedSet = new Set(get().archivedIds);
+    const updated = get().notifications.filter((n) => !archivedSet.has(n.id));
+    try {
+      localStorage.removeItem(STORAGE_KEY_ARCHIVED_IDS);
+    } catch {
+      // ignore
+    }
+    set({ archivedIds: [], notifications: updated });
+  },
 
   requestPermission: async () => {
     const perm = await requestDeviceNotificationPermission();

@@ -177,7 +177,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
             Profile & Spiritual Walk
           </Text>
           <Text className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Your spiritual milestones and Firebase cloud sync settings
+            Your spiritual journey, reading habit, and account settings
           </Text>
         </View>
 
@@ -255,7 +255,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                     )}
                   </View>
                   <Text className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 font-mono">
-                    {user?.email || `Firebase UID: ${user?.uid.substring(0, 14)}...`}
+                    {user?.email || (user?.isAnonymous ? 'Guest Member' : `Member ID: ${user?.uid.substring(0, 10)}`)}
                   </Text>
                 </View>
               </View>
@@ -291,7 +291,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                     id="profile-register-btn"
                     onClick={() =>
                       openAuthGate(
-                        'Create a registered account to sync your reading streak and private journal.',
+                        'Create an account to keep your reading streak and private journal safe.',
                         'register'
                       )
                     }
@@ -440,11 +440,11 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
             <View className="flex-row items-center gap-2">
               <Database className="w-4 h-4 text-[#5E72E4]" />
               <Text className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
-                Firestore Persistence: Cloud Sync Connected
+                Connected & Saved to Your Account
               </Text>
             </View>
             <Text className="text-[11px] text-[#5E72E4] font-bold font-mono">
-              {streak}d Streak Saved
+              {streak} day streak
             </Text>
           </View>
         </div>
@@ -728,7 +728,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
             <View className="flex-row items-center gap-1">
               <Check className="w-3.5 h-3.5 text-emerald-500" />
               <Text className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
-                Reminder settings updated in Firestore!
+                Reminder time saved!
               </Text>
             </View>
           )}

@@ -184,7 +184,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
                   Cross-Platform Sync
                 </p>
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">
-                  Secured by Firebase Auth and real-time cloud sync across your devices.
+                  Your reading history and reflections stay safely saved across all your devices.
                 </p>
               </div>
             </div>
