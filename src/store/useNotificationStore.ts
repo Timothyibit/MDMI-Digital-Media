@@ -34,6 +34,7 @@ import {
   deleteScheduleFromBackend,
   clearBackendTestNotifications,
 } from '../services/notificationService';
+export { playNotificationSound } from '../services/notificationService';
 import {
   computeNextRecurrence,
   DEFAULT_AUTOMATIC_RULES,
@@ -82,6 +83,9 @@ export interface NotificationStoreState {
   resolveAction: (id: string, actionId: string, resolvedLabel: string) => void;
   triggerTestNotification: () => Promise<void>;
   clearTestNotifications: () => Promise<{ success: boolean; clearedCount: number }>;
+  maxStoredAmount: number;
+  setMaxStoredAmount: (max: number) => void;
+  pruneOldNotifications: (customLimit?: number) => Promise<{ success: boolean; prunedCount: number; preservedCount: number }>;
   deleteNotification: (id: string) => Promise<{ success: boolean }>;
   clearAllBroadcastHistory: () => Promise<{ success: boolean; clearedCount: number }>;
   broadcastNotification: (
@@ -136,6 +140,45 @@ const STORAGE_KEY_SOUND_ENABLED = 'mdmi_notif_sound_enabled';
 const STORAGE_KEY_AUTOREAD = 'mdmi_notif_autoread';
 const STORAGE_KEY_REMINDER_TIME = 'mdmi_notif_reminder_time';
 const STORAGE_KEY_CATEGORIES = 'mdmi_notif_categories';
+const STORAGE_KEY_NOTIFICATIONS_CACHE = 'mdmi_notifications_cache';
+const STORAGE_KEY_MAX_AMOUNT = 'mdmi_notification_max_amount';
+export const DEFAULT_MAX_NOTIFICATIONS = 30;
+
+function getStoredNotifications(): AppNotification[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_NOTIFICATIONS_CACHE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item) => item && item.id && !isTestNotificationItem(item));
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+function saveStoredNotifications(notifications: AppNotification[]) {
+  try {
+    const clean = notifications.filter((item) => item && item.id && !isTestNotificationItem(item));
+    localStorage.setItem(STORAGE_KEY_NOTIFICATIONS_CACHE, JSON.stringify(clean));
+  } catch {
+    // ignore
+  }
+}
+
+function getStoredMaxAmount(): number {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MAX_AMOUNT);
+    if (raw) {
+      const parsed = parseInt(raw, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_MAX_NOTIFICATIONS;
+}
 
 function getStoredCategories(): {
   devotional: boolean;
@@ -228,12 +271,27 @@ function saveStoredSchedules(schedules: NotificationSchedule[]) {
 }
 
 export function deduplicateNotifications(items: AppNotification[]): AppNotification[] {
-  const seen = new Set<string>();
-  return items.filter((n) => {
-    if (!n || !n.id || seen.has(n.id)) return false;
-    seen.add(n.id);
-    return true;
-  });
+  const seenId = new Set<string>();
+  const seenContent = new Set<string>();
+  const result: AppNotification[] = [];
+
+  for (const n of items) {
+    if (!n || !n.id || seenId.has(n.id)) continue;
+    if (isTestNotificationItem(n)) continue; // Never include test notifications
+    seenId.add(n.id);
+
+    // Normalize title & body for content deduplication
+    const normTitle = (n.title || '').trim().toLowerCase();
+    const normBody = (n.body || '').trim().toLowerCase();
+    const contentKey = `${normTitle}:::${normBody}`;
+
+    if (seenContent.has(contentKey)) continue;
+    seenContent.add(contentKey);
+
+    result.push(n);
+  }
+
+  return result;
 }
 
 export function deduplicateSchedules(items: NotificationSchedule[]): NotificationSchedule[] {
@@ -271,12 +329,73 @@ export function isTestNotificationItem(n: AppNotification): boolean {
   );
 }
 
-export const useNotificationStore = create<NotificationStoreState>((set, get) => ({
-  notifications: [],
+let notifStorageListenerAttached = false;
+let globalTickerInterval: any = null;
+
+export const useNotificationStore = create<NotificationStoreState>((set, get) => {
+  // Cross-tab real-time storage synchronization
+  if (typeof window !== 'undefined' && !notifStorageListenerAttached) {
+    notifStorageListenerAttached = true;
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY_READ_IDS && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            const readSet = new Set(parsed);
+            const archivedSet = new Set(get().archivedIds);
+            const updated = get().notifications.map((n) => ({
+              ...n,
+              read: readSet.has(n.id),
+            }));
+            const unread = updated.filter((n) => !n.read && !archivedSet.has(n.id)).length;
+            set({ notifications: updated, unreadCount: unread });
+          }
+        } catch {
+          // ignore
+        }
+      } else if (e.key === STORAGE_KEY_ARCHIVED_IDS && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            const archivedSet = new Set(parsed);
+            const unread = get().notifications.filter((n) => !n.read && !archivedSet.has(n.id)).length;
+            set({ archivedIds: parsed, unreadCount: unread });
+          }
+        } catch {
+          // ignore
+        }
+      } else if (e.key === STORAGE_KEY_CATEGORIES && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && typeof parsed === 'object') {
+            set({ categoryPreferences: parsed });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }
+
+  const initialCached = getStoredNotifications();
+  const initialReadSet = new Set(getStoredArray(STORAGE_KEY_READ_IDS));
+  const initialArchivedArr = getStoredArray(STORAGE_KEY_ARCHIVED_IDS);
+  const initialArchivedSet = new Set(initialArchivedArr);
+  const initialCleanNotifs = initialCached.map((n) => ({
+    ...n,
+    read: initialReadSet.has(n.id) || Boolean(n.read),
+  }));
+  const initialUnreadCount = initialCleanNotifs.filter(
+    (n) => !n.read && !initialArchivedSet.has(n.id)
+  ).length;
+
+  return {
+  notifications: initialCleanNotifs,
   schedules: getStoredSchedules(),
-  archivedIds: getStoredArray(STORAGE_KEY_ARCHIVED_IDS),
+  archivedIds: initialArchivedArr,
   resolvedActions: getStoredRecord(STORAGE_KEY_RESOLVED_ACTIONS),
-  unreadCount: 0,
+  unreadCount: initialUnreadCount,
+  maxStoredAmount: getStoredMaxAmount(),
   isOpen: false,
   permission: getDeviceNotificationPermission(),
   platform: detectPlatform(),
@@ -286,6 +405,17 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
   dailyReminderTime: getStoredString(STORAGE_KEY_REMINDER_TIME, '07:00'),
   categoryPreferences: getStoredCategories(),
   selectedNotificationDetail: null,
+
+  setMaxStoredAmount: (max: number) => {
+    const val = Math.max(5, Math.min(200, max));
+    try {
+      localStorage.setItem(STORAGE_KEY_MAX_AMOUNT, String(val));
+    } catch {
+      // ignore
+    }
+    set({ maxStoredAmount: val });
+    get().pruneOldNotifications(val);
+  },
 
   openDrawer: () => set({ isOpen: true }),
   closeDrawer: () => set({ isOpen: false }),
@@ -406,9 +536,20 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
 
     const current = get().notifications;
     const updated = current.map((n) => (n.id === id ? { ...n, read } : n));
+    saveStoredNotifications(updated);
+
     const archivedSet = new Set(get().archivedIds);
     const unread = updated.filter((n) => !n.read && !archivedSet.has(n.id)).length;
     set({ notifications: updated, unreadCount: unread });
+
+    // Persist read state to Firestore doc if connected
+    try {
+      if (id && !id.startsWith('notif-')) {
+        updateDoc(doc(db, 'notifications', id), { read }).catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
   },
 
   markAllAsRead: () => {
@@ -416,7 +557,60 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
     const allIds = current.map((n) => n.id);
     saveStoredArray(STORAGE_KEY_READ_IDS, allIds);
     const updated = current.map((n) => ({ ...n, read: true }));
+    saveStoredNotifications(updated);
     set({ notifications: updated, unreadCount: 0 });
+
+    // Also update remote docs in Firestore
+    current.forEach((n) => {
+      if (n.id && !n.id.startsWith('notif-')) {
+        updateDoc(doc(db, 'notifications', n.id), { read: true }).catch(() => {});
+      }
+    });
+  },
+
+  pruneOldNotifications: async (customLimit?: number) => {
+    const max = customLimit || get().maxStoredAmount || getStoredMaxAmount() || DEFAULT_MAX_NOTIFICATIONS;
+    const current = [...get().notifications];
+    current.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    if (current.length <= max) {
+      return { success: true, prunedCount: 0, preservedCount: current.length };
+    }
+
+    const preserved = current.slice(0, max);
+    const toDelete = current.slice(max);
+
+    // Delete excess old docs from Firestore
+    await Promise.all(
+      toDelete.map((old) =>
+        deleteDoc(doc(db, 'notifications', old.id)).catch(() => {})
+      )
+    );
+
+    // Clean up IDs
+    const oldIds = new Set(toDelete.map((d) => d.id));
+    const nextReadIds = getStoredArray(STORAGE_KEY_READ_IDS).filter((id) => !oldIds.has(id));
+    saveStoredArray(STORAGE_KEY_READ_IDS, nextReadIds);
+
+    const nextArchived = getStoredArray(STORAGE_KEY_ARCHIVED_IDS).filter((id) => !oldIds.has(id));
+    saveStoredArray(STORAGE_KEY_ARCHIVED_IDS, nextArchived);
+
+    saveStoredNotifications(preserved);
+
+    const archivedSet = new Set(nextArchived);
+    const unread = preserved.filter((n) => !n.read && !archivedSet.has(n.id)).length;
+
+    set({
+      notifications: preserved,
+      unreadCount: unread,
+      archivedIds: nextArchived,
+    });
+
+    return {
+      success: true,
+      prunedCount: toDelete.length,
+      preservedCount: preserved.length,
+    };
   },
 
   archiveNotification: (id: string, archived: boolean) => {
@@ -443,12 +637,8 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
   },
 
   triggerTestNotification: async () => {
-    const platform = get().platform;
-    showDeviceNotification("Faith Alert • MDMI", {
-      body: `Testing ${platform.toUpperCase()} notification delivery with live audio chime.`,
-    });
+    // Play pleasant temple chime without injecting test text or spamming device popups
     playNotificationSound();
-    await triggerBackendTestPush("Devotional Alert", "Fresh manna for your spirit is ready.");
   },
 
   clearTestNotifications: async () => {
@@ -574,9 +764,26 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
 
   broadcastNotification: async (data) => {
     try {
+      // 1. Interpolate template tokens with actual user stats
+      const formattedTitle = interpolateNotificationTemplate(data.title);
+      const formattedBody = interpolateNotificationTemplate(data.body);
+
+      // 2. Prevent sending duplicate notifications with identical title and body
+      const cleanTitle = formattedTitle.trim().toLowerCase();
+      const cleanBody = formattedBody.trim().toLowerCase();
+      const isDuplicate = get().notifications.some(
+        (n) => (n.title || '').trim().toLowerCase() === cleanTitle &&
+               (n.body || '').trim().toLowerCase() === cleanBody
+      );
+
+      if (isDuplicate) {
+        console.info('Notification already exists; skipping duplicate broadcast:', formattedTitle);
+        return { success: true };
+      }
+
       const payload = {
-        title: data.title,
-        body: data.body,
+        title: formattedTitle,
+        body: formattedBody,
         type: data.type || 'broadcast',
         devotionalId: data.devotionalId || null,
         createdBy: data.createdBy || 'Ministry Overseer',
@@ -587,8 +794,8 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       const docRef = await addDoc(collection(db, 'notifications'), payload);
 
       // Trigger instant device popup & sacred chime
-      showDeviceNotification(data.title, {
-        body: data.body,
+      showDeviceNotification(formattedTitle, {
+        body: formattedBody,
         tag: docRef.id,
       });
       playNotificationSound();
@@ -596,17 +803,37 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       // Update local state immediately, ensuring strict ID uniqueness
       const newNotif: AppNotification = {
         ...data,
+        title: formattedTitle,
+        body: formattedBody,
         id: docRef.id,
         createdAt: new Date().toISOString(),
         read: false,
       };
 
       set((state) => {
-        const updated = deduplicateNotifications([newNotif, ...state.notifications]);
+        const currentReadIds = new Set(getStoredArray(STORAGE_KEY_READ_IDS));
+        const combined = [newNotif, ...state.notifications].map((n) => ({
+          ...n,
+          read: n.id === newNotif.id ? false : (n.read || currentReadIds.has(n.id)),
+        }));
+        const deduped = deduplicateNotifications(combined);
+        deduped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        const maxAmount = state.maxStoredAmount || getStoredMaxAmount() || DEFAULT_MAX_NOTIFICATIONS;
+        const preserved = deduped.slice(0, maxAmount);
+        const oldExcess = deduped.slice(maxAmount);
+
+        // Delete excess old notifications from Firestore
+        oldExcess.forEach((old) => {
+          deleteDoc(doc(db, 'notifications', old.id)).catch(() => {});
+        });
+
+        saveStoredNotifications(preserved);
+
         const archivedSet = new Set(state.archivedIds);
-        const unread = updated.filter((n) => !n.read && !archivedSet.has(n.id)).length;
+        const unread = preserved.filter((n) => !n.read && !archivedSet.has(n.id)).length;
         return {
-          notifications: updated,
+          notifications: preserved,
           unreadCount: unread,
         };
       });
@@ -614,26 +841,41 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       return { success: true };
     } catch (err: any) {
       console.warn('Broadcast error, falling back locally:', err);
-      const fallbackId = 'local-' + Date.now();
-      showDeviceNotification(data.title, {
-        body: data.body,
+      const formattedTitle = interpolateNotificationTemplate(data.title);
+      const formattedBody = interpolateNotificationTemplate(data.body);
+      const fallbackId = 'notif-' + Date.now();
+      showDeviceNotification(formattedTitle, {
+        body: formattedBody,
         tag: fallbackId,
       });
       playNotificationSound();
 
       const newNotif: AppNotification = {
         ...data,
+        title: formattedTitle,
+        body: formattedBody,
         id: fallbackId,
         createdAt: new Date().toISOString(),
         read: false,
       };
 
       set((state) => {
-        const updated = deduplicateNotifications([newNotif, ...state.notifications]);
+        const currentReadIds = new Set(getStoredArray(STORAGE_KEY_READ_IDS));
+        const combined = [newNotif, ...state.notifications].map((n) => ({
+          ...n,
+          read: n.id === newNotif.id ? false : (n.read || currentReadIds.has(n.id)),
+        }));
+        const deduped = deduplicateNotifications(combined);
+        deduped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        const maxAmount = state.maxStoredAmount || getStoredMaxAmount() || DEFAULT_MAX_NOTIFICATIONS;
+        const preserved = deduped.slice(0, maxAmount);
+        saveStoredNotifications(preserved);
+
         const archivedSet = new Set(state.archivedIds);
-        const unread = updated.filter((n) => !n.read && !archivedSet.has(n.id)).length;
+        const unread = preserved.filter((n) => !n.read && !archivedSet.has(n.id)).length;
         return {
-          notifications: updated,
+          notifications: preserved,
           unreadCount: unread,
         };
       });
@@ -939,6 +1181,9 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       resolvedActions: getStoredRecord(STORAGE_KEY_RESOLVED_ACTIONS),
     });
 
+    // Auto purge any test notifications and test text from Firestore & local storage
+    get().clearTestNotifications().catch(() => {});
+
     // 1. Attach Firestore realtime listener for Notifications
     let unsubNotifications = () => {};
     try {
@@ -952,28 +1197,53 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         q,
         (snapshot) => {
           if (!snapshot.empty) {
+            // Dynamic check of latest read and archived sets
+            const currentReadIds = new Set(getStoredArray(STORAGE_KEY_READ_IDS));
+            const currentArchived = new Set(getStoredArray(STORAGE_KEY_ARCHIVED_IDS));
+
             const remote: AppNotification[] = snapshot.docs.map((docSnap) => {
               const data = docSnap.data();
               const createdAt = data.createdAt?.toDate
                 ? data.createdAt.toDate().toISOString()
                 : data.createdAt || new Date().toISOString();
+              const isRead = currentReadIds.has(docSnap.id) || Boolean(data.read);
               return {
                 id: docSnap.id,
-                title: data.title,
-                body: data.body,
+                title: interpolateNotificationTemplate(data.title || ''),
+                body: interpolateNotificationTemplate(data.body || ''),
                 type: data.type || 'broadcast',
                 devotionalId: data.devotionalId,
                 createdBy: data.createdBy || 'Overseer',
                 createdAt,
-                read: readIds.has(docSnap.id),
+                read: isRead,
               };
             });
 
             const dedupedRemote = deduplicateNotifications(remote);
+            // Sort by createdAt descending (newest first)
+            dedupedRemote.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+            // Auto-delete excess old notifications beyond max amount, preserving saved ones below max
+            const maxAmount = get().maxStoredAmount || getStoredMaxAmount() || DEFAULT_MAX_NOTIFICATIONS;
+            let finalNotifications = dedupedRemote;
+            if (dedupedRemote.length > maxAmount) {
+              finalNotifications = dedupedRemote.slice(0, maxAmount);
+              const excessOld = dedupedRemote.slice(maxAmount);
+              excessOld.forEach((old) => {
+                deleteDoc(doc(db, 'notifications', old.id)).catch(() => {});
+              });
+              const excessIds = new Set(excessOld.map((d) => d.id));
+              const nextReadIds = getStoredArray(STORAGE_KEY_READ_IDS).filter((id) => !excessIds.has(id));
+              saveStoredArray(STORAGE_KEY_READ_IDS, nextReadIds);
+              const nextArchived = getStoredArray(STORAGE_KEY_ARCHIVED_IDS).filter((id) => !excessIds.has(id));
+              saveStoredArray(STORAGE_KEY_ARCHIVED_IDS, nextArchived);
+            }
+
+            saveStoredNotifications(finalNotifications);
 
             // Check if there are newly arrived notifications to trigger a device popup
             const previousIds = new Set(get().notifications.map((n) => n.id));
-            const newest = dedupedRemote.find((n) => !previousIds.has(n.id) && !readIds.has(n.id) && !isTestNotificationItem(n));
+            const newest = finalNotifications.find((n) => !previousIds.has(n.id) && !currentReadIds.has(n.id) && !isTestNotificationItem(n));
             if (newest && get().notifications.length > 0) {
               showDeviceNotification(newest.title, {
                 body: newest.body,
@@ -982,13 +1252,14 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
               playNotificationSound();
             }
 
-            const unread = dedupedRemote.filter((n) => !n.read && !archivedSet.has(n.id) && !isTestNotificationItem(n)).length;
+            const unread = finalNotifications.filter((n) => !n.read && !currentArchived.has(n.id) && !isTestNotificationItem(n)).length;
             set({
-              notifications: dedupedRemote,
+              notifications: finalNotifications,
               unreadCount: unread,
             });
           } else {
             // Clean empty state when no broadcasts yet (NO dummy test seeds)
+            saveStoredNotifications([]);
             set({
               notifications: [],
               unreadCount: 0,
@@ -1075,8 +1346,13 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       console.info('Using local schedules cache:', err);
     }
 
-    // 3. Background Engine Ticker (Runs every 10 seconds to check active timers & schedules)
-    const tickerInterval = setInterval(async () => {
+    // 3. Background Engine Ticker (Runs every 15 seconds to check active timers & schedules)
+    if (globalTickerInterval) {
+      clearInterval(globalTickerInterval);
+      globalTickerInterval = null;
+    }
+
+    globalTickerInterval = setInterval(async () => {
       const { schedules, broadcastNotification, updateSchedule } = get();
       const now = Date.now();
 
@@ -1087,19 +1363,18 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         if (item.triggerType === 'timer' && item.scheduledAt) {
           const scheduledTime = new Date(item.scheduledAt).getTime();
           if (scheduledTime <= now) {
-            console.log(`[Timer Trigger] Firing scheduled notification: "${item.title}"`);
+            await updateSchedule(item.id, {
+              status: 'completed',
+              lastTriggeredAt: new Date().toISOString(),
+              triggerCount: (item.triggerCount || 0) + 1,
+            });
+
             await broadcastNotification({
               title: item.title,
               body: item.body,
               type: item.type,
               devotionalId: item.devotionalId || undefined,
               createdBy: `${item.createdBy} (Timer Trigger)`,
-            });
-
-            await updateSchedule(item.id, {
-              status: 'completed',
-              lastTriggeredAt: new Date().toISOString(),
-              triggerCount: (item.triggerCount || 0) + 1,
             });
           }
         }
@@ -1112,7 +1387,13 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         ) {
           const nextTime = new Date(item.nextTriggerAt).getTime();
           if (nextTime <= now) {
-            console.log(`[Recurring/Auto Trigger] Firing: "${item.title}"`);
+            const nextIso = computeNextRecurrence(item.recurrence, new Date()).toISOString();
+            await updateSchedule(item.id, {
+              lastTriggeredAt: new Date().toISOString(),
+              nextTriggerAt: nextIso,
+              triggerCount: (item.triggerCount || 0) + 1,
+            });
+
             await broadcastNotification({
               title: item.title,
               body: item.body,
@@ -1120,22 +1401,19 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
               devotionalId: item.devotionalId || undefined,
               createdBy: `${item.createdBy} (Automated Schedule)`,
             });
-
-            const nextIso = computeNextRecurrence(item.recurrence, new Date()).toISOString();
-            await updateSchedule(item.id, {
-              lastTriggeredAt: new Date().toISOString(),
-              nextTriggerAt: nextIso,
-              triggerCount: (item.triggerCount || 0) + 1,
-            });
           }
         }
       }
-    }, 10000);
+    }, 15000);
 
     return () => {
       unsubNotifications();
       unsubSchedules();
-      clearInterval(tickerInterval);
+      if (globalTickerInterval) {
+        clearInterval(globalTickerInterval);
+        globalTickerInterval = null;
+      }
     };
   },
-}));
+  };
+});

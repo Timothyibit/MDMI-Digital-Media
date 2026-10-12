@@ -2,7 +2,6 @@
 
 import React from "react";
 import {
-  Flame,
   BookOpen,
   Compass,
   BookHeart,
@@ -11,7 +10,6 @@ import {
   Bell,
 } from "lucide-react";
 import { MdmiLogo } from "../ui/MdmiLogo";
-import { ThemeToggle } from "../ui/ThemeToggle";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useNotificationStore } from "../../store/useNotificationStore";
 import { TabType } from "../../types";
@@ -74,8 +72,8 @@ export function CodeherenceHeader({
                   onClick={() => onSelectTab(id)}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
                     isActive
-                      ? "bg-[#5E72E4] text-white shadow-sm"
-                      : "text-[#525F7F] dark:text-neutral-400 hover:text-[#172B4D] dark:hover:text-white"
+                      ? "bg-gradient-to-r from-[#84CC16] to-[#65A30D] text-white shadow-sm"
+                      : "text-[#525F7F] dark:text-neutral-400 hover:text-[#4D7C0F] dark:hover:text-[#84CC16]"
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -84,20 +82,6 @@ export function CodeherenceHeader({
               );
             })}
           </div>
-
-          {/* Streak Counter Chip */}
-          {user && (
-            <button
-              type="button"
-              onClick={() => onSelectTab("profile")}
-              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-[#FB6340]/10 border border-[#FB6340]/25 text-[#FB6340] hover:bg-[#FB6340]/20 transition-colors cursor-pointer"
-              aria-label="Daily reading streak"
-              title={`${user.streakCount ?? 0} day reading streak`}
-            >
-              <Flame className="w-3.5 h-3.5 fill-current" />
-              <span className="text-xs font-extrabold">{user.streakCount ?? 0}d</span>
-            </button>
-          )}
 
           {/* Notification Bell with Unread Badge */}
           <button
@@ -108,21 +92,18 @@ export function CodeherenceHeader({
           >
             <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-[#F5365C] text-white text-[9px] font-extrabold flex items-center justify-center animate-pulse">
+              <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-[#DC2626] text-white text-[9px] font-extrabold flex items-center justify-center animate-pulse shadow-xs">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </button>
-
-          {/* Global Theme Toggle */}
-          <ThemeToggle scope="global" />
 
           {/* User Profile Avatar Link */}
           {user && (
             <button
               type="button"
               onClick={() => onSelectTab("profile")}
-              className="flex items-center gap-1.5 p-0.5 rounded-full hover:ring-2 hover:ring-[#5E72E4]/40 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 p-0.5 rounded-full hover:ring-2 hover:ring-[#84CC16]/50 transition-all cursor-pointer"
               aria-label="Your Disciple Profile"
               title={user.displayName || "Profile"}
             >
@@ -133,7 +114,7 @@ export function CodeherenceHeader({
                   className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border-2 border-white dark:border-neutral-900 shadow-xs"
                 />
               ) : (
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#5E72E4] text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-[#84CC16] to-[#65A30D] text-white flex items-center justify-center text-xs font-bold shadow-xs">
                   {user.displayName ? user.displayName.charAt(0).toUpperCase() : "D"}
                 </div>
               )}

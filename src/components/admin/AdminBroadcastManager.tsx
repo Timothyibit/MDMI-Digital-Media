@@ -33,9 +33,11 @@ import {
   AutoNotificationEventType,
 } from '../../types';
 import { formatTimeRemaining } from '../../services/notificationSchedulerEngine';
+import { AlertCard } from '@/components/ui/card-8';
 import { playNotificationSound } from '../../services/notificationService';
 import { DateTimePicker } from '../ui/DateTimePicker';
 import { PaginationPageDefault } from '@/components/application/pagination/pagination';
+import { MotionButton } from '@/components/ui/motion-button';
 
 type AdminNotificationSubTab = 'instant' | 'timer' | 'recurring' | 'automatic' | 'history';
 
@@ -440,7 +442,7 @@ export const AdminBroadcastManager: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-hidden">
       {/* Device & Push Status Banner */}
       <div className="p-4 rounded-2xl bg-gradient-to-r from-[#5E72E4]/10 via-[#2DCE89]/10 to-indigo-500/10 dark:from-neutral-900 dark:to-neutral-900 border border-[#5E72E4]/20 dark:border-neutral-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
         <div className="flex items-center gap-3">
@@ -556,10 +558,27 @@ export const AdminBroadcastManager: React.FC = () => {
       {/* 1. INSTANT BROADCAST TAB */}
       {/* ========================================================= */}
       {activeTab === 'instant' && (
-        <form
-          onSubmit={handleInstantBroadcast}
-          className="p-5 sm:p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm space-y-4"
-        >
+        <div className="space-y-5">
+          {/* Lead AlertCard Banner */}
+          <AlertCard
+            variant="ministry-red"
+            badge="Device Alerts: Admin Notification Hub • Ministry Cross"
+            icon={<Bell className="h-6 w-6 text-white" />}
+            title="Broadcast to All Disciples"
+            description="Broadcast instant pastoral alerts, new devotional notifications, and prayer summons to all online and registered disciple devices with reverent chimes."
+            buttonText={isSendingInstant ? "Dispatching Broadcast..." : "Broadcast to All Disciples"}
+            onButtonClick={() => {
+              const el = document.getElementById('instant-broadcast-submit-btn');
+              if (el) el.click();
+            }}
+            className="max-w-none shadow-md"
+          />
+
+          <form
+            id="instant-broadcast-form"
+            onSubmit={handleInstantBroadcast}
+            className="p-5 sm:p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm space-y-4"
+          >
           <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800">
             <div className="flex items-center gap-2">
               <Send className="w-5 h-5 text-[#5E72E4]" />
@@ -718,16 +737,18 @@ export const AdminBroadcastManager: React.FC = () => {
             <span className="text-[11px] text-neutral-500 font-medium">
               Triggers web push, Android/iOS device banners, and reverent dual chime
             </span>
-            <button
+            <MotionButton
+              id="instant-broadcast-submit-btn"
               type="submit"
               disabled={isSendingInstant}
-              className="px-5 py-2.5 rounded-xl bg-[#5E72E4] hover:bg-[#4a5ec4] active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>{isSendingInstant ? 'Dispatching...' : 'Broadcast to All Disciples'}</span>
-            </button>
+              variant="ministry-red"
+              size="md"
+              icon={<Send className="w-3.5 h-3.5 text-white" />}
+              label={isSendingInstant ? 'Dispatching...' : 'Broadcast to All Disciples'}
+            />
           </div>
         </form>
+      </div>
       )}
 
       {/* ========================================================= */}
@@ -873,14 +894,14 @@ export const AdminBroadcastManager: React.FC = () => {
               <span className="text-[11px] text-neutral-500 font-medium">
                 Timers are saved securely and will send on schedule even if you close this page
               </span>
-              <button
+              <MotionButton
                 type="submit"
                 disabled={isSavingTimer}
-                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95"
-              >
-                <Timer className="w-3.5 h-3.5" />
-                <span>{isSavingTimer ? 'Scheduling...' : 'Schedule Countdown'}</span>
-              </button>
+                variant="warning"
+                size="md"
+                icon={<Timer className="w-3.5 h-3.5 text-white" />}
+                label={isSavingTimer ? 'Scheduling...' : 'Schedule Countdown'}
+              />
             </div>
           </form>
 
@@ -1178,14 +1199,14 @@ export const AdminBroadcastManager: React.FC = () => {
               <span className="text-[11px] text-neutral-500 font-medium">
                 Recurring engine continuously recalculates next trigger time upon each fire
               </span>
-              <button
+              <MotionButton
                 type="submit"
                 disabled={isSavingRec}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
-              >
-                <Repeat className="w-3.5 h-3.5" />
-                <span>{isSavingRec ? 'Saving...' : 'Establish Recurring Schedule'}</span>
-              </button>
+                variant="primary"
+                size="md"
+                icon={<Repeat className="w-3.5 h-3.5 text-white" />}
+                label={isSavingRec ? 'Saving...' : 'Establish Recurring Schedule'}
+              />
             </div>
           </form>
 
@@ -1423,20 +1444,24 @@ export const AdminBroadcastManager: React.FC = () => {
                             type="button"
                             onClick={() => {
                               if (rule.autoEventType) {
+                                const actualStreak = user?.streakCount ?? 0;
+                                const latestDevo = devotionals[0];
                                 triggerAutoNotification(rule.autoEventType as AutoNotificationEventType, {
-                                  title: 'Walking in the Spirit',
-                                  scripture: 'Galatians 5:16',
-                                  streak: 7,
+                                  title: latestDevo?.title || 'Walking in the Spirit',
+                                  scripture: latestDevo?.scripture || 'Galatians 5:16',
+                                  streak: actualStreak,
+                                  name: user?.displayName || 'Beloved Disciple',
+                                  devotionalId: latestDevo?.id,
                                 });
-                                setStatusNotice(`Tested automatic rule: "${rule.title}"`);
+                                setStatusNotice(`Dispatched automatic rule: "${rule.title}"`);
                                 setTimeout(() => setStatusNotice(null), 3000);
                               }
                             }}
                             className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs flex items-center gap-1 cursor-pointer"
-                            title="Simulate event and fire immediately"
+                            title="Simulate event and broadcast immediately"
                           >
                             <Zap className="w-3.5 h-3.5" />
-                            <span>Test Run</span>
+                            <span>Trigger Rule</span>
                           </button>
 
                           <button

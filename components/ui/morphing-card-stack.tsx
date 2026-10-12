@@ -13,6 +13,7 @@ export interface CardData {
   description: string
   icon?: ReactNode
   color?: string
+  image?: string
 }
 
 export interface MorphingCardStackProps {
@@ -20,12 +21,19 @@ export interface MorphingCardStackProps {
   className?: string
   defaultLayout?: LayoutMode
   onCardClick?: (card: CardData) => void
+  deckTitle?: string
 }
 
 const layoutIcons = {
   stack: Layers,
   grid: Grid3X3,
   list: LayoutList,
+}
+
+const layoutLabels: Record<LayoutMode, string> = {
+  stack: "Deck",
+  grid: "Grid",
+  list: "List",
 }
 
 const SWIPE_THRESHOLD = 40
@@ -35,6 +43,7 @@ export function Component({
   className,
   defaultLayout = "stack",
   onCardClick,
+  deckTitle,
 }: MorphingCardStackProps) {
   const [layout, setLayout] = useState<LayoutMode>(defaultLayout)
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
@@ -116,15 +125,18 @@ export function Component({
       {/* Layout Toggle Bar */}
       <div className="flex items-center justify-between gap-3 px-1 flex-wrap">
         <div className="flex items-center gap-2 text-xs font-semibold text-neutral-600 dark:text-neutral-400">
-          <span className="capitalize font-bold text-neutral-900 dark:text-white">{layout} Mode</span>
+          <span className="font-bold text-neutral-900 dark:text-white">
+            {deckTitle || (layout === "stack" ? "Deck View" : layout === "grid" ? "Grid View" : "List View")}
+          </span>
           <span>•</span>
-          <span>{cards.length} Interactive Cards</span>
+          <span>{cards.length} Cards</span>
         </div>
 
         <div className="flex items-center gap-1 rounded-xl bg-neutral-150 dark:bg-neutral-800/90 p-1 border border-neutral-200 dark:border-neutral-700/80 shadow-xs">
           {(Object.keys(layoutIcons) as LayoutMode[]).map((mode) => {
             const Icon = layoutIcons[mode]
             const isCurrent = layout === mode
+            const labelText = layoutLabels[mode] || mode
             return (
               <button
                 key={mode}
@@ -135,11 +147,11 @@ export function Component({
                     ? "bg-white dark:bg-neutral-700 text-[#5E72E4] dark:text-white shadow-xs"
                     : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200/60 dark:hover:bg-neutral-700/50",
                 )}
-                aria-label={`Switch to ${mode} layout`}
-                title={`Switch to ${mode} layout`}
+                aria-label={`Switch to ${labelText} view`}
+                title={`Switch to ${labelText} view`}
               >
                 <Icon className="h-3.5 w-3.5" />
-                <span className="capitalize hidden sm:inline">{mode}</span>
+                <span className="capitalize hidden sm:inline">{labelText}</span>
               </button>
             )
           })}
@@ -184,10 +196,10 @@ export function Component({
                   }}
                   className={cn(
                     "group relative overflow-hidden cursor-pointer rounded-2xl border transition-all duration-200",
-                    // High-contrast, theme-fluid foundation
-                    "bg-white dark:bg-neutral-900 border-neutral-200/90 dark:border-neutral-800",
+                    // High-contrast, theme-fluid foundation: brighter colors for dark text, darker colors for white text
+                    "bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] border-slate-200/90 dark:border-neutral-800 text-neutral-950 dark:text-white",
                     "hover:border-[#5E72E4]/60 dark:hover:border-[#5E72E4]/60",
-                    "shadow-sm hover:shadow-md dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)]",
+                    "shadow-sm hover:shadow-md dark:shadow-[0_4px_20px_rgba(0,0,0,0.5)]",
                     layout === "stack" && "absolute w-[90%] sm:w-[94%] max-w-[380px] min-h-[190px] sm:min-h-[210px] mx-auto p-5 flex flex-col justify-between select-none",
                     layout === "stack" && isTopCard && "cursor-grab active:cursor-grabbing ring-1 ring-neutral-200 dark:ring-neutral-750",
                     layout === "grid" && "w-full min-h-[155px] p-5 flex flex-col justify-between",
@@ -201,13 +213,34 @@ export function Component({
                     style={{ backgroundColor: card.color || "#5E72E4" }}
                   />
 
+                  {/* Related Image / Iconic Background with Scrim */}
+                  {card.image ? (
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-0">
+                      <img
+                        src={card.image}
+                        alt=""
+                        className="w-full h-full object-cover opacity-20 dark:opacity-35 group-hover:scale-105 group-hover:opacity-30 dark:group-hover:opacity-45 transition-all duration-700"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/85 to-white/70 dark:from-[#080E1B]/95 dark:via-[#101C33]/85 dark:to-[#04070D]/75" />
+                    </div>
+                  ) : (
+                    /* Iconic Geometric Watermark & Glow Background */
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-0 opacity-15 dark:opacity-25">
+                      <svg className="w-full h-full" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="180" cy="20" r="80" stroke={card.color || "#5E72E4"} strokeWidth="1.5" strokeDasharray="4 6" />
+                        <circle cx="180" cy="20" r="50" stroke={card.color || "#5E72E4"} strokeWidth="1" />
+                        <circle cx="20" cy="180" r="60" stroke={card.color || "#5E72E4"} strokeWidth="1" strokeDasharray="3 5" />
+                      </svg>
+                    </div>
+                  )}
+
                   {/* Soft Theme-Aware Ambient Glow */}
                   <div
-                    className="absolute -top-10 -right-10 w-24 h-24 rounded-full blur-2xl opacity-15 dark:opacity-20 pointer-events-none"
+                    className="absolute -top-10 -right-10 w-28 h-28 rounded-full blur-2xl opacity-20 dark:opacity-30 pointer-events-none z-0"
                     style={{ backgroundColor: card.color || "#5E72E4" }}
                   />
 
-                  <div className={cn("flex gap-3.5", layout === "list" ? "items-center flex-1 min-w-0" : "items-start")}>
+                  <div className={cn("relative z-10 flex gap-3.5", layout === "list" ? "items-center flex-1 min-w-0" : "items-start")}>
                     {card.icon && (
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/70 dark:border-neutral-700/70 text-[#5E72E4] dark:text-[#7BDEB2] shadow-xs group-hover:scale-105 transition-transform">
                         {card.icon}
@@ -215,7 +248,7 @@ export function Component({
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-neutral-900 dark:text-white text-sm sm:text-base tracking-tight truncate">
+                        <h3 className="font-bold text-neutral-950 dark:text-white text-sm sm:text-base tracking-tight truncate">
                           {card.title}
                         </h3>
                         {isExpanded && (
@@ -226,7 +259,7 @@ export function Component({
                       </div>
                       <p
                         className={cn(
-                          "text-xs sm:text-sm text-neutral-600 dark:text-neutral-300 mt-1 leading-relaxed",
+                          "text-xs sm:text-sm text-neutral-700 dark:text-neutral-200 mt-1 leading-relaxed font-medium",
                           layout === "stack" && "line-clamp-3",
                           layout === "grid" && "line-clamp-3",
                           layout === "list" && "line-clamp-2",

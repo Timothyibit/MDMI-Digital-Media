@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Share2, Volume2, ArrowRight, Pause, Play, BookOpen } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Share2, Volume2, ArrowRight, BookOpen, Video, Calendar } from 'lucide-react';
 import { Devotional } from '../../types';
 import { CardContainer, CardBody, CardItem } from '@/components/ui/3d-card-effect';
 
@@ -10,10 +10,30 @@ interface OrganicFruitHeroCardProps {
   onShare?: () => void;
 }
 
-type VariantType = 'lime' | 'grapes' | 'grapefruit';
+const COLOR_GRADIENTS = [
+  {
+    gradient: 'from-[#072412] via-[#0E3D1E] to-[#14532D]',
+    glow: 'rgba(16, 185, 129, 0.25)',
+    blobRadius: '57% 51% 48% 56% / 61% 11% 68% 31%',
+  },
+  {
+    gradient: 'from-[#21043C] via-[#3B0764] to-[#4C0B7F]',
+    glow: 'rgba(168, 85, 247, 0.25)',
+    blobRadius: '57% 51% 48% 52% / 39% 11% 68% 62%',
+  },
+  {
+    gradient: 'from-[#4C0519] via-[#700C28] to-[#881337]',
+    glow: 'rgba(244, 63, 94, 0.25)',
+    blobRadius: '59% 5% 44% 51% / 48% 11% 68% 31%',
+  },
+  {
+    gradient: 'from-[#0F172A] via-[#1E293B] to-[#0A2540]',
+    glow: 'rgba(59, 130, 246, 0.25)',
+    blobRadius: '52% 48% 60% 40% / 45% 55% 45% 55%',
+  },
+];
 
-const VARIANTS: VariantType[] = ['lime', 'grapes', 'grapefruit'];
-const CYCLE_INTERVAL_MS = 4500;
+const GRADIENT_INTERVAL_MS = 5000;
 
 export const OrganicFruitHeroCard: React.FC<OrganicFruitHeroCardProps> = ({
   devotional,
@@ -21,211 +41,61 @@ export const OrganicFruitHeroCard: React.FC<OrganicFruitHeroCardProps> = ({
   onAudio,
   onShare,
 }) => {
-  const [activeVariant, setActiveVariant] = useState<VariantType>('lime');
-  const [isHovered, setIsHovered] = useState(false);
-  const [isPausedManually, setIsPausedManually] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [gradientIndex, setGradientIndex] = useState(0);
 
-  const animationFrameRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(Date.now());
-
-  const variantStyles = {
-    lime: {
-      gradient: 'from-[#00a510] via-[#57bc18] to-[#b8e932]',
-      watermark: 'RENEWAL',
-      themeColor: '#00a510',
-      label: 'Renewal',
-      focusTag: 'Morning Renewal & Grace',
-      badgeLight: 'bg-emerald-50 text-emerald-800 border-emerald-300',
-      badgeDark: 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60',
-      activePillLight: 'bg-emerald-800 text-white shadow-md shadow-emerald-900/20',
-      activePillDark: 'bg-emerald-400 text-neutral-950 font-black shadow-md shadow-emerald-400/20',
-      pillDotColor: '#10b981',
-      blobRadius: '57% 51% 48% 56% / 61% 11% 68% 31%',
-    },
-    grapes: {
-      gradient: 'from-[#25023d] via-[#4a0b77] to-[#7928ca]',
-      watermark: 'ABIDING',
-      themeColor: '#4a0b77',
-      label: 'Abiding',
-      focusTag: 'Abiding Deep in the Vine',
-      badgeLight: 'bg-purple-50 text-purple-900 border-purple-300',
-      badgeDark: 'bg-purple-950/70 text-purple-200 border-purple-700/60',
-      activePillLight: 'bg-purple-900 text-white shadow-md shadow-purple-950/20',
-      activePillDark: 'bg-purple-300 text-neutral-950 font-black shadow-md shadow-purple-300/20',
-      pillDotColor: '#a855f7',
-      blobRadius: '57% 51% 48% 52% / 39% 11% 68% 62%',
-    },
-    grapefruit: {
-      gradient: 'from-[#ff512f] via-[#dd2476] to-[#ff4444]',
-      watermark: 'DEVOTION',
-      themeColor: '#dd2476',
-      label: 'Devotion',
-      focusTag: 'Devotion & Kingdom Fire',
-      badgeLight: 'bg-rose-50 text-rose-900 border-rose-300',
-      badgeDark: 'bg-rose-950/70 text-rose-200 border-rose-700/60',
-      activePillLight: 'bg-rose-800 text-white shadow-md shadow-rose-950/20',
-      activePillDark: 'bg-rose-400 text-neutral-950 font-black shadow-md shadow-rose-400/20',
-      pillDotColor: '#f43f5e',
-      blobRadius: '59% 5% 44% 51% / 48% 11% 68% 31%',
-    },
-  };
-
-  const current = variantStyles[activeVariant];
-
-  // Automatic Looping Animation between Renewal, Abiding, and Devotion
+  // Smooth periodic cycling of the background ambient color gradient without changing any text
   useEffect(() => {
-    if (isHovered || isPausedManually) {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      return;
-    }
+    const timer = setInterval(() => {
+      setGradientIndex((prev) => (prev + 1) % COLOR_GRADIENTS.length);
+    }, GRADIENT_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, []);
 
-    startTimeRef.current = Date.now() - (progress / 100) * CYCLE_INTERVAL_MS;
-
-    const tick = () => {
-      const elapsed = Date.now() - startTimeRef.current;
-      const currentProgress = Math.min(100, (elapsed / CYCLE_INTERVAL_MS) * 100);
-      setProgress(currentProgress);
-
-      if (elapsed >= CYCLE_INTERVAL_MS) {
-        setActiveVariant((prev) => {
-          const currentIndex = VARIANTS.indexOf(prev);
-          const nextIndex = (currentIndex + 1) % VARIANTS.length;
-          return VARIANTS[nextIndex];
-        });
-        startTimeRef.current = Date.now();
-        setProgress(0);
-      }
-
-      animationFrameRef.current = requestAnimationFrame(tick);
-    };
-
-    animationFrameRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [isHovered, isPausedManually, activeVariant]);
-
-  const handleSelectVariant = (v: VariantType) => {
-    setActiveVariant(v);
-    setProgress(0);
-    startTimeRef.current = Date.now();
-  };
+  const currentGradient = COLOR_GRADIENTS[gradientIndex];
 
   return (
     <CardContainer
       containerClassName="py-0 w-full block overflow-visible"
       className="w-full h-auto"
     >
-      <CardBody className="w-full h-auto relative overflow-hidden rounded-[28px] sm:rounded-[32px] bg-white dark:bg-neutral-900 shadow-[0_12px_36px_rgba(0,0,0,0.08)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.6)] border border-neutral-200/90 dark:border-neutral-800 transition-all duration-300 [transform-style:preserve-3d] [&>*]:[transform-style:preserve-3d]">
-        {/* Top Edge Auto-Loop Ambient Progress Bar */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-black/5 dark:bg-white/5 z-30 overflow-hidden">
-          <div
-            className="h-full transition-all duration-75 ease-linear"
-            style={{
-              width: `${progress}%`,
-              backgroundColor: current.pillDotColor,
-            }}
-          />
-        </div>
-
-        {/* Organic Morphing Shape Backdrop with Layered Blur */}
+      <CardBody className="w-full h-auto relative overflow-hidden rounded-[26px] sm:rounded-[32px] bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] shadow-[0_12px_36px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] border border-slate-200/90 dark:border-neutral-800 transition-all duration-300 [transform-style:preserve-3d] [&>*]:[transform-style:preserve-3d]">
+        {/* Organic Morphing Shape Backdrops with Layered Blur - Changing color gradient */}
         <div
-          className={`absolute -top-12 -right-12 md:-right-6 w-64 sm:w-96 md:w-[440px] h-64 sm:h-96 md:h-[440px] z-0 pointer-events-none opacity-20 dark:opacity-35 transition-all duration-1000 ease-in-out bg-gradient-to-tr ${current.gradient} blur-2xl`}
+          className={`absolute -top-16 -right-16 md:-right-8 w-72 sm:w-96 md:w-[460px] h-72 sm:h-96 md:h-[460px] z-0 pointer-events-none opacity-20 dark:opacity-35 transition-all duration-1000 ease-in-out bg-gradient-to-tr ${currentGradient.gradient} blur-3xl`}
           style={{
-            borderRadius: current.blobRadius,
+            borderRadius: currentGradient.blobRadius,
+          }}
+        />
+        <div
+          className={`absolute -bottom-16 -left-16 w-56 sm:w-72 h-56 sm:h-72 z-0 pointer-events-none opacity-15 dark:opacity-25 transition-all duration-1000 ease-in-out bg-gradient-to-br ${currentGradient.gradient} blur-3xl`}
+          style={{
+            borderRadius: currentGradient.blobRadius,
           }}
         />
 
-        <div
-          role="region"
-          aria-label="Daily Scripture Anchor Carousel"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          className="relative z-10 p-5 sm:p-7 md:p-9 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 md:gap-8"
-        >
+        <div className="relative z-10 p-5 sm:p-7 md:p-8 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-5 sm:gap-6 md:gap-8">
           {/* Left Content Column */}
           <div className="flex-1 max-w-2xl flex flex-col justify-between">
             <div>
-              {/* Header: "Renewal, Abiding, Devotion" Pills with 3D Float */}
-              <CardItem
-                translateZ={35}
-                className="w-full flex items-center justify-between gap-2 mb-4 sm:mb-5"
-              >
-                <nav aria-label="Devotional Themes" className="w-full sm:w-auto">
-                  <ul className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 list-none p-0 m-0">
-                    {VARIANTS.map((v) => {
-                      const isActive = activeVariant === v;
-                      const vStyle = variantStyles[v];
-                      return (
-                        <li key={v}>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectVariant(v)}
-                            aria-pressed={isActive}
-                            className={`relative flex items-center gap-1.5 text-xs font-black tracking-wide uppercase transition-all duration-300 px-3 sm:px-3.5 py-1.5 rounded-[12px] min-h-[34px] cursor-pointer ${
-                              isActive
-                                ? `dark:${vStyle.activePillDark} ${vStyle.activePillLight}`
-                                : 'text-neutral-700 hover:text-neutral-950 bg-neutral-100 hover:bg-neutral-200/80 dark:text-neutral-300 dark:hover:text-white dark:bg-neutral-800/90 dark:hover:bg-neutral-700'
-                            }`}
-                          >
-                            <span
-                              className="w-2 h-2 rounded-full inline-block transition-transform"
-                              style={{
-                                backgroundColor: isActive ? 'currentColor' : vStyle.pillDotColor,
-                              }}
-                            />
-                            <span>{vStyle.label}</span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </nav>
-
-                {/* Auto Loop Toggle Control */}
-                <button
-                  type="button"
-                  onClick={() => setIsPausedManually(!isPausedManually)}
-                  title={isPausedManually ? 'Resume automatic theme loop' : 'Pause automatic theme loop'}
-                  aria-label={isPausedManually ? 'Resume loop' : 'Pause loop'}
-                  className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-800/80 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors shadow-xs shrink-0"
-                >
-                  {isPausedManually ? (
-                    <>
-                      <Play className="w-2.5 h-2.5 fill-current" />
-                      <span>Auto Loop</span>
-                    </>
-                  ) : (
-                    <>
-                      <Pause className="w-2.5 h-2.5" />
-                      <span className="opacity-75">Looping</span>
-                    </>
-                  )}
-                </button>
-              </CardItem>
-
-              {/* Dynamic Spiritual Focus Badge in 3D Layer */}
+              {/* Mobile App Header Badge */}
               <CardItem
                 translateZ={30}
-                className="w-fit"
+                className="w-fit flex items-center gap-2 mb-3"
               >
-                <div
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider mb-3 border transition-colors duration-300 ${
-                    activeVariant === 'lime'
-                      ? `${variantStyles.lime.badgeLight} dark:${variantStyles.lime.badgeDark}`
-                      : activeVariant === 'grapes'
-                      ? `${variantStyles.grapes.badgeLight} dark:${variantStyles.grapes.badgeDark}`
-                      : `${variantStyles.grapefruit.badgeLight} dark:${variantStyles.grapefruit.badgeDark}`
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span>{current.focusTag}</span>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-lime-500/10 dark:bg-lime-500/15 text-lime-700 dark:text-lime-400 border border-lime-500/25">
+                  <Sparkles className="w-3.5 h-3.5 text-lime-600 dark:text-lime-400" />
+                  <span>Daily Devotional</span>
+                </div>
+                <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 px-2">
+                  <Calendar className="w-3 h-3 text-neutral-400" />
+                  <span>
+                    {devotional.publishedAt
+                      ? new Date(devotional.publishedAt).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                        })
+                      : 'Today'}
+                  </span>
                 </div>
               </CardItem>
 
@@ -233,18 +103,18 @@ export const OrganicFruitHeroCard: React.FC<OrganicFruitHeroCardProps> = ({
               <CardItem
                 as="h1"
                 translateZ={50}
-                className="text-2xl sm:text-3xl md:text-4xl font-extrabold font-display-scripture text-neutral-900 dark:text-white leading-tight tracking-tight mt-1"
+                className="text-2xl sm:text-3xl md:text-4xl font-extrabold font-display-scripture text-neutral-900 dark:text-white leading-tight tracking-tight"
               >
                 {devotional.title}
               </CardItem>
 
-              {/* Scripture Quote Excerpt in Raised Floating Card */}
+              {/* Scripture Quote Excerpt in Raised Floating Card - Mobile UX styling */}
               <CardItem
                 translateZ={40}
                 className="w-full mt-3.5"
               >
-                <div className="p-3.5 sm:p-4 rounded-2xl bg-neutral-50/90 dark:bg-neutral-800/60 border border-neutral-200/80 dark:border-neutral-700/60 shadow-xs backdrop-blur-sm">
-                  <p className="text-xs sm:text-sm md:text-base font-serif-reading italic text-neutral-800 dark:text-neutral-100 line-clamp-3 leading-relaxed">
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-white via-slate-50 to-neutral-100/90 dark:from-[#111A2E] dark:via-[#090F1C] dark:to-[#03060B] border border-slate-200/90 dark:border-slate-700/60 shadow-xs backdrop-blur-sm">
+                  <p className="text-xs sm:text-sm md:text-base font-serif-reading italic text-neutral-900 dark:text-neutral-100 line-clamp-3 leading-relaxed font-medium">
                     “{devotional.scriptureText}”
                   </p>
                 </div>
@@ -253,16 +123,18 @@ export const OrganicFruitHeroCard: React.FC<OrganicFruitHeroCardProps> = ({
               {/* Scripture Reference and Author */}
               <CardItem
                 translateZ={30}
-                className="mt-2.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400"
+                className="mt-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400 flex-wrap"
               >
-                <BookOpen className="w-3.5 h-3.5 text-primary" />
-                <span>{devotional.scripture}</span>
+                <div className="flex items-center gap-1.5 text-primary">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>{devotional.scripture}</span>
+                </div>
                 <span>•</span>
                 <span>By {devotional.authorName}</span>
               </CardItem>
             </div>
 
-            {/* Action Buttons with 3D Elevation */}
+            {/* Action Buttons with Mobile-Friendly Touch Targets */}
             <CardItem
               translateZ={55}
               className="mt-5 sm:mt-6 pt-1 flex flex-wrap items-center gap-2.5 sm:gap-3 w-full"
@@ -289,6 +161,17 @@ export const OrganicFruitHeroCard: React.FC<OrganicFruitHeroCardProps> = ({
                 </button>
               )}
 
+              {devotional.videoUrl && (
+                <button
+                  type="button"
+                  onClick={() => onRead(devotional)}
+                  className="px-4 py-2.5 rounded-[22px] border border-red-200 dark:border-red-900/60 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 font-bold text-xs sm:text-sm shadow-xs active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <Video className="w-4 h-4 text-red-600" />
+                  <span>Watch Video</span>
+                </button>
+              )}
+
               {onShare && (
                 <button
                   type="button"
@@ -302,20 +185,11 @@ export const OrganicFruitHeroCard: React.FC<OrganicFruitHeroCardProps> = ({
             </CardItem>
           </div>
 
-          {/* Right Floating 3D Artwork Plaque */}
-          <div className="relative flex flex-col items-center justify-center md:min-w-[220px] lg:min-w-[260px] self-center md:self-auto w-full md:w-auto">
-            {/* Watermark Reflection */}
+          {/* Right Floating Artwork Plaque - Mobile App Card Thumbnail */}
+          <div className="relative flex flex-col items-center justify-center md:min-w-[200px] lg:min-w-[240px] self-center md:self-auto w-full md:w-auto">
             <CardItem
-              translateZ={20}
-              className="hidden md:block uppercase text-4xl lg:text-5xl font-black tracking-widest text-neutral-900/10 dark:text-white/10 select-none transition-all duration-700 text-center"
-            >
-              {current.watermark}
-            </CardItem>
-
-            {/* Elevated 3D Thumbnail Card */}
-            <CardItem
-              translateZ={65}
-              className="mt-2 w-full max-w-[280px] sm:max-w-[320px] md:w-44 md:h-44 lg:w-48 lg:h-48 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/95 dark:border-neutral-800 bg-neutral-900 group cursor-pointer"
+              translateZ={60}
+              className="w-full max-w-[280px] sm:max-w-[320px] md:w-44 md:h-44 lg:w-48 lg:h-48 rounded-3xl overflow-hidden shadow-2xl border-4 border-white/95 dark:border-neutral-800 bg-neutral-900 group cursor-pointer"
               onClick={() => onRead(devotional)}
             >
               <div className="relative w-full h-36 sm:h-44 md:h-full overflow-hidden">
@@ -328,11 +202,12 @@ export const OrganicFruitHeroCard: React.FC<OrganicFruitHeroCardProps> = ({
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   loading="lazy"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-3 text-white">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
-                    {current.label} Focus
-                  </span>
-                  <p className="text-xs font-bold line-clamp-1">
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-3.5 text-white">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-lime-400">
+                    <BookOpen className="w-3 h-3" />
+                    <span>MDMI Daily Word</span>
+                  </div>
+                  <p className="text-xs font-bold line-clamp-1 mt-0.5">
                     {devotional.title}
                   </p>
                 </div>

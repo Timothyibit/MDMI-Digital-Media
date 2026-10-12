@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { db, auth, doc, setDoc, deleteDoc, collection, onSnapshot } from '../lib/firebase';
+import { db, auth, doc, setDoc, deleteDoc, collection, onSnapshot, onAuthStateChanged } from '../lib/firebase';
 
 interface BookmarkState {
   bookmarkedIds: string[];
@@ -12,19 +12,74 @@ interface BookmarkState {
 
 const getStorageKey = (uid?: string | null) => `mdmi_bookmarks_${uid || 'guest'}`;
 
+let activeBookmarksUnsub: (() => void) | null = null;
+let activeBookmarksAuthUnsub: (() => void) | null = null;
+let bookmarksStorageListenerAttached = false;
+
 export const useBookmarkStore = create<BookmarkState>((set, get) => {
+  const attachFirestoreListener = (targetUid: string) => {
+    if (activeBookmarksUnsub) {
+      activeBookmarksUnsub();
+      activeBookmarksUnsub = null;
+    }
+
+    try {
+      const bookmarksColRef = collection(db, 'users', targetUid, 'bookmarks');
+      activeBookmarksUnsub = onSnapshot(
+        bookmarksColRef,
+        (snapshot) => {
+          const ids: string[] = [];
+          snapshot.forEach((bDoc) => ids.push(bDoc.id));
+          localStorage.setItem(getStorageKey(targetUid), JSON.stringify(ids));
+          set({ bookmarkedIds: ids });
+        },
+        (err) => {
+          console.info('Bookmarks sync notice:', err.message);
+        }
+      );
+    } catch (err) {
+      console.warn('Bookmarks listener notice:', err);
+    }
+  };
+
+  // Cross-tab real-time storage synchronization
+  if (typeof window !== 'undefined' && !bookmarksStorageListenerAttached) {
+    bookmarksStorageListenerAttached = true;
+    window.addEventListener('storage', (e) => {
+      const currentUid = get().currentUid;
+      if (e.key === getStorageKey(currentUid) && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            set({ bookmarkedIds: parsed });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }
+
   return {
     bookmarkedIds: [],
     currentUid: null,
 
     resetBookmarks: () => {
+      if (activeBookmarksUnsub) {
+        activeBookmarksUnsub();
+        activeBookmarksUnsub = null;
+      }
+      if (activeBookmarksAuthUnsub) {
+        activeBookmarksAuthUnsub();
+        activeBookmarksAuthUnsub = null;
+      }
       set({ bookmarkedIds: [], currentUid: null });
     },
 
     initializeBookmarks: (uid: string) => {
       set({ currentUid: uid });
 
-      // Load cached bookmarks for this user
+      // 1. Load cached bookmarks immediately
       try {
         const stored = localStorage.getItem(getStorageKey(uid));
         if (stored) {
@@ -39,27 +94,18 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => {
         set({ bookmarkedIds: [] });
       }
 
-      // Only attach Firestore listener for real authenticated users matching currentUser
-      if (!auth.currentUser || auth.currentUser.uid !== uid) {
-        return;
+      // 2. If auth is already ready, attach listener right away
+      if (auth.currentUser && auth.currentUser.uid === uid) {
+        attachFirestoreListener(uid);
       }
 
-      try {
-        const bookmarksColRef = collection(db, 'users', uid, 'bookmarks');
-        onSnapshot(
-          bookmarksColRef,
-          (snapshot) => {
-            const ids: string[] = [];
-            snapshot.forEach((bDoc) => ids.push(bDoc.id));
-            localStorage.setItem(getStorageKey(uid), JSON.stringify(ids));
-            set({ bookmarkedIds: ids });
-          },
-          (err) => {
-            console.info('Bookmarks stored locally:', err.message);
+      // 3. Keep listening for auth state changes so when Firebase Auth initializes or session refreshes, real-time sync is permanently active
+      if (!activeBookmarksAuthUnsub) {
+        activeBookmarksAuthUnsub = onAuthStateChanged(auth, (fbUser) => {
+          if (fbUser && fbUser.uid === get().currentUid) {
+            attachFirestoreListener(fbUser.uid);
           }
-        );
-      } catch (err) {
-        console.warn('Bookmarks listener notice:', err);
+        });
       }
     },
 

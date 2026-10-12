@@ -1,5 +1,6 @@
 import React from 'react';
 import { MdmiLogo } from './MdmiLogo';
+import { TjTechLogo } from './TjTechLogo';
 import { Globe, Heart, BookOpen, ExternalLink, Mail, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { TabType } from '../../types';
@@ -122,15 +123,36 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Bottom copyright row */}
-        <div className="pt-6 border-t border-[#E9ECEF] dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#8898AA]">
+        {/* Bottom copyright & Builder attribution row */}
+        <div className="pt-6 border-t border-[#E9ECEF] dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#8898AA]">
           <p>© {currentYear} The Master's Discipleship Ministries Int'l. All rights reserved.</p>
-          <div className="flex items-center gap-2">
-            <span>Discipling to Serve</span>
-            <span>•</span>
-            <span className="flex items-center gap-1 text-[#5E72E4]">
-              <Heart className="w-3 h-3 fill-current text-[#F5365C]" /> In His Love
-            </span>
+          
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+            <div className="flex items-center gap-2">
+              <span>Discipling to Serve</span>
+              <span>•</span>
+              <span className="flex items-center gap-1 text-[#5E72E4]">
+                <Heart className="w-3 h-3 fill-current text-[#F5365C]" /> In His Love
+              </span>
+            </div>
+
+            {/* Built by T-J Tech attribution badge */}
+            <a
+              href="https://www.linkedin.com/company/t-j-tech/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Built by T-J Tech on LinkedIn"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700/80 border border-neutral-200/80 dark:border-neutral-700/80 text-neutral-800 dark:text-neutral-200 transition-all hover:scale-[1.02] shadow-2xs group cursor-pointer"
+            >
+              <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                Built by
+              </span>
+              <TjTechLogo size={24} showText={false} />
+              <span className="font-extrabold text-xs text-neutral-900 dark:text-white group-hover:text-black dark:group-hover:text-neutral-200 transition-colors">
+                T-J Tech
+              </span>
+              <ExternalLink className="w-3 h-3 text-neutral-400 group-hover:text-[#0066FF] transition-colors" />
+            </a>
           </div>
         </div>
       </div>

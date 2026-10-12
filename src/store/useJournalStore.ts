@@ -9,6 +9,7 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
+  onAuthStateChanged,
 } from '../lib/firebase';
 
 interface JournalState {
@@ -23,6 +24,10 @@ interface JournalState {
 
 const getStorageKey = (uid?: string | null) => `mdmi_journal_${uid || 'guest'}`;
 
+let activeJournalUnsub: (() => void) | null = null;
+let activeAuthUnsub: (() => void) | null = null;
+let storageListenerAttached = false;
+
 export const useJournalStore = create<JournalState>((set, get) => {
   const persist = (items: JournalEntry[], uid?: string | null) => {
     try {
@@ -32,18 +37,72 @@ export const useJournalStore = create<JournalState>((set, get) => {
     }
   };
 
+  const attachFirestoreListener = (targetUid: string) => {
+    if (activeJournalUnsub) {
+      activeJournalUnsub();
+      activeJournalUnsub = null;
+    }
+
+    try {
+      const journalColRef = collection(db, 'users', targetUid, 'journal');
+      activeJournalUnsub = onSnapshot(
+        journalColRef,
+        (snapshot) => {
+          const list: JournalEntry[] = [];
+          snapshot.forEach((entryDoc) => {
+            list.push({ id: entryDoc.id, ...entryDoc.data() } as JournalEntry);
+          });
+          list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          persist(list, targetUid);
+          set({ entries: list });
+        },
+        (err) => {
+          console.info('Journal real-time sync notice:', err.message);
+        }
+      );
+    } catch (err) {
+      console.warn('Journal listener setup notice:', err);
+    }
+  };
+
+  // Cross-tab real-time storage synchronization
+  if (typeof window !== 'undefined' && !storageListenerAttached) {
+    storageListenerAttached = true;
+    window.addEventListener('storage', (e) => {
+      const currentUid = get().currentUid;
+      if (e.key === getStorageKey(currentUid) && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            set({ entries: parsed });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }
+
   return {
     entries: [],
     currentUid: null,
 
     resetJournal: () => {
+      if (activeJournalUnsub) {
+        activeJournalUnsub();
+        activeJournalUnsub = null;
+      }
+      if (activeAuthUnsub) {
+        activeAuthUnsub();
+        activeAuthUnsub = null;
+      }
       set({ entries: [], currentUid: null });
     },
 
     initializeJournal: (uid: string) => {
       set({ currentUid: uid });
 
-      // Load cached entries for this specific user
+      // 1. Load cached entries immediately for instant UI
       try {
         const stored = localStorage.getItem(getStorageKey(uid));
         if (stored) {
@@ -58,30 +117,18 @@ export const useJournalStore = create<JournalState>((set, get) => {
         set({ entries: [] });
       }
 
-      // Only attach Firestore listener for real authenticated users matching currentUser
-      if (!auth.currentUser || auth.currentUser.uid !== uid) {
-        return;
+      // 2. If auth is already ready, attach listener right away
+      if (auth.currentUser && auth.currentUser.uid === uid) {
+        attachFirestoreListener(uid);
       }
 
-      try {
-        const journalColRef = collection(db, 'users', uid, 'journal');
-        onSnapshot(
-          journalColRef,
-          (snapshot) => {
-            const list: JournalEntry[] = [];
-            snapshot.forEach((entryDoc) => {
-              list.push({ id: entryDoc.id, ...entryDoc.data() } as JournalEntry);
-            });
-            list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-            persist(list, uid);
-            set({ entries: list });
-          },
-          (err) => {
-            console.info('Journal stored locally:', err.message);
+      // 3. Keep listening for auth state changes so when Firebase Auth initializes or session refreshes, real-time sync is permanently active
+      if (!activeAuthUnsub) {
+        activeAuthUnsub = onAuthStateChanged(auth, (fbUser) => {
+          if (fbUser && fbUser.uid === get().currentUid) {
+            attachFirestoreListener(fbUser.uid);
           }
-        );
-      } catch (err) {
-        console.warn('Journal listener notice:', err);
+        });
       }
     },
 

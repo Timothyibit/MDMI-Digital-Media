@@ -34,12 +34,16 @@ import {
   Camera,
   Globe,
   ExternalLink,
+  Volume2,
+  LogIn,
+  UserPlus,
 } from 'lucide-react';
+import { MotionButton } from '@/components/ui/motion-button';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUIStore } from '../store/useUIStore';
 import { useBookmarkStore } from '../store/useBookmarkStore';
-import { useDevotionalStore } from '../store/useDevotionalStore';
-import { useNotificationStore } from '../store/useNotificationStore';
+import { useDevotionalStore, sortDevotionalsByLatest } from '../store/useDevotionalStore';
+import { useNotificationStore, playNotificationSound } from '../store/useNotificationStore';
 import { showDeviceNotification } from '../services/notificationService';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { RichTextRenderer } from '../components/ui/RichTextRenderer';
@@ -53,6 +57,7 @@ import {
   TiltedCollageCard,
 } from '../components/cards';
 import { PaginationPageDefault } from '@/components/application/pagination/pagination';
+import { AlertCard } from '@/components/ui/card-8';
 
 interface ProfileTabProps {
   onSelectDevotional: (devotional: Devotional) => void;
@@ -98,13 +103,14 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
   const streak = user?.streakCount ?? 0;
   const bookmarkedDevotionals = useMemo(() => {
     const seen = new Set<string>();
-    return devotionals
+    const filtered = devotionals
       .filter((d) => bookmarkedIds.includes(d.id))
       .filter((d) => {
         if (!d || !d.id || seen.has(d.id)) return false;
         seen.add(d.id);
         return true;
       });
+    return sortDevotionalsByLatest(filtered);
   }, [devotionals, bookmarkedIds]);
   const BOOKMARK_PAGE_SIZE = 6;
   const [bookmarkPage, setBookmarkPage] = useState(1);
@@ -148,19 +154,18 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
     setTimeout(() => setSaveSettingsSuccess(false), 2000);
   };
 
-  const handleTestNotification = async () => {
-    if (permission !== 'granted') {
-      const p = await requestPermission();
-      if (p !== 'granted') return;
-    }
-    await useNotificationStore.getState().triggerTestNotification();
+  const handlePreviewAlert = () => {
+    playNotificationSound();
     setTestNotifSent(true);
-    setTimeout(() => setTestNotifSent(false), 3000);
+    setTimeout(() => setTestNotifSent(false), 2500);
   };
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
-    await signInWithGoogle();
+    const res = await signInWithGoogle();
+    if (!res.success) {
+      openAuthGate(res.error || 'Please sign in or create your account in-app.');
+    }
     setGoogleLoading(false);
   };
 
@@ -182,7 +187,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
         </View>
 
         {/* Identity Card with Device Banner & Avatar */}
-        <div className="rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)] overflow-hidden">
+        <div className="rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] overflow-hidden">
           {/* Cover Banner with Device Upload Quick Action */}
           <div className="h-32 sm:h-40 relative bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
             {user?.bannerUrl ? (
@@ -195,15 +200,15 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
               <div className="w-full h-full bg-linear-to-r from-[#5E72E4] via-[#7BDEB2] to-[#11CDEF] opacity-85" />
             )}
             <div className="absolute inset-0 bg-black/20" />
-            <button
-              type="button"
-              onClick={() => setIsEditProfileOpen(true)}
-              className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs font-semibold backdrop-blur-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
-              title="Change banner or photo"
-            >
-              <Camera className="w-3.5 h-3.5" />
-              <span>Edit Photos</span>
-            </button>
+            <div className="absolute top-3 right-3 z-10">
+              <MotionButton
+                size="sm"
+                variant="dark"
+                icon={<Camera className="w-3.5 h-3.5 text-white" />}
+                label="Edit Photos"
+                onClick={() => setIsEditProfileOpen(true)}
+              />
+            </div>
           </div>
 
           <div className="px-6 pb-6 pt-0 space-y-4">
@@ -260,45 +265,44 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                 </View>
               </View>
 
-              <View className="flex-row items-center gap-2">
-                <button
-                  type="button"
+              <View className="flex-row items-center gap-2 flex-wrap">
+                <MotionButton
+                  size="sm"
+                  variant="secondary"
+                  icon={<Edit3 className="w-3.5 h-3.5" />}
+                  label="Edit Profile"
                   onClick={() => setIsEditProfileOpen(true)}
-                  className="px-3.5 py-2 rounded-xl bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 text-[#5E72E4] font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit Profile</span>
-                </button>
+                />
 
               {user?.isAnonymous ? (
-                <View className="flex-row items-center gap-2">
-                  <button
-                    type="button"
+                <View className="flex-row items-center gap-2 flex-wrap">
+                  <MotionButton
+                    size="sm"
+                    variant="ministry-green"
                     id="profile-signin-btn"
+                    icon={<LogIn className="w-3.5 h-3.5 text-white" />}
+                    label="Sign In"
                     onClick={() =>
                       openAuthGate(
                         'Sign in with your email or Google account to access your spiritual journey.',
                         'signin'
                       )
                     }
-                    className="px-3.5 py-2 rounded-xl bg-[#5E72E4] hover:bg-[#4d61ce] text-white font-bold text-xs shadow-sm transition-all"
-                  >
-                    Sign In
-                  </button>
+                  />
 
-                  <button
-                    type="button"
+                  <MotionButton
+                    size="sm"
+                    variant="secondary"
                     id="profile-register-btn"
+                    icon={<UserPlus className="w-3.5 h-3.5" />}
+                    label="Register"
                     onClick={() =>
                       openAuthGate(
                         'Create an account to keep your reading streak and private journal safe.',
                         'register'
                       )
                     }
-                    className="px-3.5 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold text-xs shadow-sm transition-all"
-                  >
-                    Register
-                  </button>
+                  />
 
                   <button
                     type="button"
@@ -329,15 +333,14 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                   </button>
                 </View>
               ) : (
-                <button
-                  type="button"
+                <MotionButton
+                  size="sm"
+                  variant="danger"
                   id="profile-sign-out-btn"
+                  icon={<LogOut className="w-3.5 h-3.5 text-white" />}
+                  label="Sign Out"
                   onClick={signOut}
-                  className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-300 transition-all flex items-center gap-1"
-                >
-                  <LogOut className="w-3.5 h-3.5 mr-1" />
-                  Sign Out
-                </button>
+                />
               )}
             </View>
           </View>
@@ -360,19 +363,19 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                 </div>
               </div>
               <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                <button
-                  type="button"
+                <MotionButton
+                  size="sm"
+                  variant="warning"
+                  icon={<RefreshCw className={`w-3.5 h-3.5 text-white ${verifyLoading ? 'animate-spin' : ''}`} />}
+                  label={verifyLoading ? 'Sending...' : 'Resend Link'}
                   onClick={handleResendVerify}
                   disabled={verifyLoading}
-                  className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition-colors disabled:opacity-50"
-                >
-                  {verifyLoading ? 'Sending...' : 'Resend Link'}
-                </button>
+                />
                 <button
                   type="button"
                   onClick={handleRefreshVerify}
                   disabled={verifyLoading}
-                  className="p-1.5 rounded-lg border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-200 transition-colors"
+                  className="p-2 rounded-full border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-200 transition-colors cursor-pointer"
                   title="Check verification status"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${verifyLoading ? 'animate-spin' : ''}`} />
@@ -513,7 +516,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
         </div>
 
         {/* 2. Discipleship Milestones & Badges with Real Progress */}
-        <div className="p-5 sm:p-6 rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)]">
+        <div className="p-5 sm:p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center gap-2">
               <Award className="w-5 h-5 text-amber-500" />
@@ -596,7 +599,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
         </div>
 
         {/* 3. Bookmarked Devotionals: ProductCardHorizontal (Template 3 Spec) */}
-        <div className="p-5 sm:p-6 rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)]">
+        <div className="p-5 sm:p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center gap-2">
               <Bookmark className="w-5 h-5 text-[#5E72E4]" />
@@ -606,21 +609,40 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
             </View>
             <TouchableOpacity
               onPress={() => setActiveTab('devotionals')}
-              className="px-3 py-1.5 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-[#5E72E4] hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex-row items-center gap-1 shadow-sm"
+              className="px-3.5 py-1.5 rounded-full border border-[#5E72E4]/40 bg-[#5E72E4]/10 hover:bg-[#5E72E4] text-[#5E72E4] hover:text-white transition-colors flex-row items-center gap-1 shadow-sm"
             >
-              <Text className="text-xs font-bold text-[#5E72E4] uppercase tracking-wider">
+              <Text className="text-xs font-bold uppercase tracking-wider">
                 Explore Library
               </Text>
-              <ChevronRight className="w-3.5 h-3.5 text-[#5E72E4]" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </TouchableOpacity>
           </View>
 
           {bookmarkedDevotionals.length === 0 ? (
-            <p className="text-xs text-neutral-400 py-3">
-              You have not bookmarked any devotionals yet. Tap the bookmark icon on any card to save it here.
-            </p>
+            <div className="py-2">
+              <AlertCard
+                variant="ministry-green"
+                badge="Scripture Vault • MDMI Discipleship"
+                icon={<Bookmark className="h-6 w-6 text-white" />}
+                title="Saved Bookmarks"
+                description="Keep your favorite scriptures, teachings, and reflections bookmarked for offline study and quick access."
+                buttonText="Explore Library"
+                onButtonClick={() => setActiveTab('devotionals')}
+                className="max-w-none shadow-md"
+              />
+            </div>
           ) : (
             <div className="space-y-3">
+              <AlertCard
+                variant="ministry-dark"
+                badge={`Scripture Vault • ${bookmarkedDevotionals.length} Saved`}
+                icon={<Bookmark className="h-6 w-6 text-[#84CC16]" />}
+                title="Saved Bookmarks"
+                description={`You have ${bookmarkedDevotionals.length} bookmarked devotionals preserved for personal study, quiet reflection, and spiritual growth.`}
+                buttonText="Explore Library"
+                onButtonClick={() => setActiveTab('devotionals')}
+                className="max-w-none shadow-md mb-3"
+              />
               {paginatedBookmarks.map((dev: Devotional, idx: number) => (
                 <ProductCardHorizontal
                   key={`bm-${dev.id || 'dev'}-${idx}`}
@@ -646,21 +668,25 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
         </div>
 
         {/* Notifications & Daily Reminders */}
-        <div className="p-5 sm:p-6 rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)] space-y-4">
-          <View className="flex-row items-center gap-2">
-            <Bell className="w-5 h-5 text-[#5E72E4]" />
-            <Text className="font-bold text-sm text-neutral-900 dark:text-white">
-              Daily Devotion Reminder
-            </Text>
-          </View>
+        <div className="p-5 sm:p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] space-y-4">
+          <AlertCard
+            variant={notificationsActive ? "ministry-green" : "ministry-red"}
+            badge={notificationsActive ? "Active Schedule • Discipling to Serve" : "Daily Quiet Time • Scheduled Prompt"}
+            icon={<Bell className="h-6 w-6 text-white" />}
+            title="Devotional Daily Reminder"
+            description={`Morning notification prompt set for ${reminderTime} to protect your quiet time before God.`}
+            buttonText={notificationsActive ? "Reminder Active • Tap to Toggle" : "Turn On Daily Reminder"}
+            onButtonClick={() => handleSaveNotifications(!notificationsActive, reminderTime)}
+            className="max-w-none shadow-md"
+          />
 
           <View className="flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
             <View>
               <Text className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-                Morning Reminder Time
+                Adjust Reminder Time
               </Text>
               <Text className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Notification prompt to protect your quiet time before God
+                Choose the best hour for your morning discipleship routine
               </Text>
             </View>
 
@@ -688,17 +714,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                   }}
                 />
               </div>
-              <button
-                type="button"
+              <MotionButton
+                size="sm"
+                variant={notificationsActive ? "ministry-green" : "secondary"}
+                icon={<Bell className="w-3.5 h-3.5" />}
+                label={notificationsActive ? 'Active' : 'Turn On'}
                 onClick={() => handleSaveNotifications(!notificationsActive, reminderTime)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                  notificationsActive
-                    ? 'bg-[#5E72E4] text-white shadow-sm'
-                    : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300'
-                }`}
-              >
-                {notificationsActive ? 'Active' : 'Turn On'}
-              </button>
+              />
             </View>
           </View>
 
@@ -713,14 +735,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleTestNotification}
-                className="px-3.5 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 transition-all"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>{testNotifSent ? 'Popup Sent!' : 'Send Test Popup'}</span>
-              </button>
+              <MotionButton
+                size="sm"
+                variant="secondary"
+                icon={<Volume2 className="w-3.5 h-3.5 text-[#5E72E4]" />}
+                label={testNotifSent ? 'Chimed!' : 'Preview Alert Chime'}
+                onClick={handlePreviewAlert}
+              />
             </div>
           </div>
 
@@ -735,7 +756,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
         </div>
 
         {/* Display & Accessibility */}
-        <div className="p-5 sm:p-6 rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)] space-y-4">
+        <div className="p-5 sm:p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] space-y-4">
           <Text className="font-bold text-sm text-neutral-900 dark:text-white">
             Display & Experience
           </Text>
@@ -777,22 +798,20 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
               </Text>
             </View>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
+              <MotionButton
+                size="sm"
+                variant="secondary"
+                icon={<Sparkles className="w-3.5 h-3.5 text-amber-500" />}
+                label="Splash Intro"
                 onClick={() => openIntroSplash()}
-                className="px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-300 transition-all flex items-center gap-1.5"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Splash Intro</span>
-              </button>
-              <button
-                type="button"
+              />
+              <MotionButton
+                size="sm"
+                variant="primary"
+                icon={<Compass className="w-3.5 h-3.5 text-white" />}
+                label="Tour Screens"
                 onClick={() => openOnboarding()}
-                className="px-3 py-1.5 rounded-xl bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 text-[#5E72E4] text-xs font-bold transition-all flex items-center gap-1.5"
-              >
-                <Compass className="w-3.5 h-3.5" />
-                <span>Tour Screens</span>
-              </button>
+              />
             </div>
           </View>
         </div>
@@ -807,10 +826,10 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
 
         {/* Overseer Console Card - Only visible to Admins */}
         {isAdmin && (
-          <div className="p-5 rounded-[24px] border border-[#5E72E4]/30 bg-[#5E72E4]/5 dark:bg-purple-950/20 shadow-sm">
+          <div className="p-5 rounded-[24px] border border-[#84CC16]/40 bg-gradient-to-br from-[#F7FEE7] via-[#ECFCCB] to-[#D9F99D] dark:from-[#081F06] dark:via-[#113B09] dark:to-[#041203] text-[#14532D] dark:text-white shadow-sm">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#5E72E4]/15 text-[#5E72E4] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-[#84CC16]/15 text-[#65A30D] dark:text-[#84CC16] flex items-center justify-center">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <View>
@@ -822,15 +841,14 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                   </Text>
                 </View>
               </View>
-              <button
-                type="button"
+              <MotionButton
+                size="sm"
+                variant="ministry-green"
                 id="profile-open-admin-btn"
+                icon={<ChevronRight className="w-3.5 h-3.5 text-white" />}
+                label="Open Console"
                 onClick={() => setActiveTab('admin')}
-                className="px-3.5 py-1.5 rounded-xl bg-[#5E72E4] hover:bg-[#485ec9] text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
-              >
-                <span>Open Console</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              />
             </View>
           </div>
         )}

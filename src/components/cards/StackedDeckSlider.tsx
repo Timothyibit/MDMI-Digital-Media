@@ -115,7 +115,7 @@ export const StackedDeckSlider: React.FC<StackedDeckSliderProps> = ({
 
   return (
     <div
-      className={`relative w-full rounded-[24px] sm:rounded-[32px] bg-neutral-900 text-white p-4 sm:p-6 md:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.35)] border border-neutral-800 ${className}`}
+      className={`relative w-full rounded-[24px] sm:rounded-[32px] bg-gradient-to-br from-[#080E1B] via-[#101C33] to-[#04070D] text-white p-4 sm:p-6 md:p-8 shadow-[0_25px_60px_rgba(0,0,0,0.5)] border border-slate-700/60 ${className}`}
     >
       {/* 1. Header Top Bar: Structured cleanly into mobile-friendly rows */}
       <div className="flex flex-col gap-3.5 mb-4 sm:mb-6">
@@ -179,8 +179,8 @@ export const StackedDeckSlider: React.FC<StackedDeckSliderProps> = ({
                   : 'Today'}
               </span>
             </span>
-            <span className="hidden sm:inline">•</span>
-            <span className="hidden sm:inline">By {currentItem.authorName}</span>
+            <span>•</span>
+            <span className="truncate max-w-[130px] sm:max-w-none font-bold">By {currentItem.authorName}</span>
           </div>
         </div>
 

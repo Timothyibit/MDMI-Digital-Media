@@ -44,10 +44,10 @@ export const ActivityCardBarGraph: React.FC<ActivityCardBarGraphProps> = ({
 
   return (
     <div
-      className={`rounded-[24px] bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 shadow-[0_10px_35px_rgba(0,0,0,0.06)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.4)] overflow-hidden transition-all duration-300 ${className}`}
+      className={`rounded-[24px] bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] border border-slate-200/90 dark:border-neutral-800 shadow-[0_10px_35px_rgba(0,0,0,0.06)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] overflow-hidden transition-all duration-300 ${className}`}
     >
       {/* Header (Template 4 Spec: activity__header) */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-neutral-800/80">
         <div className="flex items-center gap-2.5">
           {user?.photoUrl ? (
             <img
@@ -61,11 +61,11 @@ export const ActivityCardBarGraph: React.FC<ActivityCardBarGraphProps> = ({
             </div>
           )}
           <div>
-            <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-neutral-800 dark:text-neutral-100 block leading-tight">
+            <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-neutral-900 dark:text-white block leading-tight">
               Spiritual Walk & Activity
             </span>
             {user?.displayName && (
-              <span className="text-[10px] text-neutral-400 font-medium">
+              <span className="text-[10px] text-neutral-600 dark:text-neutral-400 font-medium">
                 {user.displayName}
               </span>
             )}
@@ -80,7 +80,7 @@ export const ActivityCardBarGraph: React.FC<ActivityCardBarGraphProps> = ({
           }}
           title="Celebrate streak"
           aria-label="Celebrate streak"
-          className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
         >
           <MoreVertical className="w-4 h-4" />
         </button>
@@ -90,10 +90,10 @@ export const ActivityCardBarGraph: React.FC<ActivityCardBarGraphProps> = ({
         {/* Summary (Template 4 Spec: activity__summary) */}
         <div className="grid grid-cols-2 items-center mb-6">
           <div>
-            <div className="text-3xl sm:text-4xl font-extrabold font-display-scripture text-neutral-900 dark:text-white tabular-nums leading-none">
-              {streak} <span className="text-lg font-bold text-neutral-500">{streak === 1 ? 'Day' : 'Days'}</span>
+            <div className="text-3xl sm:text-4xl font-extrabold font-display-scripture text-neutral-950 dark:text-white tabular-nums leading-none">
+              {streak} <span className="text-lg font-bold text-neutral-600 dark:text-neutral-400">{streak === 1 ? 'Day' : 'Days'}</span>
             </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+            <p className="text-xs text-neutral-700 dark:text-neutral-300 mt-1 font-medium">
               {totalMinutes} min in God's Word this week
             </p>
           </div>

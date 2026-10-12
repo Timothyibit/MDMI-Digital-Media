@@ -53,9 +53,19 @@ function pcmToWav(
 // In-memory server-side cache for synthesized audio WAV buffers
 const serverTtsCache = new Map<string, Buffer>();
 
+function getTargetPort(): number {
+  const portArgIndex = process.argv.indexOf('--port');
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    const val = parseInt(process.argv[portArgIndex + 1], 10);
+    if (!isNaN(val) && val > 0) return val;
+  }
+  // AI Studio environment constraint: dev server must always run on port 3000 (nginx listens on 8080)
+  return 3000;
+}
+
 async function startServer() {
   const app = express();
-  const port = process.env.PORT || 3000;
+  const port = getTargetPort();
   const isProduction = process.env.NODE_ENV === 'production';
 
   app.use(express.json({ limit: '10mb' }));
@@ -136,6 +146,110 @@ async function startServer() {
 
       console.warn('Notice: TTS generation error:', err?.message || err);
       res.status(500).json({ error: err.message || 'Error generating AI TTS audio' });
+    }
+  });
+
+  // Audio Streaming Proxy Endpoint for external audio links (e.g., Google Drive, Dropbox, external CDNs)
+  app.get('/api/proxy-audio', async (req, res) => {
+    try {
+      const rawUrl = req.query.url as string;
+      if (!rawUrl || typeof rawUrl !== 'string') {
+        return res.status(400).json({ error: 'Audio URL parameter is required' });
+      }
+
+      let targetUrl = rawUrl.trim();
+      if (!/^https?:\/\//i.test(targetUrl)) {
+        targetUrl = 'https://' + targetUrl;
+      }
+
+      // Handle Google Drive links specifically
+      const gdriveMatch = targetUrl.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/i);
+      if (gdriveMatch && gdriveMatch[1]) {
+        targetUrl = `https://drive.usercontent.google.com/download?id=${gdriveMatch[1]}&export=download&confirm=t`;
+      }
+
+      const clientHeaders: Record<string, string> = {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        Accept: 'audio/*, */*',
+      };
+
+      if (req.headers.range) {
+        clientHeaders['Range'] = req.headers.range;
+      }
+
+      const remoteRes = await fetch(targetUrl, {
+        headers: clientHeaders,
+        redirect: 'follow',
+      });
+
+      if (!remoteRes.ok && remoteRes.status !== 206) {
+        // If google drive usercontent failed, try docs.google.com uc export
+        if (gdriveMatch && gdriveMatch[1]) {
+          const fallbackUrl = `https://docs.google.com/uc?export=download&id=${gdriveMatch[1]}`;
+          const fallbackRes = await fetch(fallbackUrl, {
+            headers: clientHeaders,
+            redirect: 'follow',
+          });
+          if (fallbackRes.ok || fallbackRes.status === 206) {
+            const ct = fallbackRes.headers.get('content-type') || 'audio/mpeg';
+            const cl = fallbackRes.headers.get('content-length');
+            const cr = fallbackRes.headers.get('content-range');
+            res.status(fallbackRes.status);
+            res.setHeader('Content-Type', ct.startsWith('text/html') ? 'audio/mpeg' : ct);
+            res.setHeader('Accept-Ranges', 'bytes');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            if (cl) res.setHeader('Content-Length', cl);
+            if (cr) res.setHeader('Content-Range', cr);
+            if (!fallbackRes.body) return res.end();
+            const buffer = Buffer.from(await fallbackRes.arrayBuffer());
+            return res.send(buffer);
+          }
+        }
+
+        return res.status(remoteRes.status).json({
+          error: `Remote audio host responded with status ${remoteRes.status}`,
+        });
+      }
+
+      const contentType = remoteRes.headers.get('content-type') || 'audio/mpeg';
+      const contentLength = remoteRes.headers.get('content-length');
+      const contentRange = remoteRes.headers.get('content-range');
+      const acceptRanges = remoteRes.headers.get('accept-ranges') || 'bytes';
+
+      res.status(remoteRes.status);
+      res.setHeader('Content-Type', contentType.startsWith('text/html') ? 'audio/mpeg' : contentType);
+      res.setHeader('Accept-Ranges', acceptRanges);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Range');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+
+      if (contentLength) res.setHeader('Content-Length', contentLength);
+      if (contentRange) res.setHeader('Content-Range', contentRange);
+
+      if (!remoteRes.body) {
+        return res.end();
+      }
+
+      const reader = remoteRes.body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+        }
+      } catch (streamErr) {
+        // Client disconnect or stream end
+      } finally {
+        res.end();
+      }
+    } catch (err: any) {
+      console.warn('Proxy audio error:', err?.message || err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to proxy audio file' });
+      }
     }
   });
 
@@ -501,7 +615,7 @@ async function startServer() {
 
   if (!isProduction) {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -512,8 +626,12 @@ async function startServer() {
     });
   }
 
-  app.listen(Number(port), '0.0.0.0', () => {
+  const server = app.listen(Number(port), '0.0.0.0', () => {
     console.log(`Server listening on http://0.0.0.0:${port}`);
+  });
+
+  server.on('error', (err: any) => {
+    console.error(`Dev server encountered an error on port ${port}:`, err?.message || err);
   });
 }
 

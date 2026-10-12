@@ -430,6 +430,25 @@ function RowMenu({
 
 /* -------------------------------------------------------------------------- */
 
+function resolveTokenString(str?: string): string {
+  if (!str) return '';
+  try {
+    const stored = localStorage.getItem('mdmi_user_profile');
+    let streak = 1;
+    let name = 'Beloved Disciple';
+    if (stored) {
+      const u = JSON.parse(stored);
+      if (typeof u.streakCount === 'number' && u.streakCount > 0) streak = u.streakCount;
+      if (u.displayName) name = u.displayName;
+    }
+    return str
+      .replace(/\{streak\}/gi, String(streak))
+      .replace(/\{name\}/gi, name);
+  } catch {
+    return str.replace(/\{streak\}/gi, '1');
+  }
+}
+
 function Sentence({
   actor,
   body,
@@ -444,14 +463,14 @@ function Sentence({
       </strong>
       {body.map((piece, i) => {
         if (typeof piece === "string") {
-          return <span key={i}>{piece}</span>;
+          return <span key={i}>{resolveTokenString(piece)}</span>;
         }
         return (
           <span
             key={i}
             className="font-medium text-neutral-900 dark:text-neutral-100 underline decoration-neutral-300 dark:decoration-neutral-700 underline-offset-2"
           >
-            {piece.entity}
+            {resolveTokenString(piece.entity)}
           </span>
         );
       })}
@@ -477,7 +496,8 @@ function NotificationRow({
   onArchiveChange?: (item: NotificationItem, archived: boolean) => void;
 }) {
   const [isExpanded, setIsExpanded] = React.useState(false);
-  const textContent = item.fullBody || item.quote;
+  const rawTextContent = item.fullBody || item.quote;
+  const textContent = resolveTokenString(rawTextContent);
   const isLong = Boolean(textContent && textContent.length > 95);
 
   const handleViewFull = (e?: React.MouseEvent) => {
@@ -558,7 +578,7 @@ function NotificationRow({
           <div className="my-1 rounded-2xl border-l-3 border-[#5E72E4] bg-neutral-100/70 dark:bg-neutral-800/80 p-3 text-xs text-neutral-800 dark:text-neutral-200 transition-colors shadow-2xs">
             <p
               className={cn(
-                "leading-relaxed whitespace-pre-line text-neutral-850 dark:text-neutral-200 font-sans selection:bg-[#5E72E4]/20",
+                "leading-relaxed whitespace-pre-line text-neutral-800 dark:text-neutral-100 font-sans selection:bg-[#5E72E4]/20",
                 !isExpanded && isLong && "line-clamp-2"
               )}
             >
@@ -589,7 +609,7 @@ function NotificationRow({
               <button
                 type="button"
                 onClick={handleViewFull}
-                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-neutral-700 hover:text-neutral-950 dark:text-neutral-300 dark:hover:text-white px-2 py-0.5 rounded-lg bg-white/80 dark:bg-neutral-750/80 border border-neutral-200 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600 transition-all cursor-pointer shadow-2xs"
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold text-neutral-800 hover:text-neutral-950 dark:text-neutral-200 dark:hover:text-white px-2 py-0.5 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600 transition-all cursor-pointer shadow-xs"
                 title="Open full notification card"
               >
                 <BookOpen className="h-3 w-3 text-[#5E72E4] dark:text-[#889af7]" />
@@ -678,6 +698,7 @@ export function NotificationPanel({
   items,
   onAction,
   onOpenItem,
+  onViewFullItem,
   onReadChange,
   onArchiveChange,
   onMarkAllRead,
@@ -738,10 +759,41 @@ export function NotificationPanel({
     }
 
     const seen = new Set<string>();
+    const seenContent = new Set<string>();
     return list.filter((i, idx) => {
       const key = i?.id || `item-${idx}`;
       if (seen.has(key)) return false;
       seen.add(key);
+
+      // Strict filter out any test notifications or test text
+      const bodyPieces = i.body
+        .map((b) => (typeof b === "string" ? b : b.entity))
+        .join(" ")
+        .toLowerCase();
+      const fullText = `${i.fullBody || ''} ${i.quote || ''} ${i.actor?.name || ''} ${bodyPieces}`.toLowerCase();
+      const keyLower = key.toLowerCase();
+
+      if (
+        keyLower.startsWith('test') ||
+        keyLower.startsWith('mock-') ||
+        keyLower.includes('test_') ||
+        keyLower.includes('test-') ||
+        fullText.includes('test notification') ||
+        fullText.includes('faith alert • mdmi') ||
+        fullText.includes('testing delivery') ||
+        fullText.includes('testing web') ||
+        fullText.includes('testing android') ||
+        fullText.includes('testing ios') ||
+        fullText.includes('live audio chime')
+      ) {
+        return false;
+      }
+
+      // Deduplicate identical notification content
+      const contentKey = (i.fullBody || i.quote || bodyPieces).trim().toLowerCase();
+      if (contentKey && seenContent.has(contentKey)) return false;
+      if (contentKey) seenContent.add(contentKey);
+
       return true;
     });
   }, [items, activeTab, categoryFilter, searchQuery]);
@@ -764,7 +816,7 @@ export function NotificationPanel({
       )}
     >
       {/* Panel Header */}
-      <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 bg-neutral-50/90 dark:bg-neutral-850/80">
+      <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 px-4 py-3 bg-neutral-50 dark:bg-neutral-900">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-bold text-neutral-900 dark:text-white">
             Notifications
@@ -841,7 +893,7 @@ export function NotificationPanel({
       </div>
 
       {/* Search & Category Filter Chips */}
-      <div className="p-3 border-b border-neutral-150 dark:border-neutral-800/80 bg-neutral-50/50 dark:bg-neutral-850/40 space-y-2">
+      <div className="p-3 border-b border-neutral-150 dark:border-neutral-800/80 bg-neutral-50 dark:bg-neutral-900/60 space-y-2">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
           <input
@@ -880,10 +932,10 @@ export function NotificationPanel({
                 type="button"
                 onClick={() => setCategoryFilter(cat.id)}
                 className={cn(
-                  "px-2.5 py-1 rounded-full font-semibold transition-all shrink-0 cursor-pointer shadow-2xs",
+                  "px-2.5 py-1 rounded-full font-semibold transition-all shrink-0 cursor-pointer shadow-xs",
                   isCatActive
-                    ? "bg-[#5E72E4] text-white"
-                    : "bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-750",
+                    ? "bg-[#5E72E4] text-white shadow-xs"
+                    : "bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700",
                 )}
               >
                 {cat.label}
@@ -938,6 +990,7 @@ export function NotificationPanel({
                   item={item}
                   onAction={onAction}
                   onOpenItem={onOpenItem}
+                  onViewFullItem={onViewFullItem}
                   onReadChange={onReadChange}
                   onArchiveChange={onArchiveChange}
                 />
@@ -949,8 +1002,8 @@ export function NotificationPanel({
 
       {/* Responsive Pagination Bar */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-neutral-200 dark:border-neutral-800 px-4 py-2.5 bg-neutral-50/80 dark:bg-neutral-850/60 text-xs">
-          <span className="text-neutral-500 dark:text-neutral-400 font-medium">
+        <div className="flex items-center justify-between border-t border-neutral-200 dark:border-neutral-800 px-4 py-2.5 bg-neutral-50 dark:bg-neutral-900/80 text-xs">
+          <span className="text-neutral-600 dark:text-neutral-400 font-medium">
             Page <span className="font-bold text-neutral-800 dark:text-neutral-200">{safePage}</span> of{" "}
             <span className="font-bold text-neutral-800 dark:text-neutral-200">{totalPages}</span>
             <span className="text-[10px] ml-1.5 opacity-75">({filteredItems.length} total)</span>
@@ -965,7 +1018,7 @@ export function NotificationPanel({
                 "px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer",
                 safePage <= 1
                   ? "text-neutral-400 dark:text-neutral-600 opacity-50 cursor-not-allowed"
-                  : "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-750"
+                  : "text-neutral-800 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700"
               )}
             >
               Prev
@@ -988,7 +1041,7 @@ export function NotificationPanel({
                           "w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer",
                           safePage === pageNum
                             ? "bg-[#5E72E4] text-white shadow-xs"
-                            : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-750"
+                            : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                         )}
                       >
                         {pageNum}
@@ -1006,7 +1059,7 @@ export function NotificationPanel({
                 "px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer",
                 safePage >= totalPages
                   ? "text-neutral-400 dark:text-neutral-600 opacity-50 cursor-not-allowed"
-                  : "text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-750"
+                  : "text-neutral-800 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700"
               )}
             >
               Next

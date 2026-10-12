@@ -58,9 +58,12 @@ export interface Devotional {
   body: string; // Rich formatting / Markdown / paragraphs
   audioUrl: string | null;
   audioDurationSeconds?: number;
+  videoUrl?: string | null;
+  videoThumbnailUrl?: string | null;
   authorId: string;
   authorName: string;
   authorRole: string;
+  authorPhotoUrl?: string | null;
   publishedAt: string | null; // null = draft
   scheduledDate?: string | null; // YYYY-MM-DD queue date
   scheduledTime?: string | null; // HH:mm (e.g. "06:00")
@@ -151,10 +154,11 @@ export interface HomeLayoutSection {
 }
 
 export interface AppHomeLayoutConfig {
-  featuredDevotionalId: string | 'latest';
+  featuredDevotionalId: string | 'latest' | 'today';
   heroCardStyle: 'organic' | 'argon' | 'classic' | 'modern';
   sections: HomeLayoutSection[];
   customWelcomeMessage?: string;
+  defaultAuthorName?: string;
   updatedAt: string;
 }
 

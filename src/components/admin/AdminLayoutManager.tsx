@@ -36,7 +36,7 @@ export const AdminLayoutManager: React.FC = () => {
   const sortedSections = [...config.sections].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-hidden">
       {/* Overview Card */}
       <div className="p-5 rounded-xl border border-[#E9ECEF] dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm">
         <div className="flex items-center gap-2 mb-1">
@@ -62,22 +62,23 @@ export const AdminLayoutManager: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 mb-1">
-              Active Featured Devotional
+              Active Featured Devotional (Home First Card)
             </label>
             <select
               value={config.featuredDevotionalId}
-              onChange={(e) => setFeaturedDevotional(e.target.value)}
+              onChange={(e) => setFeaturedDevotional(e.target.value as any)}
               className="w-full px-3 py-2 text-xs rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white outline-none focus:border-[#5E72E4]"
             >
+              <option value="today">📅 Today's Devotional (Always automatically matches today's date)</option>
               <option value="latest">⚡ Automatically Most Recent Live Devotional</option>
               {uniqueDevotionals.map((d, idx) => (
                 <option key={`opt-layout-${d.id}-${idx}`} value={d.id}>
-                  {d.title} ({d.scripture})
+                  📌 Pinned: {d.title} ({d.scripture})
                 </option>
               ))}
             </select>
             <span className="text-[10px] text-neutral-400 mt-1 block">
-              Overrides the daily hero card with any highlighted ministry revelation
+              Controls the main first card in the home page: set to automatically show today's devotional, the latest release, or a specific revelation.
             </span>
           </div>
 
@@ -116,6 +117,23 @@ export const AdminLayoutManager: React.FC = () => {
             placeholder="e.g. Winning souls, maturing believers in Christ..."
             className="w-full px-3.5 py-2 text-xs rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white outline-none focus:border-[#5E72E4]"
           />
+        </div>
+
+        {/* Global Default Devotional Author */}
+        <div className="pt-2">
+          <label className="block text-xs font-bold text-neutral-700 dark:text-neutral-300 mb-1">
+            Default Devotional Author Name (Always Appear on New Devotionals)
+          </label>
+          <input
+            type="text"
+            value={config.defaultAuthorName || ''}
+            onChange={(e) => updateConfig({ defaultAuthorName: e.target.value })}
+            placeholder="e.g. Dr. Timothy Adeboye or The Master's Discipleship Ministries"
+            className="w-full px-3.5 py-2 text-xs rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white outline-none focus:border-[#5E72E4]"
+          />
+          <span className="text-[10px] text-neutral-400 mt-1 block">
+            This name will be automatically populated on all newly authored or drafted devotionals.
+          </span>
         </div>
       </div>
 

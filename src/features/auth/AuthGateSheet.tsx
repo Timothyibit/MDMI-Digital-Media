@@ -16,7 +16,9 @@ import {
   EyeOff,
   RefreshCw,
   Info,
+  ArrowRight,
 } from 'lucide-react';
+import MotionButton from '@/components/ui/motion-button';
 import { useUIStore } from '../../store/useUIStore';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -76,11 +78,19 @@ export const AuthGateSheet: React.FC = () => {
           closeAuthGate();
         }, 1500);
       } else {
-        setError(res.error || 'Google Sign-In failed.');
+        if (res.error?.includes('popup-blocked') || res.error?.includes('popup')) {
+          setError('Browser popup blocked. Please allow popups or use the instant email sign-in form below.');
+        } else {
+          setError(res.error || 'Google Sign-In failed.');
+        }
         setIsGoogleLoading(false);
       }
     } catch (err: any) {
-      setError(err?.message || 'Google Sign-In encountered an issue.');
+      if (err?.message?.includes('popup-blocked') || err?.code === 'auth/popup-blocked') {
+        setError('Browser popup was blocked. Please allow popups or use the email form below.');
+      } else {
+        setError(err?.message || 'Google Sign-In encountered an issue.');
+      }
       setIsGoogleLoading(false);
     }
   };
@@ -405,21 +415,17 @@ export const AuthGateSheet: React.FC = () => {
                   </div>
                 </div>
 
-                <button
-                  id="signin-submit-btn"
-                  type="submit"
-                  disabled={isLoading || isGoogleLoading}
-                  className="w-full mt-3 py-2.5 px-4 rounded-xl bg-[#5E72E4] hover:bg-[#4a5ec4] active:scale-[0.98] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(94,114,228,0.35)] transition-all disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <span>Signing in...</span>
-                  ) : (
-                    <>
-                      <LogIn className="w-4 h-4" />
-                      <span>Sign In</span>
-                    </>
-                  )}
-                </button>
+                <div className="mt-3">
+                  <MotionButton
+                    id="signin-submit-btn"
+                    type="submit"
+                    size="full"
+                    variant="primary"
+                    disabled={isLoading || isGoogleLoading}
+                    icon={<LogIn className="w-4 h-4 text-white" />}
+                    label={isLoading ? 'Signing in...' : 'Sign In'}
+                  />
+                </div>
               </form>
 
               {/* Toggle to Register */}
@@ -554,21 +560,17 @@ export const AuthGateSheet: React.FC = () => {
                   <span>An email verification link will be sent automatically.</span>
                 </div>
 
-                <button
-                  id="register-submit-btn"
-                  type="submit"
-                  disabled={isLoading || isGoogleLoading}
-                  className="w-full mt-3 py-2.5 px-4 rounded-xl bg-[#5E72E4] hover:bg-[#4a5ec4] active:scale-[0.98] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(94,114,228,0.35)] transition-all disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <span>Registering Account...</span>
-                  ) : (
-                    <>
-                      <UserPlus className="w-4 h-4" />
-                      <span>Create Disciple Account</span>
-                    </>
-                  )}
-                </button>
+                <div className="mt-3">
+                  <MotionButton
+                    id="register-submit-btn"
+                    type="submit"
+                    size="full"
+                    variant="ministry-green"
+                    disabled={isLoading || isGoogleLoading}
+                    icon={<UserPlus className="w-4 h-4 text-white" />}
+                    label={isLoading ? 'Registering Account...' : 'Create Disciple Account'}
+                  />
+                </div>
               </form>
 
               <div className="text-center pt-3 border-t border-[#E9ECEF] dark:border-neutral-800">
@@ -633,21 +635,17 @@ export const AuthGateSheet: React.FC = () => {
                   />
                 </div>
 
-                <button
-                  id="forgot-submit-btn"
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full mt-2 py-2.5 px-4 rounded-xl bg-[#5E72E4] hover:bg-[#4a5ec4] active:scale-[0.98] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(94,114,228,0.35)] transition-all disabled:opacity-50"
-                >
-                  {isLoading ? (
-                    <span>Sending Reset Link...</span>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      <span>Send Password Reset Link</span>
-                    </>
-                  )}
-                </button>
+                <div className="mt-2">
+                  <MotionButton
+                    id="forgot-submit-btn"
+                    type="submit"
+                    size="full"
+                    variant="primary"
+                    disabled={isLoading}
+                    icon={<Send className="w-4 h-4 text-white" />}
+                    label={isLoading ? 'Sending Reset Link...' : 'Send Password Reset Link'}
+                  />
+                </div>
               </form>
             </div>
           )}
@@ -671,37 +669,37 @@ export const AuthGateSheet: React.FC = () => {
               </div>
 
               <div className="space-y-2 pt-2">
-                <button
-                  type="button"
+                <MotionButton
+                  size="full"
+                  variant="primary"
                   onClick={handleCheckVerification}
                   disabled={checkingVerification}
-                  className="w-full py-2.5 px-4 rounded-xl bg-[#5E72E4] hover:bg-[#4a5ec4] active:scale-[0.98] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(94,114,228,0.35)] transition-all disabled:opacity-50"
-                >
-                  {checkingVerification ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4" />
-                  )}
-                  <span>I Have Verified My Email</span>
-                </button>
+                  icon={
+                    checkingVerification ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 text-white" />
+                    )
+                  }
+                  label="I Have Verified My Email"
+                />
 
-                <button
-                  type="button"
+                <MotionButton
+                  size="full"
+                  variant="secondary"
                   onClick={handleResendVerification}
                   disabled={isLoading}
-                  className="w-full py-2.5 px-4 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-750 text-neutral-800 dark:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  <span>Resend Verification Link</span>
-                </button>
+                  icon={<RefreshCw className="w-4 h-4" />}
+                  label="Resend Verification Link"
+                />
 
-                <button
-                  type="button"
+                <MotionButton
+                  size="full"
+                  variant="ghost"
                   onClick={closeAuthGate}
-                  className="w-full py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
-                >
-                  Continue to App (Verify Later)
-                </button>
+                  icon={<ArrowRight className="w-4 h-4" />}
+                  label="Continue to App (Verify Later)"
+                />
               </div>
             </div>
           )}

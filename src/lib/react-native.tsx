@@ -91,7 +91,7 @@ export const SafeAreaView: React.FC<ViewProps> = ({
   ...props
 }) => (
   <div
-    className={`min-h-screen flex flex-col ${className}`}
+    className={`min-h-screen flex flex-col pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] ${className}`}
     style={normalizeStyle(style)}
     aria-label={accessibilityLabel || (props as any)['aria-label']}
     {...props}
@@ -100,11 +100,42 @@ export const SafeAreaView: React.FC<ViewProps> = ({
   </div>
 );
 
+export const useSafeAreaInsets = () => ({
+  top: typeof window !== 'undefined' ? parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat') || '0', 10) || 0 : 0,
+  bottom: typeof window !== 'undefined' ? parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0', 10) || 0 : 0,
+  left: 0,
+  right: 0,
+});
+
+export interface StatusBarProps {
+  barStyle?: 'default' | 'light-content' | 'dark-content';
+  backgroundColor?: string;
+  translucent?: boolean;
+  hidden?: boolean;
+}
+
+export const StatusBar: React.FC<StatusBarProps> = ({
+  barStyle = 'default',
+  backgroundColor,
+  hidden = false,
+}) => {
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor && backgroundColor) {
+      metaThemeColor.setAttribute('content', backgroundColor);
+    }
+  }, [backgroundColor, barStyle]);
+
+  return null;
+};
+
 export interface TextProps extends React.HTMLAttributes<HTMLSpanElement> {
   className?: string;
   style?: React.CSSProperties;
   numberOfLines?: number;
   accessibilityLabel?: string;
+  selectable?: boolean;
   children?: React.ReactNode;
 }
 
@@ -113,6 +144,7 @@ export const Text: React.FC<TextProps> = ({
   style,
   numberOfLines,
   accessibilityLabel,
+  selectable = false,
   children,
   ...props
 }) => {
@@ -127,7 +159,7 @@ export const Text: React.FC<TextProps> = ({
 
   return (
     <span
-      className={`inline-block ${className}`}
+      className={`inline-block ${selectable ? 'select-text' : 'select-none'} ${className}`}
       style={{ ...lineClampStyle, ...normalizeStyle(style) }}
       aria-label={accessibilityLabel || (props as any)['aria-label']}
       {...props}
@@ -146,6 +178,7 @@ export interface TouchableOpacityProps extends Omit<React.ButtonHTMLAttributes<H
   accessibilityRole?: string;
   accessibilityHint?: string;
   activeOpacity?: number;
+  hitSlop?: number | { top?: number; bottom?: number; left?: number; right?: number };
   testID?: string;
   children?: React.ReactNode;
 }
@@ -159,30 +192,60 @@ export const TouchableOpacity: React.FC<TouchableOpacityProps> = ({
   accessibilityRole,
   accessibilityHint,
   activeOpacity,
+  hitSlop,
   testID,
   children,
   disabled,
   ...props
-}) => (
-  <button
-    type="button"
-    disabled={disabled}
-    onClick={(e) => {
-      onPress?.(e);
-      onClick?.(e);
-    }}
-    aria-label={accessibilityLabel || (props as any)['aria-label']}
-    role={accessibilityRole || props.role}
-    data-testid={testID}
-    className={`cursor-pointer transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
-    style={normalizeStyle(style)}
-    {...props}
-  >
-    {children}
-  </button>
-);
+}) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(8);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  let hitSlopClass = '';
+  if (hitSlop) {
+    if (typeof hitSlop === 'number') {
+      hitSlopClass = `relative before:absolute before:-inset-[${hitSlop}px] before:content-[''] before:z-10`;
+    } else {
+      const top = hitSlop.top ?? 0;
+      const bottom = hitSlop.bottom ?? 0;
+      const left = hitSlop.left ?? 0;
+      const right = hitSlop.right ?? 0;
+      hitSlopClass = `relative before:absolute before:-top-[${top}px] before:-bottom-[${bottom}px] before:-left-[${left}px] before:-right-[${right}px] before:content-[''] before:z-10`;
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onPointerDown={handlePointerDown}
+      onClick={(e) => {
+        onPress?.(e);
+        onClick?.(e);
+      }}
+      aria-label={accessibilityLabel || (props as any)['aria-label']}
+      role={accessibilityRole || props.role}
+      data-testid={testID}
+      className={`select-none cursor-pointer transition-all active:scale-[0.97] outline-none focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${hitSlopClass} ${className}`}
+      style={normalizeStyle(style)}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};
 
 export const Pressable = TouchableOpacity;
+export const TouchableNativeFeedback = TouchableOpacity;
+export { TouchableRipple } from './react-native-paper';
 
 export interface ScrollViewProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   className?: string;
@@ -289,10 +352,15 @@ export function FlatList<T>({
 
   return (
     <div
-      className={`flex flex-col ${className}`}
+      className={`flex flex-col overscroll-contain ${className}`}
       style={{ ...normalizeStyle(style), ...normalizeStyle(contentContainerStyle) }}
       {...props}
     >
+      {props.refreshing && (
+        <div className="py-3 flex items-center justify-center">
+          <div className="w-5 h-5 border-2 border-[#5E72E4] border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
       {ListHeaderComponent || null}
       {data.map((item, index) => (
         <React.Fragment key={keyExtractor ? keyExtractor(item, index) : index}>
@@ -302,6 +370,16 @@ export function FlatList<T>({
       {ListFooterComponent || null}
     </div>
   );
+}
+
+export interface FlashListProps<T> extends FlatListProps<T> {
+  estimatedItemSize?: number;
+  refreshing?: boolean;
+  onRefresh?: () => void;
+}
+
+export function FlashList<T>(props: FlashListProps<T>): React.ReactElement {
+  return <FlatList {...props} className={`overscroll-contain touch-pan-y ${props.className || ''}`} />;
 }
 
 export interface TextInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement | HTMLTextAreaElement>, 'value' | 'onChange' | 'autoCorrect'> {

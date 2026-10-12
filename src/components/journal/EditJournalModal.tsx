@@ -10,10 +10,12 @@ import {
   Check,
   Trash2,
   Image as ImageIcon,
+  Save,
 } from 'lucide-react';
+import MotionButton from '@/components/ui/motion-button';
 import { JournalEntry, Devotional } from '../../types';
 import { useJournalStore } from '../../store/useJournalStore';
-import { useDevotionalStore } from '../../store/useDevotionalStore';
+import { useDevotionalStore, sortDevotionalsByLatest } from '../../store/useDevotionalStore';
 import { DeviceImageUploader } from '../common/DeviceImageUploader';
 import {
   Dialog,
@@ -202,7 +204,7 @@ export const EditJournalModal: React.FC<EditJournalModalProps> = ({
               className="w-full px-3 py-2 text-xs rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:border-[#5E72E4]"
             >
               <option value="">None (Independent Meditation)</option>
-              {devotionals.map((d) => (
+              {sortDevotionalsByLatest(devotionals).map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.title} ({d.scripture})
                 </option>
@@ -268,50 +270,54 @@ export const EditJournalModal: React.FC<EditJournalModalProps> = ({
           </div>
         </form>
 
-        <DialogFooter className="border-t border-neutral-200 dark:border-neutral-800 px-6 py-3.5 bg-neutral-50 dark:bg-neutral-900/90 rounded-b-2xl flex items-center justify-between gap-2">
+        <DialogFooter className="border-t border-neutral-200 dark:border-neutral-800 px-6 py-3.5 bg-neutral-50 dark:bg-neutral-900/90 rounded-b-2xl flex flex-wrap items-center justify-between gap-2">
           {confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-rose-600 dark:text-rose-400 font-bold">Are you sure you want to delete this note?</span>
-              <button
-                type="button"
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-rose-600 dark:text-rose-400 font-bold">Delete this note?</span>
+              <MotionButton
+                size="sm"
+                variant="danger"
+                icon={<Trash2 className="w-3.5 h-3.5 text-white" />}
+                label="Yes, Delete"
                 onClick={handleDelete}
-                className="px-2.5 py-1 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors cursor-pointer"
-              >
-                Delete note
-              </button>
-              <button
-                type="button"
+              />
+              <MotionButton
+                size="sm"
+                variant="secondary"
+                icon={<X className="w-3.5 h-3.5" />}
+                label="Cancel"
                 onClick={() => setConfirmDelete(false)}
-                className="px-2.5 py-1 text-xs font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
-              >
-                Cancel
-              </button>
+              />
             </div>
           ) : (
-            <button
-              type="button"
+            <MotionButton
+              size="sm"
+              variant="danger"
+              icon={<Trash2 className="w-3.5 h-3.5 text-white" />}
+              label="Delete Note"
               onClick={() => setConfirmDelete(true)}
-              className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 font-semibold cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete Note</span>
-            </button>
+            />
           )}
 
           <div className="flex items-center gap-2">
             <DialogClose asChild>
-              <Button type="button" variant="outline" className="text-xs rounded-xl cursor-pointer">
-                Cancel
-              </Button>
+              <MotionButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={<X className="w-3.5 h-3.5" />}
+                label="Cancel"
+              />
             </DialogClose>
-            <Button
+            <MotionButton
               type="submit"
               form="edit-journal-form"
+              variant="ministry-green"
+              size="sm"
               disabled={saving || !title.trim() || !content.trim()}
-              className="bg-[#5E72E4] hover:bg-[#4d61ce] text-white text-xs font-bold rounded-xl cursor-pointer"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
+              icon={<Save className="w-3.5 h-3.5 text-white" />}
+              label={saving ? 'Saving...' : 'Save Changes'}
+            />
           </div>
         </DialogFooter>
       </DialogContent>

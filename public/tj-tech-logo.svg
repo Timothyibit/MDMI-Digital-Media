@@ -1,0 +1,233 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Left pillar & left chevrons gradient (metallic steel charcoal) -->
+    <linearGradient id="tj-metallic-left" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#4A4A4A" />
+      <stop offset="50%" stopColor="#6B6B6B" />
+      <stop offset="100%" stopColor="#333333" />
+    </linearGradient>
+
+    <!-- Deep solid black for right chevron & J hook -->
+    <linearGradient id="tj-black-right" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#1A1A1A" />
+      <stop offset="100%" stopColor="#050505" />
+    </linearGradient>
+
+    <!-- Subtle mesh gradient -->
+    <linearGradient id="tj-mesh-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#2A2A2A" />
+      <stop offset="100%" stopColor="#555555" />
+    </linearGradient>
+  </defs>
+
+  <!-- ========================================== -->
+  <!-- LEFT WIREFRAME POLYGONAL MESH (FLANK)       -->
+  <!-- ========================================== -->
+  <g stroke="url(#tj-mesh-grad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
+    <!-- Outer Shield Perimeter Lines (Left) -->
+    <path d="M 215 88 L 138 135 L 75 160 L 95 245 L 78 320 L 105 385 L 180 435" />
+
+    <!-- Internal Facet Triangulation Network -->
+    <path d="M 138 135 L 175 160 L 215 88" />
+    <path d="M 75 160 L 140 185 L 138 135" />
+    <path d="M 75 160 L 115 220 L 140 185" />
+    <path d="M 140 185 L 170 205 L 175 160" />
+    <path d="M 140 185 L 168 255 L 170 205" />
+    
+    <path d="M 75 160 L 95 245 L 115 220" />
+    <path d="M 115 220 L 168 255 L 140 185" />
+    <path d="M 95 245 L 135 275 L 115 220" />
+    <path d="M 115 220 L 135 275 L 168 255" />
+    <path d="M 168 255 L 170 310 L 135 275" />
+
+    <path d="M 95 245 L 78 320 L 110 300" />
+    <path d="M 95 245 L 110 300 L 135 275" />
+    <path d="M 78 320 L 130 345 L 110 300" />
+    <path d="M 110 300 L 130 345 L 135 275" />
+    <path d="M 135 275 L 170 310 L 130 345" />
+
+    <path d="M 78 320 L 105 385 L 130 345" />
+    <path d="M 130 345 L 155 380 L 170 310" />
+    <path d="M 105 385 L 155 380 L 130 345" />
+    <path d="M 105 385 L 180 435 L 155 380" />
+    <path d="M 155 380 L 170 410 L 170 310" />
+
+    <!-- Connecting struts into central pillar -->
+    <path d="M 175 160 L 195 190" />
+    <path d="M 170 205 L 170 245" />
+    <path d="M 168 255 L 170 260" />
+    <path d="M 170 310 L 170 330" />
+    <path d="M 155 380 L 180 405" />
+  </g>
+
+  <!-- Node dots on Left Mesh Vertices -->
+  <g fill="#2B2B2B">
+    <circle cx="138" cy="135" r="3" />
+    <circle cx="75" cy="160" r="3.2" />
+    <circle cx="140" cy="185" r="2.8" />
+    <circle cx="115" cy="220" r="2.8" />
+    <circle cx="95" cy="245" r="3.2" />
+    <circle cx="168" cy="255" r="2.8" />
+    <circle cx="135" cy="275" r="2.8" />
+    <circle cx="78" cy="320" r="3.2" />
+    <circle cx="110" cy="300" r="2.8" />
+    <circle cx="130" cy="345" r="2.8" />
+    <circle cx="170" cy="310" r="2.8" />
+    <circle cx="105" cy="385" r="3.2" />
+    <circle cx="155" cy="380" r="2.8" />
+    <circle cx="180" cy="435" r="3" />
+  </g>
+
+  <!-- ========================================== -->
+  <!-- RIGHT WIREFRAME POLYGONAL MESH (FLANK)      -->
+  <!-- ========================================== -->
+  <g stroke="url(#tj-mesh-grad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
+    <!-- Outer Shield Perimeter Lines (Right, mirrored across x=250) -->
+    <path d="M 285 88 L 362 135 L 425 160 L 405 245 L 422 320 L 395 385 L 320 435" />
+
+    <!-- Internal Facet Triangulation Network -->
+    <path d="M 362 135 L 325 160 L 285 88" />
+    <path d="M 425 160 L 360 185 L 362 135" />
+    <path d="M 425 160 L 385 220 L 360 185" />
+    <path d="M 360 185 L 330 205 L 325 160" />
+    <path d="M 360 185 L 332 255 L 330 205" />
+
+    <path d="M 425 160 L 405 245 L 385 220" />
+    <path d="M 385 220 L 332 255 L 360 185" />
+    <path d="M 405 245 L 365 275 L 385 220" />
+    <path d="M 385 220 L 365 275 L 332 255" />
+    <path d="M 332 255 L 330 310 L 365 275" />
+
+    <path d="M 405 245 L 422 320 L 390 300" />
+    <path d="M 405 245 L 390 300 L 365 275" />
+    <path d="M 422 320 L 370 345 L 390 300" />
+    <path d="M 390 300 L 370 345 L 365 275" />
+    <path d="M 365 275 L 330 310 L 370 345" />
+
+    <path d="M 422 320 L 395 385 L 370 345" />
+    <path d="M 370 345 L 345 380 L 330 310" />
+    <path d="M 395 385 L 345 380 L 370 345" />
+    <path d="M 395 385 L 320 435 L 345 380" />
+    <path d="M 345 380 L 330 410 L 330 310" />
+
+    <!-- Connecting struts into central pillar -->
+    <path d="M 325 160 L 305 190" />
+    <path d="M 330 205 L 330 245" />
+    <path d="M 332 255 L 330 260" />
+    <path d="M 330 310 L 330 330" />
+    <path d="M 345 380 L 320 405" />
+  </g>
+
+  <!-- Node dots on Right Mesh Vertices -->
+  <g fill="#2B2B2B">
+    <circle cx="362" cy="135" r="3" />
+    <circle cx="425" cy="160" r="3.2" />
+    <circle cx="360" cy="185" r="2.8" />
+    <circle cx="385" cy="220" r="2.8" />
+    <circle cx="405" cy="245" r="3.2" />
+    <circle cx="332" cy="255" r="2.8" />
+    <circle cx="365" cy="275" r="2.8" />
+    <circle cx="422" cy="320" r="3.2" />
+    <circle cx="390" cy="300" r="2.8" />
+    <circle cx="370" cy="345" r="2.8" />
+    <circle cx="330" cy="310" r="2.8" />
+    <circle cx="395" cy="385" r="3.2" />
+    <circle cx="345" cy="380" r="2.8" />
+    <circle cx="320" cy="435" r="3" />
+  </g>
+
+  <!-- ========================================== -->
+  <!-- CENTRAL EMBLEM: CHEVRONS, PILLARS & CROSS   -->
+  <!-- ========================================== -->
+
+  <!-- Top Chevron 1 (Apex): Split into Left (Metallic) & Right (Black) -->
+  <!-- Left half -->
+  <path
+    d="M 250 20 L 250 68 L 195 130 L 170 102 Z"
+    fill="url(#tj-metallic-left)"
+  />
+  <!-- Right half -->
+  <path
+    d="M 250 20 L 330 102 L 305 130 L 250 68 Z"
+    fill="url(#tj-black-right)"
+  />
+
+  <!-- Middle Chevron 2: Split into Left (Metallic) & Right (Black) -->
+  <!-- Left half -->
+  <path
+    d="M 250 82 L 250 128 L 195 190 L 170 162 Z"
+    fill="url(#tj-metallic-left)"
+  />
+  <!-- Right half -->
+  <path
+    d="M 250 82 L 330 162 L 305 190 L 250 128 Z"
+    fill="url(#tj-black-right)"
+  />
+
+  <!-- Lower Chevron 3 (Shoulder Arch): Left & Right -->
+  <!-- Left half -->
+  <path
+    d="M 250 144 L 250 190 L 195 248 L 170 220 Z"
+    fill="url(#tj-metallic-left)"
+  />
+  <!-- Right half -->
+  <path
+    d="M 250 144 L 330 220 L 305 248 L 250 190 Z"
+    fill="url(#tj-black-right)"
+  />
+
+  <!-- ========================================== -->
+  <!-- LEFT PILLAR (THE 'T' COLUMN / ARCH LEG)     -->
+  <!-- ========================================== -->
+  <!-- Angled top, straight vertical pillar, tapered pointed bottom left -->
+  <path
+    d="M 170 252 
+       L 212 205 
+       L 212 400 
+       L 170 445 
+       Z"
+    fill="url(#tj-metallic-left)"
+  />
+
+  <!-- ========================================== -->
+  <!-- RIGHT PILLAR: THE BOLD 'J' HOOK             -->
+  <!-- ========================================== -->
+  <!-- Drops down from right shoulder, sweeps down to the bottom pointed tip, then hooks sharply up to the left forming letter 'J' -->
+  <path
+    d="M 288 205
+       L 330 252
+       L 330 380
+       L 344 380
+       L 344 415
+       L 262 482
+       L 262 418
+       L 292 390
+       L 292 205
+       Z"
+    fill="url(#tj-black-right)"
+  />
+
+  <!-- ========================================== -->
+  <!-- CENTER CHRISTIAN CROSS (✝)                  -->
+  <!-- ========================================== -->
+  <!-- Perfectly centered inside the archway -->
+  <!-- Vertical Beam -->
+  <rect
+    x="246"
+    y="235"
+    width="8"
+    height="150"
+    rx="1"
+    fill="#111111"
+  />
+
+  <!-- Horizontal Crossbeam -->
+  <rect
+    x="220"
+    y="278"
+    width="60"
+    height="8"
+    rx="1"
+    fill="#111111"
+  />
+</svg>

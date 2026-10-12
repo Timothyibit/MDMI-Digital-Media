@@ -185,25 +185,50 @@ export const useUIStore = create<UIState>((set, get) => {
     closeVoiceSelector: () => set({ voiceSelectorOpen: false }),
 
     playDevotionalAudio: async (devotional) => {
-      const { buildDevotionalScript, calculateAudioDuration } = await import('../services/aiAudioService');
+      const {
+        buildDevotionalScript,
+        calculateAudioDuration,
+        calculateTextToSpeechDuration,
+        probeAudioFileDuration,
+        normalizeAudioUrl,
+      } = await import('../services/aiAudioService');
+
       const currentRate = get().audioState.playbackRate || 1.0;
       const script = buildDevotionalScript(devotional);
-      const estDuration = calculateAudioDuration(devotional, currentRate);
+      const rawAudio = devotional.audioUrl ? devotional.audioUrl.trim() : null;
+      const normalizedUrl = rawAudio ? normalizeAudioUrl(rawAudio) : null;
+      const hasAudioUrl = Boolean(normalizedUrl);
 
-      // Immediately start playing with zero waiting latency using Speech Engine
+      let exactDuration = 0;
+      if (hasAudioUrl) {
+        if (devotional.audioDurationSeconds && devotional.audioDurationSeconds > 0) {
+          exactDuration = devotional.audioDurationSeconds;
+        } else {
+          exactDuration = calculateAudioDuration(devotional, currentRate);
+        }
+        probeAudioFileDuration(normalizedUrl!).then((probed) => {
+          if (probed > 0) {
+            get().setAudioDuration(probed);
+          }
+        });
+      } else {
+        // Accurately calculated text-to-speech duration for spoken narration
+        exactDuration = calculateTextToSpeechDuration(script, currentRate);
+      }
+
       set({
         audioState: {
           ...get().audioState,
           devotionalId: devotional.id,
           title: devotional.title,
           scripture: devotional.scripture,
-          audioUrl: devotional.audioUrl || null,
+          audioUrl: normalizedUrl,
           isPlaying: true,
           isLoadingAudio: false,
           currentTime: 0,
-          duration: estDuration,
+          duration: exactDuration,
           playbackRate: currentRate,
-          useNativeSpeech: true, // Always prioritize voice reading the devotional aloud
+          useNativeSpeech: !hasAudioUrl, // If audioUrl is uploaded, play audio file; otherwise use voice narration
           speechText: script,
         },
       });
@@ -221,12 +246,18 @@ export const useUIStore = create<UIState>((set, get) => {
 
     seekAudioTime: (timeSeconds) => {
       const current = get().audioState;
+      const targetTime = Math.min(current.duration || 9999, Math.max(0, timeSeconds));
       set({
         audioState: {
           ...current,
-          currentTime: Math.min(current.duration, Math.max(0, timeSeconds)),
+          currentTime: targetTime,
         },
       });
+      if (current.useNativeSpeech) {
+        import('../services/nativeSpeechService').then(({ nativeSpeech }) => {
+          nativeSpeech.seek(targetTime);
+        });
+      }
     },
 
     setAudioDuration: (duration) => {
@@ -242,6 +273,21 @@ export const useUIStore = create<UIState>((set, get) => {
     setAudioPlaybackRate: (playbackRate) => {
       const current = get().audioState;
       const oldRate = current.playbackRate || 1.0;
+
+      if (current.useNativeSpeech && current.speechText) {
+        import('../services/aiAudioService').then(({ calculateTextToSpeechDuration }) => {
+          const updatedDur = calculateTextToSpeechDuration(current.speechText!, playbackRate);
+          set({
+            audioState: {
+              ...get().audioState,
+              playbackRate,
+              duration: updatedDur,
+            },
+          });
+        });
+        return;
+      }
+
       const newDuration =
         current.duration > 0 && oldRate > 0 && playbackRate > 0
           ? Math.round(current.duration * (oldRate / playbackRate))
@@ -258,6 +304,19 @@ export const useUIStore = create<UIState>((set, get) => {
 
     setAudioUseNativeSpeech: (useNativeSpeech) => {
       const current = get().audioState;
+      if (useNativeSpeech && current.speechText) {
+        import('../services/aiAudioService').then(({ calculateTextToSpeechDuration }) => {
+          const ttsDur = calculateTextToSpeechDuration(current.speechText!, current.playbackRate);
+          set({
+            audioState: {
+              ...current,
+              useNativeSpeech,
+              duration: ttsDur,
+            },
+          });
+        });
+        return;
+      }
       set({ audioState: { ...current, useNativeSpeech } });
     },
 

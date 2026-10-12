@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, SafeAreaView } from 'react-native';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Compass,
   BookOpen,
@@ -33,9 +34,9 @@ import { VerseShareCard } from './components/share/VerseShareCard';
 import { VoiceSelectorModal } from './components/ui/VoiceSelectorModal';
 import { StreakConfetti } from './components/celebration/StreakConfetti';
 import { NotificationDrawer } from './components/notifications/NotificationDrawer';
+import { NotificationsScreen } from './components/notifications/NotificationsScreen';
 import { IntroLoadingScreen } from './components/onboarding/IntroLoadingScreen';
 import { OnboardingModal } from './components/onboarding/OnboardingModal';
-import { ThemeToggle } from './components/ui/ThemeToggle';
 import { MdmiLogo } from './components/ui/MdmiLogo';
 import { AnimatedNavFramer, NavItem } from './components/animated-nav-framer';
 import { CodeherenceHeader } from './components/header/CodeherenceHeader';
@@ -186,9 +187,8 @@ export default function App() {
   }));
 
   return (
-    <SafeAreaView
-      id="app-root"
-      className={`min-h-screen flex-1 flex flex-col font-sans transition-colors ${containerBg}`}
+    <div
+      className={`min-h-screen ${containerBg} flex flex-col font-sans transition-colors duration-200 selection:bg-[#84CC16]/25 selection:text-[#4D7C0F] dark:selection:text-[#A3E635]`}
     >
       {/* Offline Status Slide-down Banner */}
       <OfflineBanner />
@@ -196,7 +196,7 @@ export default function App() {
       {/* Global Streak Confetti Celebration */}
       <StreakConfetti />
 
-      {/* Persistent Narration Player */}
+      {/* Persistent Narration Player (Docked cleanly above bottom navigation) */}
       <AudioPlayer />
 
       {/* Intro Loading Screen & Craft Onboarding Tour */}
@@ -210,48 +210,72 @@ export default function App() {
       <VoiceSelectorModal />
       <NotificationDrawer />
 
-      {/* Constant Sticky Header - Identical Across All Screens */}
-      <CodeherenceHeader
-        activeTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
-      />
-
-      {/* Main Content Viewport - Centralized across all views */}
-      <View className="flex-1 w-full max-w-5xl mx-auto px-3.5 sm:px-6 pt-3 sm:pt-6 pb-28 sm:pb-32">
-        {activeTab === 'reader' && selectedDevotional ? (
-          <DevotionalReader
-            devotional={selectedDevotional}
-            onBack={handleBackFromReader}
-          />
-        ) : activeTab === 'home' ? (
-          <HomeTab onSelectDevotional={handleOpenDevotional} />
-        ) : activeTab === 'devotionals' ? (
-          <DevotionalsTab onSelectDevotional={handleOpenDevotional} />
-        ) : activeTab === 'journal' ? (
-          <JournalTab />
-        ) : activeTab === 'profile' ? (
-          <ProfileTab onSelectDevotional={handleOpenDevotional} />
-        ) : activeTab === 'admin' ? (
-          <AdminTab />
-        ) : activeTab === 'about' ? (
-          <AboutTab
-            onBack={() => setActiveTab('profile')}
-            onNavigate={(tab) => setActiveTab(tab)}
-          />
-        ) : null}
-      </View>
-
-      {/* Sticky Floating Bottom Animated Nav - Framer Motion spring physics with scroll collapse for mobile & tablet */}
+      {/* App Header (Primary tabs only; reader has its own dedicated header) */}
       {activeTab !== 'reader' && (
-        <AnimatedNavFramer
-          position="bottom"
-          items={framerNavItems}
-          activeId={activeTab}
-          onSelect={(id) => setActiveTab(id as any)}
-          logo={<MdmiLogo size={22} />}
-          className="flex xl:hidden"
+        <CodeherenceHeader
+          activeTab={activeTab}
+          onSelectTab={(tab) => setActiveTab(tab)}
         />
       )}
-    </SafeAreaView>
+
+      {/* Main Content Viewport */}
+      <main className="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-28">
+        <AnimatePresence mode="wait">
+          {activeTab === 'reader' && selectedDevotional ? (
+            <motion.div
+              key={`reader-${selectedDevotional.id}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="w-full"
+            >
+              <DevotionalReader
+                devotional={selectedDevotional}
+                onBack={handleBackFromReader}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="w-full"
+            >
+              {activeTab === 'home' ? (
+                <HomeTab onSelectDevotional={handleOpenDevotional} />
+              ) : activeTab === 'devotionals' ? (
+                <DevotionalsTab onSelectDevotional={handleOpenDevotional} />
+              ) : activeTab === 'journal' ? (
+                <JournalTab />
+              ) : activeTab === 'profile' ? (
+                <ProfileTab onSelectDevotional={handleOpenDevotional} />
+              ) : activeTab === 'admin' ? (
+                <AdminTab />
+              ) : activeTab === 'about' ? (
+                <AboutTab
+                  onBack={() => setActiveTab('profile')}
+                  onNavigate={(tab) => setActiveTab(tab)}
+                />
+              ) : activeTab === 'notifications' ? (
+                <NotificationsScreen />
+              ) : null}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* Animated Framer Bottom Dock Navigation Bar */}
+      {activeTab !== 'reader' && (
+        <AnimatedNavFramer
+          items={framerNavItems}
+          position="bottom"
+          activeId={activeTab}
+          onSelect={(id) => setActiveTab(id as TabType)}
+        />
+      )}
+    </div>
   );
 }

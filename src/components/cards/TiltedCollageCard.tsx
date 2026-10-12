@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Globe, Users, HeartHandshake } from 'lucide-react';
+import { ArrowRight, Globe } from 'lucide-react';
 
 interface TiltedCollageCardProps {
   title?: string;
@@ -36,7 +36,7 @@ export const TiltedCollageCard: React.FC<TiltedCollageCardProps> = ({
 
   return (
     <div
-      className={`relative overflow-hidden rounded-[32px] bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 p-6 sm:p-8 md:p-10 ${className}`}
+      className={`relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#FFFDF5] via-[#FEF3C7] to-[#FDE68A] text-[#3D2314] dark:from-[#1C0E03] dark:via-[#261304] dark:to-[#0D0501] dark:text-white border border-amber-300/80 dark:border-amber-500/40 shadow-[0_12px_36px_rgba(245,158,11,0.12)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.6)] p-6 sm:p-8 md:p-10 transition-all duration-300 ${className}`}
     >
       {/* Background Tilted Image Collage (Template 5 Spec) */}
       <div className="absolute -top-6 -right-6 md:right-8 flex items-center gap-3 opacity-30 dark:opacity-20 pointer-events-none select-none">
@@ -52,16 +52,16 @@ export const TiltedCollageCard: React.FC<TiltedCollageCardProps> = ({
 
       {/* Foreground Content */}
       <div className="relative z-10 max-w-lg">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-bold uppercase tracking-wider mb-3">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-600/15 dark:bg-amber-500/20 border border-amber-600/35 dark:border-amber-500/40 text-[#78350F] dark:text-amber-300 text-xs font-bold uppercase tracking-wider mb-3">
           <Globe className="w-3.5 h-3.5" />
           <span>The Great Commission</span>
         </div>
 
-        <h3 className="text-2xl sm:text-3xl font-extrabold font-display-scripture text-neutral-900 dark:text-white leading-tight">
+        <h3 className="text-2xl sm:text-3xl font-extrabold font-display-scripture text-[#3D2314] dark:text-white leading-tight">
           {title}
         </h3>
 
-        <p className="mt-3 text-xs sm:text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed font-sans">
+        <p className="mt-3 text-xs sm:text-sm text-[#5C2304] dark:text-amber-100/90 leading-relaxed font-sans font-medium">
           {message}
         </p>
 
@@ -70,7 +70,7 @@ export const TiltedCollageCard: React.FC<TiltedCollageCardProps> = ({
             <button
               type="button"
               onClick={onAction}
-              className="px-6 py-3 rounded-[16px] bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-neutral-900 text-sm font-bold shadow-lg active:scale-95 transition-all inline-flex items-center gap-2"
+              className="px-6 py-3 rounded-[16px] bg-[#3D2314] hover:bg-[#52301B] dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-[#3D2314] text-sm font-black shadow-lg active:scale-95 transition-all inline-flex items-center gap-2 cursor-pointer"
             >
               <span>{actionText}</span>
               <ArrowRight className="w-4 h-4" />

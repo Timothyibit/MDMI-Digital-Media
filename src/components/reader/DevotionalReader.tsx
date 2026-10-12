@@ -25,7 +25,9 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
+  Video,
 } from 'lucide-react';
+import { VideoPlayer } from '@/components/ui/video-thumbnail-player';
 import { Devotional, JournalEntry } from '../../types';
 import { useUIStore } from '../../store/useUIStore';
 import { useDevotionalStore } from '../../store/useDevotionalStore';
@@ -38,11 +40,13 @@ import {
   probeAudioFileDuration,
 } from '../../services/aiAudioService';
 import { LikeButton } from '../ui/LikeButton';
-import { ThemeToggle } from '../ui/ThemeToggle';
-import { CommentThread3 } from '@/components/ui/comment-thread-3';
+import MotionButton from '@/components/ui/motion-button';
+import { DevotionalReflectionsSection } from '../comments/DevotionalReflectionsSection';
 import { RichTextRenderer } from '../ui/RichTextRenderer';
 import { EditDevotionalModal } from '../admin/EditDevotionalModal';
 import { EditJournalModal } from '../journal/EditJournalModal';
+import { FancyMobileAudioCard } from '../ui/FancyMobileAudioCard';
+import { SuccessIcon, MenuCloseIcon } from '@/components/ui/animated-state-icons';
 
 interface DevotionalReaderProps {
   devotional: Devotional;
@@ -58,6 +62,8 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
     openVoiceSelector,
     playDevotionalAudio,
     toggleAudioPlayback,
+    seekAudioTime,
+    setAudioPlaybackRate,
     triggerConfetti,
   } = useUIStore();
 
@@ -72,6 +78,7 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
   } = useDevotionalStore();
   const { entries, addEntry } = useJournalStore();
 
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isEditingDevotional, setIsEditingDevotional] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [journalModalEntry, setJournalModalEntry] = useState<JournalEntry | null>(null);
@@ -222,7 +229,7 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
     ? 'bg-[#111111] border-neutral-800'
     : 'bg-white border-[#E9ECEF] shadow-[0_2px_12px_rgba(0,0,0,0.04)]';
 
-  const accentColor = '#5E72E4';
+  const accentColor = '#65A30D';
 
   return (
     <View className={`flex-1 ${themeClasses}`}>
@@ -258,31 +265,36 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
           </Text>
         </TouchableOpacity>
 
+        {/* Scripture Context Pill */}
+        <View className="hidden sm:flex flex-row items-center px-2.5 py-1 rounded-full bg-neutral-200/50 dark:bg-neutral-800/80">
+          <Text className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 truncate max-w-[200px]">
+            {devotional.scripture}
+          </Text>
+        </View>
+
         <View className="flex-row items-center gap-1.5">
-          <ThemeToggle scope="reader" />
-
-          <TouchableOpacity
-            id="reader-comments-header-btn"
-            onPress={() => openCommentsSheet(devotional.id)}
-            accessibilityLabel="View reflections and comments"
-            className="h-10 px-2.5 rounded-lg flex-row items-center gap-1.5 border border-[#CAD1D7]/50 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-sm"
-          >
-            <MessageSquare className="w-4 h-4 text-[#5E72E4]" />
-            {commentsCount > 0 && (
-              <span className="text-[11px] font-bold text-[#5E72E4] tabular-nums">
-                {commentsCount}
-              </span>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            id="reader-audio-btn"
-            onPress={() => playDevotionalAudio(devotional)}
-            accessibilityLabel="Listen to audio"
-            className="w-10 h-10 rounded-lg flex items-center justify-center border border-[#CAD1D7]/50 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-sm"
-          >
-            <Volume2 className="w-4 h-4 text-neutral-700 dark:text-neutral-300" />
-          </TouchableOpacity>
+          {isAdmin && (
+            <button
+              id="reader-admin-btn"
+              type="button"
+              onClick={() => setIsAdminPanelOpen((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-lg border transition-all shadow-sm cursor-pointer active:scale-95 ${
+                isAdminPanelOpen
+                  ? 'bg-[#5E72E4] text-white border-[#5E72E4] ring-2 ring-[#5E72E4]/30'
+                  : 'border-[#5E72E4]/40 bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 text-[#5E72E4] dark:text-[#889af7]'
+              }`}
+              title="Toggle Devotional Admin Controls"
+              aria-label="Admin Controls"
+            >
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span className="text-xs font-bold hidden xs:inline">Admin</span>
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  currentDevotional.publishedAt ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                }`}
+              />
+            </button>
+          )}
 
           <TouchableOpacity
             id="reader-share-btn"
@@ -295,7 +307,7 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
               })
             }
             accessibilityLabel="Share verse card"
-            className="w-10 h-10 rounded-lg flex items-center justify-center border border-[#CAD1D7]/50 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-sm"
+            className="w-10 h-10 rounded-lg flex items-center justify-center border border-[#CAD1D7]/50 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
           >
             <Share2 className="w-4 h-4 text-neutral-700 dark:text-neutral-300" />
           </TouchableOpacity>
@@ -304,7 +316,7 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
             id="reader-bookmark-btn"
             onPress={() => toggleBookmark(devotional.id)}
             accessibilityLabel={bookmarked ? 'Bookmarked' : 'Bookmark'}
-            className="w-10 h-10 rounded-lg flex items-center justify-center border border-[#CAD1D7]/50 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-sm"
+            className="w-10 h-10 rounded-lg flex items-center justify-center border border-[#CAD1D7]/50 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shadow-sm cursor-pointer"
           >
             <Bookmark
               className={`w-4 h-4 ${bookmarked ? 'fill-amber-500 text-amber-500' : 'text-neutral-700 dark:text-neutral-300'}`}
@@ -321,81 +333,100 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
         contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 24, paddingBottom: 90 }}
         className="flex-1 max-w-2xl mx-auto w-full"
       >
-        {/* Admin Devotional Management Bar */}
-        {isAdmin && (
-          <div className="mb-5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-[#5E72E4]/10 via-[#5E72E4]/5 to-transparent border border-[#5E72E4]/30 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Admin Devotional Management Bar (Hidden in Admin Button, expands on click) */}
+        {isAdmin && isAdminPanelOpen && (
+          <div className="mb-5 p-4 rounded-2xl bg-gradient-to-br from-[#080E1B] via-[#101D38] to-[#04070D] border border-[#5E72E4]/40 text-white shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-[#5E72E4] text-white flex items-center justify-center shrink-0 shadow-xs">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-neutral-900 dark:text-white">
-                      Admin Controls
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Teaching Administration
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         currentDevotional.publishedAt
-                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
-                          : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                       }`}
                     >
                       {currentDevotional.publishedAt ? '● Live Published' : '○ Draft Only'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    Teaching ID: <code className="font-mono text-[10px]">{currentDevotional.id}</code>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Teaching ID: <code className="font-mono text-[10px] text-slate-200">{currentDevotional.id}</code>
                   </p>
                 </div>
               </div>
 
-              {/* Admin Action Buttons (Responsive on Mobile) */}
-              <div className="grid grid-cols-2 sm:flex sm:flex-row items-center gap-2">
-                <button
-                  type="button"
-                  id="admin-bar-edit-btn"
-                  onClick={() => setIsEditingDevotional(true)}
-                  className="px-3 py-2 rounded-lg bg-[#5E72E4] hover:bg-[#4d61d1] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit Teaching</span>
-                </button>
+              <button
+                type="button"
+                onClick={() => setIsAdminPanelOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                aria-label="Close admin controls"
+                title="Hide Admin Controls"
+              >
+                <MenuCloseIcon size={20} color="#FFFFFF" active={true} />
+              </button>
+            </div>
 
-                <button
-                  type="button"
-                  id="admin-bar-publish-btn"
-                  disabled={isUpdatingStatus}
-                  onClick={handleTogglePublish}
-                  className={`px-3 py-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                    currentDevotional.publishedAt
-                      ? 'border-amber-400/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20'
-                      : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
-                  }`}
-                >
-                  {currentDevotional.publishedAt ? (
-                    <>
-                      <EyeOff className="w-3.5 h-3.5" />
-                      <span>{isUpdatingStatus ? 'Updating...' : 'Set to Draft'}</span>
-                    </>
+            {/* Admin Action Buttons (Responsive & Natural Width) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <MotionButton
+                size="sm"
+                variant="primary"
+                id="admin-bar-edit-btn"
+                icon={<Edit3 className="w-3.5 h-3.5 text-white" />}
+                label="Edit Teaching"
+                onClick={() => setIsEditingDevotional(true)}
+              />
+
+              <MotionButton
+                size="sm"
+                variant={currentDevotional.publishedAt ? 'warning' : 'ministry-green'}
+                id="admin-bar-publish-btn"
+                disabled={isUpdatingStatus}
+                icon={
+                  currentDevotional.publishedAt ? (
+                    <EyeOff className="w-3.5 h-3.5 text-white" />
                   ) : (
-                    <>
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>{isUpdatingStatus ? 'Updating...' : 'Publish Now'}</span>
-                    </>
-                  )}
-                </button>
+                    <Eye className="w-3.5 h-3.5 text-white" />
+                  )
+                }
+                label={
+                  isUpdatingStatus
+                    ? 'Updating...'
+                    : currentDevotional.publishedAt
+                    ? 'Set to Draft'
+                    : 'Publish Now'
+                }
+                onClick={handleTogglePublish}
+              />
 
-                <button
-                  type="button"
-                  id="admin-bar-reflections-btn"
-                  onClick={() => openCommentsSheet(devotional.id)}
-                  className="col-span-2 sm:col-auto px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 text-[#5E72E4]" />
-                  <span>Reflections ({commentsCount})</span>
-                </button>
-              </div>
+              <MotionButton
+                size="sm"
+                variant="secondary"
+                id="admin-bar-reflections-btn"
+                icon={<MessageSquare className="w-3.5 h-3.5 text-[#84CC16]" />}
+                label={`Reflections (${commentsCount})`}
+                onClick={() => openCommentsSheet(devotional.id)}
+              />
+            </div>
+
+            {/* Quick Photo Change for Admin */}
+            <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-xs">
+              <span className="text-slate-300 font-medium">Devotional Cover Media:</span>
+              <button
+                type="button"
+                onClick={() => setIsEditingDevotional(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors cursor-pointer"
+              >
+                <Camera className="w-3 h-3 text-white" />
+                <span>{currentDevotional.imageUrl ? 'Change Photo' : 'Upload Photo'}</span>
+              </button>
             </div>
           </div>
         )}
@@ -439,27 +470,29 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
               className="w-full h-full object-cover"
             />
             {isAdmin && (
-              <button
-                type="button"
-                onClick={() => setIsEditingDevotional(true)}
-                className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs font-semibold backdrop-blur-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
-                title="Edit devotional cover photo from device"
-              >
-                <Camera className="w-3.5 h-3.5" />
-                <span>Change Photo</span>
-              </button>
+              <div className="absolute bottom-3 right-3 z-10">
+                <MotionButton
+                  size="sm"
+                  variant="dark"
+                  icon={<Camera className="w-3.5 h-3.5 text-white" />}
+                  label="Change Photo"
+                  onClick={() => setIsEditingDevotional(true)}
+                />
+              </div>
             )}
           </div>
         ) : (
           isAdmin && (
-            <button
-              type="button"
-              onClick={() => setIsEditingDevotional(true)}
-              className="w-full py-4 border-2 border-dashed border-[#5E72E4]/40 hover:border-[#5E72E4] rounded-2xl flex items-center justify-center gap-2 mb-4 text-[#5E72E4] text-xs font-bold bg-[#5E72E4]/5 transition-colors cursor-pointer"
-            >
-              <Camera className="w-4 h-4" />
-              <span>Upload Devotional Cover Photo from Device</span>
-            </button>
+            <div className="mb-4">
+              <MotionButton
+                size="md"
+                variant="primary"
+                icon={<Camera className="w-4 h-4 text-white" />}
+                label="Upload Devotional Cover Photo"
+                onClick={() => setIsEditingDevotional(true)}
+                className="w-full justify-center py-3"
+              />
+            </div>
           )
         )}
 
@@ -501,90 +534,76 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
           </View>
         </View>
 
-        {/* Audio Prompt Bar */}
+        {/* Fancy Mobile-First Audio Narration Card */}
         {(devotional.audioUrl || devotional.body) && (
-          <View
-            className={`my-4 p-3.5 rounded-lg border flex-row items-center justify-between transition-all ${scriptureCardClasses} ${
-              isThisAudioPlaying ? 'ring-2 ring-[#5E72E4]/40 dark:ring-[#5E72E4]/60' : ''
-            }`}
-          >
-            <TouchableOpacity
-              onPress={() => {
+          <div className="my-5 w-full">
+            <FancyMobileAudioCard
+              devotional={devotional}
+              isPlaying={isThisAudioPlaying}
+              currentTime={audioState.currentTime}
+              duration={activeAudioDuration}
+              playbackRate={audioState.playbackRate}
+              onPlayPause={() => {
                 if (audioState.devotionalId === devotional.id) {
                   toggleAudioPlayback();
                 } else {
                   playDevotionalAudio(devotional);
                 }
               }}
-              accessibilityLabel={isThisAudioPlaying ? 'Pause Audio Narration' : 'Listen to Audio Narration'}
-              className="flex-1 flex-row items-center gap-3 mr-2 text-left"
-            >
-              <View
-                className={`w-10 h-10 rounded-lg items-center justify-center shrink-0 ${
-                  isThisAudioPlaying ? 'bg-emerald-600' : 'bg-[#5E72E4]'
-                } shadow-[0_4px_10px_rgba(94,114,228,0.3)]`}
-              >
-                <Volume2 className="w-5 h-5 text-white" />
-              </View>
-              <View className="flex-1 min-w-0">
-                <Text className="text-xs font-bold text-neutral-900 dark:text-white truncate">
-                  {isThisAudioPlaying ? 'Now Playing Narration' : 'Listen to Audio Narration'}
-                </Text>
-                <Text className="text-[11px] opacity-70 text-neutral-600 dark:text-neutral-400 truncate">
-                  Narrated by ministry leadership ({audioDurationLabel})
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            <View className="flex-row items-center gap-2 shrink-0">
-              <TouchableOpacity
-                onPress={() => openVoiceSelector()}
-                accessibilityLabel="Choose narrator voice"
-                className="px-2.5 py-1.5 rounded-md border border-[#CAD1D7]/50 dark:border-neutral-700 bg-white/60 dark:bg-neutral-800 hover:bg-white dark:hover:bg-neutral-700 flex-row items-center gap-1.5 shadow-xs"
-              >
-                <Mic className="w-3.5 h-3.5 text-[#5E72E4]" />
-                <Text className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                  Voice
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  if (audioState.devotionalId === devotional.id) {
-                    toggleAudioPlayback();
-                  } else {
-                    playDevotionalAudio(devotional);
-                  }
-                }}
-                accessibilityLabel={isThisAudioPlaying ? 'Pause narration' : 'Play narration'}
-                className={`px-3 py-1.5 rounded-md ${
-                  isThisAudioPlaying
-                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-[#5E72E4]/10 text-[#5E72E4]'
-                }`}
-              >
-                <Text
-                  className={`text-xs font-bold ${
-                    isThisAudioPlaying
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-[#5E72E4]'
-                  }`}
-                >
-                  {isThisAudioPlaying ? 'Pause' : 'Play'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+              onSeek={seekAudioTime}
+              onSpeedChange={setAudioPlaybackRate}
+              onOpenVoiceSelector={openVoiceSelector}
+            />
+          </div>
         )}
 
-        {/* Scripture Box */}
-        <View className={`my-5 p-5 md:p-6 rounded-lg border shadow-sm ${scriptureCardClasses}`}>
-          <View className="flex-row items-center justify-between mb-3">
-            <Text className="text-xs font-bold font-display-scripture uppercase tracking-wider text-blue-600 dark:text-blue-400">
-              Holy Scripture • {devotional.scripture}
-            </Text>
-            <TouchableOpacity
-              onPress={() =>
+        {/* Video Exhortation / Sermon Player Card - Shown ONLY if a video link is added */}
+        {currentDevotional.videoUrl && currentDevotional.videoUrl.trim() ? (
+          <div className="my-5 w-full">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                <Video className="w-4 h-4 text-red-500" />
+                <span>Video Exhortation & Sermon</span>
+              </div>
+              <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400">
+                Click to Watch Video
+              </span>
+            </div>
+            <VideoPlayer
+              videoUrl={currentDevotional.videoUrl}
+              thumbnailUrl={currentDevotional.imageUrl || undefined}
+              title={currentDevotional.title}
+              description={`Discipleship message on ${currentDevotional.scripture}`}
+              className="rounded-2xl shadow-lg border border-neutral-200 dark:border-neutral-800"
+            />
+          </div>
+        ) : null}
+
+        {/* Holy Scripture Card (Mobile Look with High-Contrast Gradient) */}
+        <div
+          className={`my-5 p-4 sm:p-5 rounded-2xl border shadow-sm transition-all bg-gradient-to-br ${
+            isDark
+              ? 'from-[#080E1B] via-[#0F1E38] to-[#04070D] border-slate-700/60 text-white'
+              : 'from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] border-slate-200/90 text-neutral-900'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-black/5 dark:border-white/10">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/15 dark:bg-blue-500/25 flex items-center justify-center shrink-0">
+                <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                  Holy Scripture
+                </span>
+                <h4 className="text-xs sm:text-sm font-bold truncate max-w-[200px] sm:max-w-none text-neutral-900 dark:text-white">
+                  {devotional.scripture}
+                </h4>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
                 openVerseShare({
                   scripture: devotional.scripture,
                   scriptureText: devotional.scriptureText,
@@ -592,153 +611,143 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
                   author: devotional.authorName,
                 })
               }
-              className="px-2.5 py-1 rounded-md border border-[#CAD1D7]/40 dark:border-neutral-800 bg-white/60 dark:bg-neutral-800 flex-row items-center gap-1.5"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200/80 dark:border-slate-700 bg-white/80 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all text-xs font-semibold text-neutral-700 dark:text-neutral-200 shadow-xs cursor-pointer"
             >
-              <Share2 className="w-3 h-3 text-neutral-600 dark:text-neutral-400" />
-              <Text className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">Share</Text>
-            </TouchableOpacity>
-          </View>
-          <Text className="font-serif-reading italic text-base md:text-lg leading-relaxed text-neutral-800 dark:text-neutral-100">
+              <Share2 className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+              <span>Share Verse</span>
+            </button>
+          </div>
+          <p className="font-serif-reading italic text-base sm:text-lg leading-relaxed text-neutral-800 dark:text-neutral-100 pl-2 border-l-2 border-blue-500/40">
             “{devotional.scriptureText}”
-          </Text>
-        </View>
+          </p>
+        </div>
 
         {/* Devotional Body (Rich Text Formatting) */}
         <div className="my-5 leading-relaxed text-neutral-800 dark:text-neutral-200">
           <RichTextRenderer content={devotional.body} />
         </div>
 
-        {/* Key Thought Callout */}
-        <View
-          className={`my-6 p-5 rounded-2xl border ${
+        {/* Key Thought Callout (Mobile Look with High Contrast Gradient) */}
+        <div
+          className={`my-6 p-4 sm:p-5 rounded-2xl border shadow-sm transition-all bg-gradient-to-br ${
             isDark
-              ? 'bg-neutral-900 border-neutral-800'
-              : 'bg-amber-50/70 border-amber-200/60'
+              ? 'from-[#1A1203] via-[#241705] to-[#0A0701] border-amber-600/30 text-white'
+              : 'from-[#FFFDF5] via-[#FFFBEB] to-[#FEF3C7] border-amber-300/70 text-neutral-900'
           }`}
         >
-          <View className="flex-row items-center gap-2 mb-1.5">
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <Text className="text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+          <div className="flex items-center gap-2.5 mb-2">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
               Key Meditation For Today
-            </Text>
-          </View>
-          <Text className="text-sm md:text-base font-semibold italic pl-6 text-neutral-800 dark:text-neutral-200">
+            </span>
+          </div>
+          <p className="text-sm sm:text-base font-semibold italic pl-10 leading-relaxed text-neutral-800 dark:text-neutral-100">
             “{devotional.keyThought}”
-          </Text>
-        </View>
+          </p>
+        </div>
 
-        {/* Prayer of the Day */}
-        <View
-          className={`my-6 p-5 rounded-2xl border ${
+        {/* Prayer of the Day (Mobile Look with High Contrast Gradient) */}
+        <div
+          className={`my-6 p-4 sm:p-5 rounded-2xl border shadow-sm transition-all bg-gradient-to-br ${
             isDark
-              ? 'bg-neutral-900 border-neutral-800'
-              : 'bg-blue-50/60 border-blue-200/50'
+              ? 'from-[#080E1B] via-[#0E1A33] to-[#04070D] border-blue-600/30 text-white'
+              : 'from-[#F5F8FF] via-[#EFF6FF] to-[#DBEAFE] border-blue-300/70 text-neutral-900'
           }`}
         >
-          <View className="flex-row items-center gap-2 mb-1.5">
-            <BookOpen className="w-4 h-4 text-blue-500" />
-            <Text className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+          <div className="flex items-center gap-2.5 mb-2">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+              <BookOpen className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
               Prayer of Consecration
-            </Text>
-          </View>
-          <Text className="text-sm md:text-base italic leading-relaxed pl-6 text-neutral-800 dark:text-neutral-200">
+            </span>
+          </div>
+          <p className="text-sm sm:text-base italic leading-relaxed pl-10 text-neutral-800 dark:text-neutral-100">
             {devotional.prayerPrompt}
-          </Text>
-        </View>
+          </p>
+        </div>
 
-        {/* Reading Completion and Consecration Action */}
-        <View className="my-6">
+        {/* Reading Completion and Consecration Action (Uses animated SuccessIcon) */}
+        <div className="my-6">
           {hasFinishedReading ? (
-            <View
-              className={`p-4 rounded-2xl border flex-col items-center justify-center gap-1.5 ${
+            <div
+              className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-center gap-3.5 shadow-md bg-gradient-to-br ${
                 isDark
-                  ? 'bg-emerald-950/30 border-emerald-800/50'
-                  : 'bg-emerald-50 border-emerald-200'
+                  ? 'from-[#041F10] via-[#072C17] to-[#021208] border-emerald-600/40 text-white'
+                  : 'from-[#F0FDF4] via-[#DCFCE7] to-[#BBF7D0] border-emerald-400/80 text-emerald-950'
               }`}
             >
-              <View className="flex-row items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                <Text className="text-xs font-black text-emerald-800 dark:text-emerald-200">
+              <div className="shrink-0 flex items-center justify-center">
+                <SuccessIcon size={40} color="#10B981" active={true} />
+              </div>
+              <div className="flex-1 text-center sm:text-left">
+                <h4 className="text-xs sm:text-sm font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wide">
                   Devotional Reading Completed & Consecrated!
-                </Text>
-              </View>
-              <Text className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
-                {readingCompletedStats
-                  ? `Reading streak: ${readingCompletedStats.streak} ${readingCompletedStats.streak === 1 ? 'day' : 'days'} • Time in Word: ${readingCompletedStats.totalMinutes} mins`
-                  : `Reading streak: ${user?.streakCount ?? 0} ${(user?.streakCount ?? 0) === 1 ? 'day' : 'days'} • Saved to your profile`}
-              </Text>
-            </View>
+                </h4>
+                <p className="text-[11px] text-emerald-800/80 dark:text-emerald-200/80 mt-0.5">
+                  {readingCompletedStats
+                    ? `Reading streak: ${readingCompletedStats.streak} ${readingCompletedStats.streak === 1 ? 'day' : 'days'} • Time in Word: ${readingCompletedStats.totalMinutes} mins`
+                    : `Reading streak: ${user?.streakCount ?? 0} ${(user?.streakCount ?? 0) === 1 ? 'day' : 'days'} • Saved to your profile`}
+                </p>
+              </div>
+            </div>
           ) : (
-            <TouchableOpacity
-              onPress={handleCompleteReading}
-              className="p-4 rounded-2xl bg-[#5E72E4] hover:bg-[#4d61d1] active:scale-[0.99] transition-all flex-row items-center justify-center gap-2.5 shadow-md"
-            >
-              <CheckCircle2 className="w-5 h-5 text-white" />
-              <Text className="text-sm font-black text-white uppercase tracking-wider">
-                Mark Devotional Read & Consecrated
-              </Text>
-            </TouchableOpacity>
+            <div className="flex justify-center w-full">
+              <button
+                id="mark-read-consecrated-btn"
+                type="button"
+                onClick={handleCompleteReading}
+                className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#84CC16] via-[#65A30D] to-[#4D7C0F] hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 shadow-md text-white cursor-pointer"
+              >
+                <SuccessIcon size={24} color="#FFFFFF" active={false} />
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
+                  Mark Devotional Read & Consecrated
+                </span>
+              </button>
+            </div>
           )}
-        </View>
+        </div>
 
-        {/* Interaction Action Bar */}
-        <View className="my-6 pt-5 border-t border-black/10 dark:border-white/10 flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        {/* Mobile Interaction Action Bar (Clean touch-friendly row) */}
+        <div className="my-6 pt-5 border-t border-black/10 dark:border-white/10 flex flex-wrap items-center justify-between gap-3">
           <LikeButton devotionalId={devotional.id} count={devotional.likeCount} variant="pill" />
 
-          <View className="flex-row flex-wrap items-center gap-2">
-            {isAdmin && (
-              <TouchableOpacity
-                id="admin-edit-devotional-btn"
-                onPress={() => setIsEditingDevotional(true)}
-                className={`flex-1 sm:flex-initial flex-row items-center justify-center gap-1.5 px-3.5 py-2 min-h-[42px] rounded-xl border shadow-sm transition-colors ${
-                  isDark
-                    ? 'bg-[#5E72E4]/20 border-[#5E72E4]/40 hover:bg-[#5E72E4]/30'
-                    : 'bg-[#5E72E4]/10 border-[#5E72E4]/30 hover:bg-[#5E72E4]/20'
-                }`}
-              >
-                <Edit3 className="w-3.5 h-3.5 text-[#5E72E4]" />
-                <Text className="text-xs font-bold text-[#5E72E4]">
-                  Edit Teaching
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
+          <div className="flex flex-wrap items-center gap-2">
+            <button
               id="reader-journal-action-btn"
-              onPress={handleOpenJournal}
-              className={`flex-1 sm:flex-initial flex-row items-center justify-center gap-1.5 px-3.5 py-2 min-h-[42px] rounded-xl border shadow-sm transition-colors ${
+              type="button"
+              onClick={handleOpenJournal}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border shadow-xs transition-all active:scale-95 cursor-pointer ${
                 existingJournal
                   ? isDark
                     ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                     : 'bg-amber-500/10 border-amber-500/30 text-amber-700'
                   : isDark
-                  ? 'bg-neutral-900 border-neutral-800 hover:bg-neutral-800'
-                  : 'bg-white border-[#CAD1D7] hover:bg-neutral-50'
+                  ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800'
+                  : 'bg-white border-[#CAD1D7] text-neutral-700 hover:bg-neutral-50'
               }`}
             >
-              <BookHeart className={`w-3.5 h-3.5 ${existingJournal ? 'text-amber-500' : 'text-neutral-700 dark:text-neutral-300'}`} />
-              <Text className={`text-xs font-bold ${existingJournal ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-700 dark:text-neutral-300'}`}>
+              <BookHeart className={`w-3.5 h-3.5 ${existingJournal ? 'text-amber-500' : 'text-neutral-500 dark:text-neutral-400'}`} />
+              <span className="text-xs font-bold">
                 {existingJournal ? 'Edit Journal' : 'Journal'}
-              </Text>
-            </TouchableOpacity>
+              </span>
+            </button>
 
-            <TouchableOpacity
+            <button
               id="open-comments-action-btn"
-              onPress={() => openCommentsSheet(devotional.id)}
-              className={`flex-1 sm:flex-initial flex-row items-center justify-center gap-1.5 px-3.5 py-2 min-h-[42px] rounded-xl border shadow-sm transition-colors ${
-                isDark
-                  ? 'bg-neutral-900 border-neutral-800 hover:bg-neutral-800'
-                  : 'bg-white border-[#CAD1D7] hover:bg-neutral-50'
-              }`}
+              type="button"
+              onClick={() => openCommentsSheet(devotional.id)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border border-slate-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 shadow-xs transition-all active:scale-95 cursor-pointer"
             >
               <MessageSquare className="w-3.5 h-3.5 text-[#5E72E4]" />
-              <Text className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-                Reflections {commentsCount > 0 ? `(${commentsCount})` : ''}
-              </Text>
-            </TouchableOpacity>
+              <span className="text-xs font-bold">Reflections {commentsCount > 0 ? `(${commentsCount})` : ''}</span>
+            </button>
 
-            <TouchableOpacity
-              onPress={() =>
+            <button
+              type="button"
+              onClick={() =>
                 openVerseShare({
                   scripture: devotional.scripture,
                   scriptureText: devotional.scriptureText,
@@ -746,26 +755,24 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
                   author: devotional.authorName,
                 })
               }
-              className={`flex-1 sm:flex-initial flex-row items-center justify-center gap-1.5 px-3.5 py-2 min-h-[42px] rounded-xl border shadow-sm transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border shadow-xs transition-all active:scale-95 cursor-pointer ${
                 isDark
-                  ? 'bg-neutral-900 border-neutral-800 hover:bg-neutral-800'
-                  : 'bg-white border-[#CAD1D7] hover:bg-neutral-50'
+                  ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800'
+                  : 'bg-white border-[#CAD1D7] text-neutral-700 hover:bg-neutral-50'
               }`}
             >
               <Share2 className="w-3.5 h-3.5 text-neutral-700 dark:text-neutral-300" />
-              <Text className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
-                Share
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+              <span className="text-xs font-bold">Share</span>
+            </button>
+          </div>
+        </div>
 
-        {/* Reflections & Community Activity Thread */}
+        {/* Reflections & Community Activity Thread - Exact same UI as popup */}
         <View className="mb-14">
-          <CommentThread3
+          <DevotionalReflectionsSection
             devotionalId={devotional.id}
-            maxInitial={2}
-            onViewAll={() => openCommentsSheet(devotional.id)}
+            maxInitial={3}
+            onOpenPopup={() => openCommentsSheet(devotional.id)}
           />
         </View>
       </ScrollView>

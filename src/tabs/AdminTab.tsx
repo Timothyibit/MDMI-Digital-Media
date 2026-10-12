@@ -21,11 +21,23 @@ import {
   Search,
   X,
   Music,
+  Play,
+  Pause,
+  Upload,
+  User,
+  Volume2,
+  RotateCcw,
+  ArrowRight,
+  Check,
+  Video,
 } from 'lucide-react';
-import { useAuthStore } from '../store/useAuthStore';
-import { useDevotionalStore } from '../store/useDevotionalStore';
+import MotionButton from '@/components/ui/motion-button';
+import { VideoPlayer } from '@/components/ui/video-thumbnail-player';
+import { useAuthStore, computeAccurateUserMinutes } from '../store/useAuthStore';
+import { useDevotionalStore, sortDevotionalsByLatest } from '../store/useDevotionalStore';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { useUIStore } from '../store/useUIStore';
+import { useLayoutStore } from '../store/useLayoutStore';
 import { Devotional } from '../types';
 import { ScrollView, View } from '../lib/react-native';
 import { Button, Badge, Tabs } from '../components/common';
@@ -36,10 +48,14 @@ import { AdminUserManager } from '../components/admin/AdminUserManager';
 import { ScheduledPublishingConfig } from '../components/admin/ScheduledPublishingConfig';
 import { RichTextEditor } from '../components/ui/RichTextEditor';
 import { DateTimePicker } from '../components/ui/DateTimePicker';
-import { calculateAudioDuration, formatAudioDuration } from '../services/aiAudioService';
+import { calculateAudioDuration, formatAudioDuration, normalizeAudioUrl } from '../services/aiAudioService';
 import { PaginationPageDefault } from '@/components/application/pagination/pagination';
 import { MorphingCardStack } from '@/components/ui/morphing-card-stack';
+import { AlertCard } from '@/components/ui/card-8';
 import { DeviceImageUploader } from '../components/common/DeviceImageUploader';
+import { AdminDevotionalSearchFilterBox } from '@/components/ui/admin-search-filter-box';
+import { ProductCardHorizontal } from '../components/cards';
+import { useBookmarkStore } from '../store/useBookmarkStore';
 
 const ADMIN_PAGE_SIZE = 6;
 const MODERATE_PAGE_SIZE = 4;
@@ -55,7 +71,8 @@ const PRESET_DEVOTIONAL_PHOTOS = [
 
 export const AdminTab: React.FC = () => {
   const { user, isAdmin, toggleAdminRole, fetchAllRegisteredUsers } = useAuthStore();
-  const { setActiveTab } = useUIStore();
+  const { setActiveTab, playDevotionalAudio } = useUIStore();
+  const { isBookmarked, toggleBookmark } = useBookmarkStore();
   const {
     devotionals,
     comments,
@@ -79,7 +96,7 @@ export const AdminTab: React.FC = () => {
       fetchAllRegisteredUsers().then((list) => {
         if (isMounted && list) {
           setRegisteredUsersCount(list.length);
-          const mins = list.reduce((sum, u) => sum + (u.totalMinutesRead || 0), 0);
+          const mins = list.reduce((sum, u) => sum + computeAccurateUserMinutes(u), 0);
           const completed = list.reduce((sum, u) => sum + (u.completedDevotionalsCount || 0), 0);
           const streaks = list.filter((u) => (u.streakCount || 0) > 0).length;
           const notifs = list.filter((u) => u.notificationsEnabled).length;
@@ -109,10 +126,72 @@ export const AdminTab: React.FC = () => {
   const [keyThought, setKeyThought] = useState('');
   const [body, setBody] = useState('');
   const [prayerPrompt, setPrayerPrompt] = useState('');
+  const { config } = useLayoutStore();
+  const previewAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [isTestingAudio, setIsTestingAudio] = useState(false);
   const [imageUrl, setImageUrl] = useState(PRESET_DEVOTIONAL_PHOTOS[0]);
-  const [authorName, setAuthorName] = useState(user?.displayName || "The Master's Discipleship Ministries");
+  const [authorName, setAuthorName] = useState(
+    config.defaultAuthorName || user?.displayName || "The Master's Discipleship Ministries"
+  );
   const [authorRole, setAuthorRole] = useState('Senior Ministry Overseer');
   const [audioUrl, setAudioUrl] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+
+  const handleToggleTestAudio = () => {
+    if (!audioUrl || !audioUrl.trim()) return;
+    const streamUrl = normalizeAudioUrl(audioUrl);
+    if (!streamUrl) return;
+
+    if (!previewAudioRef.current || previewAudioRef.current.src !== streamUrl) {
+      if (previewAudioRef.current) previewAudioRef.current.pause();
+      previewAudioRef.current = new Audio(streamUrl);
+      previewAudioRef.current.onended = () => setIsTestingAudio(false);
+      previewAudioRef.current.onerror = () => {
+        // If direct playback error, try proxy
+        if (!streamUrl.startsWith('/api/proxy-audio')) {
+          const proxied = `/api/proxy-audio?url=${encodeURIComponent(streamUrl)}`;
+          if (previewAudioRef.current) {
+            previewAudioRef.current.src = proxied;
+            previewAudioRef.current
+              .play()
+              .then(() => setIsTestingAudio(true))
+              .catch(() => {
+                setIsTestingAudio(false);
+                setStatusNotice('⚠️ Could not play audio stream. Check file format or URL.');
+              });
+            return;
+          }
+        }
+        setIsTestingAudio(false);
+        setStatusNotice('⚠️ Could not play audio stream. Check file format or URL.');
+      };
+    }
+
+    if (isTestingAudio) {
+      previewAudioRef.current.pause();
+      setIsTestingAudio(false);
+    } else {
+      previewAudioRef.current
+        .play()
+        .then(() => setIsTestingAudio(true))
+        .catch((err) => {
+          console.warn('Audio preview notice:', err);
+          if (!streamUrl.startsWith('/api/proxy-audio') && previewAudioRef.current) {
+            previewAudioRef.current.src = `/api/proxy-audio?url=${encodeURIComponent(streamUrl)}`;
+            previewAudioRef.current
+              .play()
+              .then(() => setIsTestingAudio(true))
+              .catch(() => {
+                setIsTestingAudio(false);
+                setStatusNotice('⚠️ Audio playback blocked by browser. Click again to play.');
+              });
+            return;
+          }
+          setIsTestingAudio(false);
+          setStatusNotice('⚠️ Audio playback blocked by browser. Click again to play.');
+        });
+    }
+  };
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('06:00');
   const [scheduledTimezone, setScheduledTimezone] = useState('Africa/Lagos');
@@ -126,11 +205,12 @@ export const AdminTab: React.FC = () => {
 
   const uniqueDevotionals = useMemo(() => {
     const seen = new Set<string>();
-    return devotionals.filter((d) => {
+    const filtered = devotionals.filter((d) => {
       if (!d || !d.id || seen.has(d.id)) return false;
       seen.add(d.id);
       return true;
     });
+    return sortDevotionalsByLatest(filtered);
   }, [devotionals]);
 
   const filteredAdminDevotionals = useMemo(() => {
@@ -193,7 +273,7 @@ export const AdminTab: React.FC = () => {
     );
   }, [reportedComments, safeModeratePage]);
 
-  // Morphing Card Stack cards for Metrics
+  // Ministry Insight Cards for Metrics with related iconic spiritual backgrounds
   const ministryInsightCards = useMemo(() => [
     {
       id: "metric_views",
@@ -201,6 +281,7 @@ export const AdminTab: React.FC = () => {
       description: `${totalViews} readings completed across active disciples and seekers worldwide.`,
       icon: <Eye className="w-5 h-5 text-[#5E72E4]" />,
       color: "#5E72E4",
+      image: "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "metric_users",
@@ -208,6 +289,7 @@ export const AdminTab: React.FC = () => {
       description: `${registeredUsersCount} registered saints walking in covenant fellowship and study.`,
       icon: <Users className="w-5 h-5 text-[#2DCE89]" />,
       color: "#2DCE89",
+      image: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "metric_amens",
@@ -215,6 +297,7 @@ export const AdminTab: React.FC = () => {
       description: `${totalLikes} affirmations and amens lifted up in reverence and agreement.`,
       icon: <Heart className="w-5 h-5 text-[#FB6340]" />,
       color: "#FB6340",
+      image: "https://images.unsplash.com/photo-1438032005730-c779502df39b?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "metric_meditation",
@@ -222,6 +305,7 @@ export const AdminTab: React.FC = () => {
       description: `${totalReadingMinutes} minutes spent feeding on God's Holy Word and meditation.`,
       icon: <Sparkles className="w-5 h-5 text-[#11CDEF]" />,
       color: "#11CDEF",
+      image: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=800&q=80",
     },
   ], [totalViews, registeredUsersCount, totalLikes, totalReadingMinutes]);
 
@@ -239,13 +323,14 @@ export const AdminTab: React.FC = () => {
             The Admin Console is restricted to authorized ministry leadership for authoring daily devotionals, managing disciples, and broadcasting alerts.
           </p>
           <div className="mt-6">
-            <Button
+            <MotionButton
               id="return-home-btn"
-              color="primary"
-              onPress={() => setActiveTab('home')}
-            >
-              Return to Today's Word
-            </Button>
+              variant="primary"
+              size="md"
+              icon={<ArrowRight className="w-4 h-4 text-white" />}
+              label="Return to Today's Word"
+              onClick={() => setActiveTab('home')}
+            />
           </div>
         </View>
       </ScrollView>
@@ -263,6 +348,8 @@ export const AdminTab: React.FC = () => {
       .map((t) => t.trim())
       .filter(Boolean);
 
+    const normalizedAudio = audioUrl.trim() ? normalizeAudioUrl(audioUrl.trim()) : null;
+
     const calculatedAudioDuration = calculateAudioDuration({
       title: title.trim(),
       scripture: scripture.trim(),
@@ -270,7 +357,7 @@ export const AdminTab: React.FC = () => {
       keyThought: keyThought.trim(),
       body: body.trim(),
       prayerPrompt: prayerPrompt.trim(),
-      audioUrl: audioUrl.trim() || null,
+      audioUrl: normalizedAudio,
     });
 
     createDevotional({
@@ -284,8 +371,9 @@ export const AdminTab: React.FC = () => {
       authorName: authorName.trim(),
       authorRole: authorRole.trim(),
       imageUrl: imageUrl.trim() || null,
-      audioUrl: audioUrl.trim() || null,
+      audioUrl: normalizedAudio,
       audioDurationSeconds: calculatedAudioDuration,
+      videoUrl: videoUrl.trim() || null,
       scheduledDate: scheduledDate.trim() || null,
       scheduledTime: scheduledDate.trim() ? (scheduledTime.trim() || '06:00') : null,
       scheduledTimezone: scheduledDate.trim() ? scheduledTimezone : null,
@@ -309,6 +397,7 @@ export const AdminTab: React.FC = () => {
     setScheduledDate('');
     setScheduledTime('06:00');
     setScheduledTimezone('Africa/Lagos');
+    setVideoUrl('');
     setStatusNotice(
       isDraft
         ? 'Devotional saved as draft in queue.'
@@ -319,8 +408,8 @@ export const AdminTab: React.FC = () => {
   };
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} className="flex-1 w-full max-w-4xl mx-auto">
-      <View className="space-y-6 pb-40 sm:pb-32 w-full">
+    <ScrollView showsVerticalScrollIndicator={false} className="flex-1 w-full max-w-4xl mx-auto overflow-x-hidden">
+      <View className="space-y-6 pb-40 sm:pb-32 w-full max-w-full overflow-x-hidden">
         {/* Top Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 border-b border-[#E9ECEF] dark:border-neutral-800 pb-4">
           <div>
@@ -368,16 +457,16 @@ export const AdminTab: React.FC = () => {
         {/* METRICS DASHBOARD */}
         {activeSection === 'metrics' && (
           <div className="space-y-6">
-            {/* Interactive Morphing Executive Summary Cards */}
+            {/* Executive Ministry Pillars & Discipleship Overview Deck */}
             <div className="p-5 sm:p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-100 dark:border-neutral-800">
                 <div>
                   <h3 className="font-bold text-sm text-[#172B4D] dark:text-white flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-[#5E72E4]" />
-                    <span>Executive Ministry Insights (Morphing Cards Stack)</span>
+                    <span>Executive Ministry Impact &amp; Discipleship Overview</span>
                   </h3>
                   <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Switch between interactive Swipeable Deck, Responsive Grid, and Expanded List modes.
+                    Key discipleship metrics, worldwide reach, and spiritual engagement across the body of Christ.
                   </p>
                 </div>
                 <span className="text-[10px] font-mono font-bold text-[#5E72E4] bg-[#5E72E4]/10 px-2 py-0.5 rounded-full w-fit">
@@ -387,6 +476,7 @@ export const AdminTab: React.FC = () => {
               <MorphingCardStack
                 cards={ministryInsightCards}
                 defaultLayout="stack"
+                deckTitle="Ministry Insights Deck"
               />
             </div>
 
@@ -523,6 +613,20 @@ export const AdminTab: React.FC = () => {
               </div>
             </div>
 
+            {/* Device alerts: Admin Notification Hub (AlertCard Template) */}
+            <div className="my-2">
+              <AlertCard
+                variant="ministry-green"
+                badge="Device Alerts: Admin Notification Hub • MDMI"
+                icon={<Bell className="h-6 w-6 text-white" />}
+                title="Admin Notification Hub"
+                description={`Reach ${notificationsSubscribersCount} subscribed disciple devices with instant prayer alerts, devotional release notices, and reverent audio chimes.`}
+                buttonText="Broadcast to All Disciples"
+                onButtonClick={() => setActiveSection('broadcast')}
+                className="max-w-none shadow-md"
+              />
+            </div>
+
             {/* Top Engaged Devotionals Rankings (100% Real Live Firestore Data) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm space-y-3">
@@ -616,15 +720,13 @@ export const AdminTab: React.FC = () => {
                   Select, search, and edit any teaching, scheduled release date, photo, or audio
                 </p>
               </div>
-              <Button
-                small
-                color="primary"
-                onPress={() => setActiveSection('create')}
-                className="flex items-center gap-1 self-start sm:self-auto"
-              >
-                <PlusCircle className="w-3.5 h-3.5 mr-1" />
-                Create New
-              </Button>
+              <MotionButton
+                size="sm"
+                variant="ministry-green"
+                icon={<PlusCircle className="w-3.5 h-3.5 text-white" />}
+                label="Create New"
+                onClick={() => setActiveSection('create')}
+              />
             </div>
 
             {/* Quick Devotional Selector & Scheduled Publishing Tools */}
@@ -654,100 +756,35 @@ export const AdminTab: React.FC = () => {
                     ))}
                   </select>
                 </div>
-
-                {/* Date Filter Bar */}
-                <div className="sm:w-64">
-                  <label className="block text-[11px] font-bold text-neutral-900 dark:text-neutral-200 mb-1 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                    <span>Filter by Scheduled Date:</span>
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex-1">
-                      <DateTimePicker
-                        value={adminDateFilter ? new Date(adminDateFilter + 'T00:00:00') : new Date()}
-                        mode="date"
-                        placeholder="Pick date..."
-                        onChange={(event, date) => {
-                          if (event.type === 'set' && date) {
-                            const y = date.getFullYear();
-                            const m = String(date.getMonth() + 1).padStart(2, '0');
-                            const d = String(date.getDate()).padStart(2, '0');
-                            setAdminDateFilter(`${y}-${m}-${d}`);
-                            setAdminDevotionalPage(1);
-                          }
-                        }}
-                      />
-                    </div>
-                    {adminDateFilter && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAdminDateFilter(null);
-                          setAdminDevotionalPage(1);
-                        }}
-                        className="px-2.5 py-2.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 shrink-0 transition-colors"
-                        title="Clear date filter"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
               </div>
 
-              {/* Status Filter Buttons & Search */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-                  {[
-                    { id: 'all', label: `All (${devotionals.length})` },
-                    { id: 'scheduled', label: `Scheduled Queue (${devotionals.filter((d) => d.scheduledDate && !d.publishedAt).length})` },
-                    { id: 'live', label: `Live Feed (${publishedCount})` },
-                    { id: 'draft', label: `Drafts (${devotionals.filter((d) => !d.scheduledDate && !d.publishedAt).length})` },
-                  ].map((filterTab) => (
-                    <button
-                      key={filterTab.id}
-                      type="button"
-                      onClick={() => {
-                        setAdminFilterStatus(filterTab.id as any);
-                        setAdminDevotionalPage(1);
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap border ${
-                        adminFilterStatus === filterTab.id
-                          ? 'bg-[#5E72E4] text-white border-[#5E72E4] shadow-xs'
-                          : 'bg-neutral-50 dark:bg-neutral-800/80 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
-                      }`}
-                    >
-                      {filterTab.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Instant search input */}
-                <div className="relative sm:w-60">
-                  <input
-                    type="text"
-                    value={adminSearchQuery}
-                    onChange={(e) => {
-                      setAdminSearchQuery(e.target.value);
-                      setAdminDevotionalPage(1);
-                    }}
-                    placeholder="Search titles or scripture..."
-                    className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white outline-none focus:border-[#5E72E4]"
-                  />
-                  <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                  {adminSearchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAdminSearchQuery('');
-                        setAdminDevotionalPage(1);
-                      }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
+              {/* Admin Devotional Search with Hidden Filter Box */}
+              <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                <AdminDevotionalSearchFilterBox
+                  searchQuery={adminSearchQuery}
+                  onSearchChange={(q) => {
+                    setAdminSearchQuery(q);
+                    setAdminDevotionalPage(1);
+                  }}
+                  statusFilter={adminFilterStatus}
+                  onStatusFilterChange={(s) => {
+                    setAdminFilterStatus(s);
+                    setAdminDevotionalPage(1);
+                  }}
+                  dateFilter={adminDateFilter || ''}
+                  onDateFilterChange={(d) => {
+                    setAdminDateFilter(d || null);
+                    setAdminDevotionalPage(1);
+                  }}
+                  counts={{
+                    all: devotionals.length,
+                    scheduled: devotionals.filter((d) => d.scheduledDate && !d.publishedAt).length,
+                    live: publishedCount,
+                    draft: devotionals.filter((d) => !d.scheduledDate && !d.publishedAt).length,
+                  }}
+                  totalCount={devotionals.length}
+                  filteredCount={filteredAdminDevotionals.length}
+                />
               </div>
             </div>
 
@@ -761,138 +798,47 @@ export const AdminTab: React.FC = () => {
                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                     Try clearing your date or status filters to view all ministry teachings.
                   </p>
-                  <button
-                    type="button"
+                  <MotionButton
+                    size="sm"
+                    variant="secondary"
+                    icon={<RotateCcw className="w-3.5 h-3.5 text-[#5E72E4]" />}
+                    label="Reset All Filters"
                     onClick={() => {
                       setAdminFilterStatus('all');
                       setAdminSearchQuery('');
                       setAdminDateFilter(null);
                       setAdminDevotionalPage(1);
                     }}
-                    className="mt-3 px-3 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-xs font-bold text-[#5E72E4] dark:text-[#7BDEB2] hover:underline"
-                  >
-                    Reset All Filters
-                  </button>
+                    className="mt-3"
+                  />
                 </div>
               ) : (
-                paginatedAdminDevotionals.map((d, idx) => (
-                  <div
-                    key={`admin-dev-${d.id}-${idx}`}
-                    className="p-4 sm:p-5 rounded-xl border border-[#E9ECEF] dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                  >
-                    <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
-                      {/* Devotional Photo Thumbnail */}
-                      <div className="w-16 h-16 rounded-xl bg-neutral-100 dark:bg-neutral-800 overflow-hidden shrink-0 border border-neutral-200 dark:border-neutral-700">
-                        {d.imageUrl ? (
-                          <img
-                            src={d.imageUrl}
-                            alt={d.title}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-neutral-400">
-                            <Camera className="w-5 h-5" />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span className="text-xs font-bold text-[#5E72E4] font-mono">
-                            {d.scripture}
-                          </span>
-                          {d.publishedAt ? (
-                            <Badge color="success" size="sm">
-                              Live Feed
-                            </Badge>
-                          ) : (
-                            <Badge color="warning" size="sm">
-                              Draft Queue
-                            </Badge>
-                          )}
-                          {d.scheduledDate && (
-                            <span
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 border shadow-xs transition-colors ${
-                                d.publishedAt
-                                  ? 'bg-emerald-500/15 dark:bg-emerald-500/25 text-emerald-900 dark:text-emerald-100 border-emerald-500/35 dark:border-emerald-500/40'
-                                  : 'bg-amber-500/15 dark:bg-amber-500/25 text-amber-950 dark:text-amber-100 border-amber-500/40 dark:border-amber-400/40'
-                              }`}
-                              title={
-                                d.scheduledTimezone === 'user_local'
-                                  ? `Auto-publishes on ${d.scheduledDate} at ${d.scheduledTime || '06:00'} per user time zone`
-                                  : `Auto-publishes on ${d.scheduledDate} at ${d.scheduledTime || '06:00'} (${d.scheduledTimezone || 'WAT'})`
-                              }
-                            >
-                              <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                              <span>
-                                {d.scheduledDate} • {d.scheduledTime || '06:00'}{' '}
-                                <span className="opacity-90 font-medium">
-                                  ({d.scheduledTimezone === 'user_local' ? 'Per User TZ' : d.scheduledTimezone || 'WAT'})
-                                </span>
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                        <h4 className="text-sm font-bold text-[#172B4D] dark:text-white truncate">
-                          {d.title}
-                        </h4>
-                        <p className="text-xs text-[#525F7F] dark:text-neutral-400 mt-0.5 truncate">
-                          By {d.authorName} • {d.viewCount || 0} views • {d.likeCount || 0} amens
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#E9ECEF] dark:border-neutral-800">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveDevotionalId(d.id);
-                          setActiveTab('reader');
-                        }}
-                        className="px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 transition-colors"
-                        title="Read devotional in Reader View"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Read</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setEditingDevotional(d)}
-                        className="px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-bold text-[#5E72E4] flex items-center gap-1.5 transition-colors"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>Edit & Photo</span>
-                      </button>
-
-                      {!d.publishedAt && (
-                        <Button
-                          small
-                          color="info"
-                          onPress={() => {
-                            publishDevotional(d.id);
-                            useNotificationStore.getState().triggerAutoNotification('new_devotional', {
-                              title: d.title,
-                              scripture: d.scripture,
-                              devotionalId: d.id,
-                            });
-                          }}
-                        >
-                          Publish
-                        </Button>
-                      )}
-
-                      <Button
-                        small
-                        color="secondary"
-                        onPress={() => deleteDevotional(d.id)}
-                        title="Delete devotional"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-[#F5365C]" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                <div className="space-y-4">
+                  {paginatedAdminDevotionals.map((d, idx) => (
+                    <ProductCardHorizontal
+                      key={`admin-dev-${d.id}-${idx}`}
+                      devotional={d}
+                      isAdmin={true}
+                      onPress={() => {
+                        setActiveDevotionalId(d.id);
+                        setActiveTab('reader');
+                      }}
+                      onEdit={(dev) => setEditingDevotional(dev)}
+                      onPublish={(id) => {
+                        publishDevotional(id);
+                        useNotificationStore.getState().triggerAutoNotification('new_devotional', {
+                          title: d.title,
+                          scripture: d.scripture,
+                          devotionalId: d.id,
+                        });
+                      }}
+                      onDelete={(id) => deleteDevotional(id)}
+                      onAudio={playDevotionalAudio}
+                      onBookmark={toggleBookmark}
+                      isBookmarked={isBookmarked(d.id)}
+                    />
+                  ))}
+                </div>
               )}
 
               {filteredAdminDevotionals.length > ADMIN_PAGE_SIZE && (
@@ -1017,35 +963,218 @@ export const AdminTab: React.FC = () => {
               />
             </div>
 
-            {/* Audio Stream URL */}
+            {/* Author Attribution */}
             <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/40 space-y-2">
-              <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
-                <Music className="w-3.5 h-3.5 text-[#5E72E4]" />
-                <span>Audio Narration URL (Optional MP3 / WAV Stream)</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-[#5E72E4]" />
+                  <span>Devotional Author Name *</span>
+                </label>
+                <span className="text-[10px] text-neutral-500">Appears on cards, notifications & reader</span>
+              </div>
               <input
-                type="url"
-                placeholder="https://... MP3 file URL"
-                value={audioUrl}
-                onChange={(e) => setAudioUrl(e.target.value)}
+                type="text"
+                required
+                value={authorName}
+                onChange={(e) => setAuthorName(e.target.value)}
+                placeholder="e.g. Dr. Timothy Adeboye"
                 className="w-full px-3.5 py-2 rounded-xl border border-[#CAD1D7] dark:border-neutral-700 bg-white dark:bg-neutral-900 text-xs text-[#172B4D] dark:text-white"
               />
-              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center justify-between">
-                <span>Calculated Audio Duration:</span>
-                <span className="font-bold text-[#5E72E4]">
-                  {formatAudioDuration(
-                    calculateAudioDuration({
-                      title,
-                      scripture,
-                      scriptureText,
-                      keyThought,
-                      body,
-                      prayerPrompt,
-                      audioUrl,
-                    })
-                  )}
-                </span>
+              <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                <span className="text-neutral-400 font-semibold">Quick Set:</span>
+                {user?.displayName && (
+                  <button
+                    type="button"
+                    onClick={() => setAuthorName(user.displayName || '')}
+                    className="px-2 py-0.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#5E72E4] transition-colors cursor-pointer"
+                  >
+                    👤 Use My Name ({user.displayName})
+                  </button>
+                )}
+                {config.defaultAuthorName && config.defaultAuthorName !== user?.displayName && (
+                  <button
+                    type="button"
+                    onClick={() => setAuthorName(config.defaultAuthorName || '')}
+                    className="px-2 py-0.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#5E72E4] transition-colors cursor-pointer"
+                  >
+                    ⭐ Default ({config.defaultAuthorName})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setAuthorName("The Master's Discipleship Ministries")}
+                  className="px-2 py-0.5 rounded-md bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:border-[#5E72E4] transition-colors cursor-pointer"
+                >
+                  ⛪ Ministry Default
+                </button>
               </div>
+            </div>
+
+            {/* Audio Stream URL or File Upload with Test Playback */}
+            <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                  <Music className="w-3.5 h-3.5 text-[#5E72E4]" />
+                  <span>Devotional Audio Narration (Playable URL or Upload)</span>
+                </label>
+                <span className="text-[10px] text-neutral-500">Supports MP3, WAV, M4A, AAC</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="url"
+                  placeholder="https://... audio file URL"
+                  value={audioUrl}
+                  onChange={(e) => {
+                    setAudioUrl(e.target.value);
+                    if (previewAudioRef.current) {
+                      previewAudioRef.current.pause();
+                      setIsTestingAudio(false);
+                    }
+                  }}
+                  className="flex-1 px-3.5 py-2 rounded-xl border border-[#CAD1D7] dark:border-neutral-700 bg-white dark:bg-neutral-900 text-xs text-[#172B4D] dark:text-white"
+                />
+
+                <label className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-750 text-xs font-bold text-neutral-700 dark:text-neutral-200 cursor-pointer shrink-0 transition-colors shadow-2xs">
+                  <Upload className="w-3.5 h-3.5 text-[#5E72E4]" />
+                  <span>Upload Audio File</span>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          if (typeof reader.result === 'string') {
+                            setAudioUrl(reader.result);
+                            if (previewAudioRef.current) {
+                              previewAudioRef.current.pause();
+                              setIsTestingAudio(false);
+                            }
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+
+              {/* Audio Test Player & Duration Info */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-neutral-200/80 dark:border-neutral-750 text-xs">
+                <div className="flex items-center gap-2">
+                  {audioUrl ? (
+                    <button
+                      type="button"
+                      onClick={handleToggleTestAudio}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#5E72E4] text-white hover:bg-[#4b5ec7] font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      {isTestingAudio ? (
+                        <>
+                          <Pause className="w-3.5 h-3.5" />
+                          <span>Pause Audio</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5" />
+                          <span>Play & Test Audio</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-neutral-400">
+                      ℹ No audio file attached: text-to-speech voice reader will read aloud automatically.
+                    </span>
+                  )}
+                  {audioUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAudioUrl('');
+                        if (previewAudioRef.current) {
+                          previewAudioRef.current.pause();
+                          setIsTestingAudio(false);
+                        }
+                      }}
+                      className="text-[11px] text-red-500 hover:underline cursor-pointer"
+                    >
+                      Remove Audio
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  <span>Detected Length: </span>
+                  <span className="font-bold text-[#5E72E4]">
+                    {formatAudioDuration(
+                      calculateAudioDuration({
+                        title,
+                        scripture,
+                        scriptureText,
+                        keyThought,
+                        body,
+                        prayerPrompt,
+                        audioUrl,
+                      })
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Video Exhortation / Sermon URL (Optional) with Live Preview */}
+            <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                  <Video className="w-3.5 h-3.5 text-red-500" />
+                  <span>Video Exhortation / Sermon Link (Optional)</span>
+                </label>
+                <span className="text-[10px] text-neutral-500">Supports YouTube, Vimeo, or MP4</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="url"
+                  placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  className="flex-1 px-3.5 py-2 rounded-xl border border-[#CAD1D7] dark:border-neutral-700 bg-white dark:bg-neutral-900 text-xs text-[#172B4D] dark:text-white"
+                />
+                {videoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setVideoUrl('')}
+                    className="px-3 py-2 rounded-xl bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-200 text-xs font-bold hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors cursor-pointer shrink-0"
+                  >
+                    Clear Link
+                  </button>
+                )}
+              </div>
+
+              {/* Show video card only if a video link is added */}
+              {videoUrl && videoUrl.trim() ? (
+                <div className="mt-3 pt-3 border-t border-neutral-200/80 dark:border-neutral-750">
+                  <div className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300 mb-2 flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Live Video Card Preview (Click to test modal player):</span>
+                  </div>
+                  <div className="max-w-md">
+                    <VideoPlayer
+                      videoUrl={videoUrl}
+                      thumbnailUrl={imageUrl || undefined}
+                      title={title.trim() || 'Daily Video Exhortation'}
+                      description={keyThought.trim() || scripture.trim() || 'Discipleship sermon and scripture video'}
+                      className="rounded-xl shadow-md border border-neutral-200 dark:border-neutral-700"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[11px] text-neutral-400">
+                  ℹ Video player card will appear on the published devotional page only if a video link is entered here.
+                </div>
+              )}
             </div>
 
             {/* Scheduled Auto-Publishing & Time Zone Configuration */}
@@ -1059,23 +1188,23 @@ export const AdminTab: React.FC = () => {
             />
 
             <div className="pt-4 border-t border-[#E9ECEF] dark:border-neutral-800 flex flex-wrap items-center justify-end gap-3">
-              <Button
+              <MotionButton
                 id="save-draft-devotional-btn"
-                color="secondary"
-                onPress={() => handleSaveDevotional(true)}
-              >
-                Queue as Draft
-              </Button>
+                variant="secondary"
+                size="md"
+                icon={<FileText className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />}
+                label="Queue as Draft"
+                onClick={() => handleSaveDevotional(true)}
+              />
 
-              <Button
+              <MotionButton
                 id="publish-now-devotional-btn"
-                color="primary"
-                onPress={() => handleSaveDevotional(false)}
-                className="flex items-center gap-1.5"
-              >
-                <Send className="w-3.5 h-3.5 mr-1" />
-                Publish Live Now
-              </Button>
+                variant="ministry-green"
+                size="md"
+                icon={<Send className="w-4 h-4 text-white" />}
+                label="Publish Live Now"
+                onClick={() => handleSaveDevotional(false)}
+              />
             </div>
           </form>
         )}
@@ -1120,21 +1249,21 @@ export const AdminTab: React.FC = () => {
                     <p className="text-xs text-neutral-700 dark:text-neutral-200 bg-white dark:bg-neutral-900 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800">
                       “{comment.body}”
                     </p>
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        small
-                        color="success"
-                        onPress={() => approveComment(comment.id)}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        small
-                        color="error"
-                        onPress={() => removeComment(comment.id)}
-                      >
-                        Remove
-                      </Button>
+                    <div className="flex items-center justify-end gap-2 flex-wrap">
+                      <MotionButton
+                        size="sm"
+                        variant="ministry-green"
+                        icon={<Check className="w-3.5 h-3.5 text-white" />}
+                        label="Approve"
+                        onClick={() => approveComment(comment.id)}
+                      />
+                      <MotionButton
+                        size="sm"
+                        variant="danger"
+                        icon={<Trash2 className="w-3.5 h-3.5 text-white" />}
+                        label="Remove"
+                        onClick={() => removeComment(comment.id)}
+                      />
                     </div>
                   </div>
                 ))}

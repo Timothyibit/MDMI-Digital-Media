@@ -25,6 +25,7 @@ import {
   collection,
   getDocs,
   deleteDoc,
+  onSnapshot,
 } from '../lib/firebase';
 
 export const BOOTSTRAP_ADMIN_EMAIL = 'ibitoyetimothy5@gmail.com';
@@ -81,6 +82,19 @@ function formatLocalDate(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+export function computeAccurateUserMinutes(profile?: Partial<UserProfile> | null): number {
+  if (!profile) return 0;
+  const logsSum = profile.readingLogs
+    ? Object.values(profile.readingLogs).reduce((acc, m) => acc + (typeof m === 'number' && !isNaN(m) ? m : 0), 0)
+    : 0;
+  const raw = typeof profile.totalMinutesRead === 'number' && !isNaN(profile.totalMinutesRead)
+    ? profile.totalMinutesRead
+    : 0;
+  // Eliminate dummy seed values (65, 68) and return highest valid metric
+  const cleanRaw = raw === 65 || raw === 68 ? 0 : raw;
+  return Math.max(cleanRaw, logsSum);
+}
+
 const createLocalGuest = (): UserProfile => {
   let guestId = localStorage.getItem(STORAGE_KEY_GUEST_ID);
   if (!guestId) {
@@ -99,9 +113,9 @@ const createLocalGuest = (): UserProfile => {
     if (cached) {
       const parsed = JSON.parse(cached);
       if (typeof parsed.streakCount === 'number' && parsed.streakCount !== 3) streak = parsed.streakCount;
-      if (typeof parsed.totalMinutesRead === 'number' && parsed.totalMinutesRead !== 68 && parsed.totalMinutesRead !== 65) totalMinutes = parsed.totalMinutesRead;
-      if (typeof parsed.completedDevotionalsCount === 'number' && parsed.completedDevotionalsCount !== 5 && parsed.completedDevotionalsCount !== 4) completed = parsed.completedDevotionalsCount;
       if (parsed.readingLogs && typeof parsed.readingLogs === 'object') readingLogs = parsed.readingLogs;
+      totalMinutes = computeAccurateUserMinutes(parsed);
+      if (typeof parsed.completedDevotionalsCount === 'number' && parsed.completedDevotionalsCount !== 5 && parsed.completedDevotionalsCount !== 4) completed = parsed.completedDevotionalsCount;
       if (parsed.lastReadAt) lastReadAt = parsed.lastReadAt;
     }
   } catch {
@@ -126,7 +140,80 @@ const createLocalGuest = (): UserProfile => {
   };
 };
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+let activeUserDocUnsub: (() => void) | null = null;
+let authStorageListenerAttached = false;
+
+export const useAuthStore = create<AuthState>((set, get) => {
+  const attachUserRealtimeListener = (uid: string) => {
+    if (activeUserDocUnsub) {
+      activeUserDocUnsub();
+      activeUserDocUnsub = null;
+    }
+
+    try {
+      const userDocRef = doc(db, 'users', uid);
+      activeUserDocUnsub = onSnapshot(
+        userDocRef,
+        (snap: any) => {
+          if (snap.exists()) {
+            const snapData = snap.data() as UserProfile;
+            const current = get().user;
+            const isBootstrapEmail =
+              (snapData.email || current?.email || '').toLowerCase().trim() ===
+              BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
+            const effectiveAdmin = snapData.role === 'admin' || isBootstrapEmail;
+
+            const updatedProfile: UserProfile = {
+              ...current,
+              ...snapData,
+              uid,
+              totalMinutesRead: computeAccurateUserMinutes(snapData),
+              role: effectiveAdmin ? 'admin' : 'user',
+            };
+
+            localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updatedProfile));
+            set({
+              user: updatedProfile,
+              isAdmin: effectiveAdmin,
+            });
+          }
+        },
+        (err: any) => {
+          console.info('User doc real-time sync notice:', err.message);
+        }
+      );
+    } catch (err) {
+      console.warn('User listener setup notice:', err);
+    }
+  };
+
+  // Cross-tab real-time user storage synchronization
+  if (typeof window !== 'undefined' && !authStorageListenerAttached) {
+    authStorageListenerAttached = true;
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY_USER && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue) as UserProfile;
+          if (parsed && parsed.uid) {
+            const isBootstrapEmail =
+              parsed.email?.toLowerCase().trim() === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
+            const effectiveAdmin = parsed.role === 'admin' || isBootstrapEmail;
+            set({
+              user: parsed,
+              isAdmin: effectiveAdmin,
+            });
+            // Also notify dependent stores
+            useJournalStore.getState().initializeJournal(parsed.uid);
+            useBookmarkStore.getState().initializeBookmarks(parsed.uid);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }
+
+  return {
   user: null,
   isAdmin: false,
   isLoading: true,
@@ -141,9 +228,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (!parsed.readingLogs) {
           parsed.readingLogs = {};
         }
-        if (parsed.totalMinutesRead === undefined || parsed.totalMinutesRead === 68 || parsed.totalMinutesRead === 65) {
-          parsed.totalMinutesRead = Object.values(parsed.readingLogs).reduce((a, b) => a + b, 0);
-        }
+        parsed.totalMinutesRead = computeAccurateUserMinutes(parsed);
         if (parsed.completedDevotionalsCount === undefined || parsed.completedDevotionalsCount === 4 || parsed.completedDevotionalsCount === 5) {
           parsed.completedDevotionalsCount = 0;
         }
@@ -319,6 +404,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               isLoading: false,
               error: null,
             });
+
+            // Auto-refresh journals, bookmarks, and attach real-time user profile listener for other sessions
+            attachUserRealtimeListener(fbUser.uid);
+            useJournalStore.getState().initializeJournal(fbUser.uid);
+            useBookmarkStore.getState().initializeBookmarks(fbUser.uid);
           } else {
             const finalRole: 'user' | 'admin' = isBootstrapAdmin ? 'admin' : 'user';
             const newProfile: UserProfile = {
@@ -354,6 +444,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               isLoading: false,
               error: null,
             });
+
+            // Auto-refresh journals, bookmarks, and attach real-time user profile listener for other sessions
+            attachUserRealtimeListener(fbUser.uid);
+            useJournalStore.getState().initializeJournal(fbUser.uid);
+            useBookmarkStore.getState().initializeBookmarks(fbUser.uid);
           }
         } catch (err) {
           console.warn('Firestore user fetch notice (using cached state):', err);
@@ -382,21 +477,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signInWithGoogle: async () => {
+    if (get().isLoading && get().user && !get().user?.isAnonymous) {
+      return { success: true };
+    }
     set({ isLoading: true, error: null });
-    const currentFbUser = auth.currentUser;
 
     try {
-      let credential;
-      if (currentFbUser && currentFbUser.isAnonymous) {
-        try {
-          credential = await linkWithPopup(currentFbUser, googleProvider);
-        } catch (linkError: any) {
-          credential = await signInWithPopup(auth, googleProvider);
-        }
-      } else {
-        credential = await signInWithPopup(auth, googleProvider);
-      }
-
+      // Single direct signInWithPopup call — eliminates double redirect & duplicate sign-in requests
+      const credential = await signInWithPopup(auth, googleProvider);
       const fbUser = credential.user;
       const userEmail = (fbUser.email || '').toLowerCase().trim();
       const isBootstrapAdmin = userEmail === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
@@ -428,11 +516,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const userDocRef = doc(db, 'users', fbUser.uid);
+      const prev = get().user;
 
       let profile: UserProfile;
       try {
         const userDocSnap = await getDoc(userDocRef);
-        const prev = get().user;
 
         if (userDocSnap.exists()) {
           const snapData = userDocSnap.data() as UserProfile;
@@ -440,38 +528,66 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const finalRole: 'user' | 'admin' =
             isBootstrapAdmin || hasAdminDoc || isDocAdmin ? 'admin' : 'user';
 
+          // Merge previous guest reading activity so disciple never loses their progress
+          const mergedLogs = { ...(snapData.readingLogs || {}) };
+          if (prev?.readingLogs) {
+            Object.entries(prev.readingLogs).forEach(([date, mins]) => {
+              mergedLogs[date] = Math.max(mergedLogs[date] || 0, mins);
+            });
+          }
+
+          const streak = Math.max(snapData.streakCount ?? 0, prev?.streakCount ?? 0);
+          const completed = Math.max(snapData.completedDevotionalsCount ?? 0, prev?.completedDevotionalsCount ?? 0);
+          const totalMinutes = computeAccurateUserMinutes({
+            totalMinutesRead: Math.max(snapData.totalMinutesRead ?? 0, prev?.totalMinutesRead ?? 0),
+            readingLogs: mergedLogs,
+          });
+
           profile = {
             ...snapData,
-            displayName: fbUser.displayName || snapData.displayName,
+            displayName: fbUser.displayName || snapData.displayName || 'Devoted Disciple',
             email: fbUser.email || snapData.email,
+            photoUrl: fbUser.photoURL || snapData.photoUrl || null,
             role: finalRole,
             isAnonymous: false,
-            streakCount: snapData.streakCount ?? 0,
-            readingLogs: snapData.readingLogs || {},
-            totalMinutesRead: snapData.totalMinutesRead ?? 0,
-            completedDevotionalsCount: snapData.completedDevotionalsCount ?? 0,
-            lastReadAt: snapData.lastReadAt || null,
+            streakCount: streak,
+            readingLogs: mergedLogs,
+            totalMinutesRead: totalMinutes,
+            completedDevotionalsCount: completed,
+            lastReadAt: snapData.lastReadAt || prev?.lastReadAt || null,
           };
 
           await updateDoc(userDocRef, {
             displayName: profile.displayName,
             email: profile.email,
+            photoUrl: profile.photoUrl,
             role: finalRole,
             isAnonymous: false,
+            streakCount: profile.streakCount,
+            readingLogs: profile.readingLogs,
+            totalMinutesRead: profile.totalMinutesRead,
+            completedDevotionalsCount: profile.completedDevotionalsCount,
           });
         } else {
           const finalRole: 'user' | 'admin' = isBootstrapAdmin ? 'admin' : 'user';
+          const mergedLogs = { ...(prev?.readingLogs || {}) };
+          const totalMinutes = computeAccurateUserMinutes({
+            totalMinutesRead: prev?.totalMinutesRead ?? 0,
+            readingLogs: mergedLogs,
+          });
+
           profile = {
             uid: fbUser.uid,
             displayName: fbUser.displayName || 'Devoted Disciple',
             email: fbUser.email,
+            photoUrl: fbUser.photoURL || null,
             isAnonymous: false,
             role: finalRole,
-            streakCount: 0,
-            totalMinutesRead: 0,
-            completedDevotionalsCount: 0,
-            readingLogs: {},
-            lastReadAt: null,
+            streakCount: prev?.streakCount ?? 0,
+            totalMinutesRead: totalMinutes,
+            completedDevotionalsCount: prev?.completedDevotionalsCount ?? 0,
+            readingLogs: mergedLogs,
+            lastReadAt: prev?.lastReadAt || null,
             expoPushToken: null,
             notificationsEnabled: false,
             reminderTime: '07:00',
@@ -481,17 +597,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       } catch {
         const finalRole: 'user' | 'admin' = isBootstrapAdmin ? 'admin' : 'user';
+        const mergedLogs = { ...(prev?.readingLogs || {}) };
+        const totalMinutes = computeAccurateUserMinutes({
+          totalMinutesRead: prev?.totalMinutesRead ?? 0,
+          readingLogs: mergedLogs,
+        });
+
         profile = {
           uid: fbUser.uid,
           displayName: fbUser.displayName || 'Devoted Disciple',
           email: fbUser.email,
+          photoUrl: fbUser.photoURL || null,
           isAnonymous: false,
           role: finalRole,
-          streakCount: 0,
-          totalMinutesRead: 0,
-          completedDevotionalsCount: 0,
-          readingLogs: {},
-          lastReadAt: null,
+          streakCount: prev?.streakCount ?? 0,
+          totalMinutesRead: totalMinutes,
+          completedDevotionalsCount: prev?.completedDevotionalsCount ?? 0,
+          readingLogs: mergedLogs,
+          lastReadAt: prev?.lastReadAt || null,
           expoPushToken: null,
           notificationsEnabled: false,
           reminderTime: '07:00',
@@ -500,6 +623,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(profile));
+      attachUserRealtimeListener(fbUser.uid);
+      useJournalStore.getState().initializeJournal(fbUser.uid);
+      useBookmarkStore.getState().initializeBookmarks(fbUser.uid);
+
       set({
         user: profile,
         isAdmin: profile.role === 'admin',
@@ -875,6 +1002,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
+    if (activeUserDocUnsub) {
+      activeUserDocUnsub();
+      activeUserDocUnsub = null;
+    }
     try {
       await fbSignOut(auth);
     } catch {
@@ -1295,4 +1426,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
   },
-}));
+  };
+});

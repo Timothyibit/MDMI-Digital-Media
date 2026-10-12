@@ -1,54 +1,26 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
-  GitCommitVertical,
   MessageSquare,
-  Share2,
-  UserPlus,
-  ChevronDown,
+  Send,
+  Flag,
   Edit2,
-  Check,
   Trash2,
   ExternalLink,
+  ImagePlus,
+  X,
+  Check,
+  ChevronDown,
 } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { useDevotionalStore, isMyComment } from "../../src/store/useDevotionalStore";
 import { useAuthStore } from "../../src/store/useAuthStore";
 import { useUIStore } from "../../src/store/useUIStore";
-
-type CommentEntry = {
-  kind: "comment";
-  id: string;
-  name: string;
-  avatar: string;
-  time: string;
-  text: string;
-  image?: string | null;
-  isSelf?: boolean;
-};
-
-type EventEntry = {
-  kind: "event";
-  id: string;
-  icon: typeof Share2;
-  time: string;
-  text: string;
-};
-
-type Entry = CommentEntry | EventEntry;
-
-const INITIAL: Entry[] = [];
+import { Comment } from "../../src/types";
+import { RichTextToolbar } from "../../src/components/ui/RichTextToolbar";
+import { RichTextRenderer } from "../../src/components/ui/RichTextRenderer";
+import { processImageFile } from "../../src/lib/imageUtils";
 
 export interface CommentThread3Props {
   devotionalId?: string;
@@ -61,91 +33,137 @@ export function CommentThread3({
   onViewAll,
   maxInitial = 2,
 }: CommentThread3Props = {}) {
-  const { comments, addComment, editComment, removeComment } = useDevotionalStore();
+  const { comments, addComment, editComment, removeComment, reportComment } = useDevotionalStore();
   const { user, isAdmin } = useAuthStore();
   const { openAuthGate, openCommentsSheet } = useUIStore();
 
   const [expanded, setExpanded] = useState(false);
-  const [localEntries, setEntries] = useState<Entry[]>(INITIAL);
-  const [draft, setDraft] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [newCommentText, setNewCommentText] = useState("");
+  const [commentImage, setCommentImage] = useState<string | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [reportSuccessId, setReportSuccessId] = useState<string | null>(null);
+
+  // Edit Comment State
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editingImage, setEditingImage] = useState<string | null>(null);
+  const [isProcessingEditImage, setIsProcessingEditImage] = useState(false);
+
+  const editInputRef = useRef<HTMLTextAreaElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const newCommentInputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const devotionalComments = useMemo(() => {
-    if (!devotionalId) return null;
-    return comments.filter((c) => c.devotionalId === devotionalId);
+    if (!devotionalId) return [];
+    const list = comments.filter((c) => c.devotionalId === devotionalId);
+    const seen = new Set<string>();
+    return list.filter((c) => {
+      if (!c || !c.id || seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
   }, [comments, devotionalId]);
 
-  const entries: Entry[] = useMemo(() => {
-    if (!devotionalId) return localEntries;
+  const visibleComments = expanded ? devotionalComments : devotionalComments.slice(0, maxInitial);
+  const hasMore = devotionalComments.length > maxInitial;
 
-    if (!devotionalComments || devotionalComments.length === 0) {
-      return [];
-    }
+  const handleDeviceImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    // Earliest ones first (sorted by createdAt ascending)
-    const sorted = [...devotionalComments].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-    return sorted.map((c) => {
-      const isSelf = isMyComment(c, user);
-      const name = isSelf && user?.displayName ? user.displayName : (c.displayName || "Devoted Disciple");
-      const avatar = isSelf && user?.photoUrl ? user.photoUrl : (c.photoUrl || "");
-
-      return {
-        kind: "comment" as const,
-        id: c.id,
-        name,
-        avatar,
-        time: new Date(c.createdAt).toLocaleDateString([], {
-          month: "short",
-          day: "numeric",
-        }),
-        text: c.body,
-        image: c.imageUrl,
-        isSelf,
+    try {
+      setIsProcessingImage(true);
+      const dataUrl = await processImageFile(file, { maxDimension: 1000, quality: 0.85 });
+      setCommentImage(dataUrl);
+    } catch (err) {
+      console.warn("Error reading device image:", err);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setCommentImage(event.target?.result as string);
       };
-    });
-  }, [devotionalId, devotionalComments, localEntries, user]);
-
-  // Earliest visible slice vs all
-  const visibleEntries = expanded ? entries : entries.slice(0, maxInitial);
-  const hasMore = entries.length > maxInitial;
-
-  const send = () => {
-    const text = draft.trim();
-    if (!text) return;
-
-    if (devotionalId) {
-      if (user?.isAnonymous) {
-        openAuthGate(
-          "To participate in the community discussion and post spiritual reflections, please link your account."
-        );
-        return;
-      }
-      addComment(
-        devotionalId,
-        user?.uid || "user",
-        user?.displayName || "Devoted Disciple",
-        text,
-        user?.photoUrl || null
-      );
-    } else {
-      setEntries((prev) => [
-        ...prev,
-        {
-          kind: "comment",
-          id: `me-${prev.length}`,
-          name: user?.displayName || "You",
-          avatar: user?.photoUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80",
-          time: "now",
-          text,
-          isSelf: true,
-        },
-      ]);
+      reader.readAsDataURL(file);
+    } finally {
+      setIsProcessingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-    setDraft("");
+  };
+
+  const handleDeviceEditImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsProcessingEditImage(true);
+      const dataUrl = await processImageFile(file, { maxDimension: 1000, quality: 0.85 });
+      setEditingImage(dataUrl);
+    } catch (err) {
+      console.warn("Error reading edit image:", err);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setEditingImage(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsProcessingEditImage(false);
+      if (editFileInputRef.current) editFileInputRef.current.value = "";
+    }
+  };
+
+  const handlePost = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!devotionalId) return;
+    if (!newCommentText.trim() && !commentImage) return;
+
+    if (user?.isAnonymous) {
+      openAuthGate(
+        "To participate in fellowship discussion and post spiritual reflections, please link your account."
+      );
+      return;
+    }
+
+    addComment(
+      devotionalId,
+      user?.uid || "user",
+      user?.displayName || "Devoted Disciple",
+      newCommentText,
+      user?.photoUrl || null,
+      commentImage || null
+    );
+    setNewCommentText("");
+    setCommentImage(null);
+  };
+
+  const handleStartEdit = (comment: Comment) => {
+    setEditingCommentId(comment.id);
+    setEditingText(comment.body);
+    setEditingImage(comment.imageUrl || null);
+  };
+
+  const handleSaveEdit = async (commentId: string) => {
+    if (!editingText.trim()) return;
+    await editComment(
+      commentId,
+      editingText,
+      devotionalId || undefined,
+      editingImage
+    );
+    setEditingCommentId(null);
+    setEditingText("");
+    setEditingImage(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingText("");
+    setEditingImage(null);
+  };
+
+  const handleReport = (commentId: string) => {
+    if (!devotionalId) return;
+    reportComment(commentId, user?.uid || "anonymous", devotionalId);
+    setReportSuccessId(commentId);
+    setTimeout(() => setReportSuccessId(null), 3000);
   };
 
   const handleOpenAll = () => {
@@ -153,245 +171,321 @@ export function CommentThread3({
       onViewAll();
     } else if (devotionalId) {
       openCommentsSheet(devotionalId);
-    } else {
-      setExpanded(true);
     }
   };
 
   return (
-    <Card className="border border-border/80 bg-card text-card-foreground shadow-sm rounded-xl overflow-hidden">
-      <CardHeader className="pb-3 border-b border-border/40">
-        <div className="flex items-center justify-between">
-          <CardTitle
-            onClick={handleOpenAll}
-            className="flex items-center gap-2 text-base font-bold cursor-pointer hover:text-primary transition-colors"
-          >
-            <MessageSquare className="size-4 text-primary" />
-            <span>Reflections &amp; Community Activity</span>
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            {entries.length > 0 && (
-              <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-0.5 rounded-full">
-                {entries.length} {entries.length === 1 ? "entry" : "entries"}
-              </span>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleOpenAll}
-              className="text-xs font-bold text-primary hover:text-primary/90 h-7 px-2.5 flex items-center gap-1 cursor-pointer"
-            >
-              <span>Reflections Sheet</span>
-              <ExternalLink className="size-3" />
-            </Button>
+    <div className="w-full rounded-2xl border border-slate-200/90 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm overflow-hidden text-neutral-900 dark:text-neutral-100">
+      {/* Header - Identical to CommentsSheet */}
+      <div className="p-4 sm:p-5 border-b border-[#E9ECEF] dark:border-neutral-800 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-[#5E72E4]/10 text-[#5E72E4] flex items-center justify-center shrink-0">
+            <MessageSquare className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-sm text-[#172B4D] dark:text-white">
+              Discipleship Reflections
+            </h3>
+            <p className="text-xs text-[#525F7F] dark:text-neutral-400">
+              {devotionalComments.length}{" "}
+              {devotionalComments.length === 1 ? "reflection" : "reflections"} shared
+            </p>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3.5 pt-4">
-        {entries.length === 0 ? (
+
+        {/* Action Button: Opens the Popup */}
+        <button
+          type="button"
+          onClick={handleOpenAll}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#5E72E4]/30 bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 text-[#5E72E4] dark:text-[#889af7] text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+          title="Open Full Reflections Popup"
+          aria-label="Open Full Reflections Popup"
+        >
+          <span>More</span>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Comment List - Identical to CommentsSheet Cards */}
+      <div className="p-4 sm:p-5 space-y-3.5">
+        {devotionalComments.length === 0 ? (
           <div
             onClick={handleOpenAll}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleOpenAll()}
-            className="py-6 px-4 flex flex-col items-center justify-center text-center text-muted-foreground hover:bg-muted/30 rounded-xl transition-all cursor-pointer group"
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && handleOpenAll()}
+            className="flex flex-col items-center justify-center text-center py-8 px-4 rounded-xl border border-dashed border-slate-200 dark:border-neutral-800 hover:bg-neutral-50/50 dark:hover:bg-neutral-800/40 transition-all cursor-pointer group"
           >
-            <MessageSquare className="size-7 opacity-40 mb-1.5 text-primary group-hover:scale-110 transition-transform" />
-            <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+            <MessageSquare className="w-8 h-8 stroke-1 mb-2 opacity-50 text-[#5E72E4] group-hover:scale-110 transition-transform" />
+            <p className="text-sm font-semibold text-[#172B4D] dark:text-neutral-200">
               No reflections shared yet
             </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xs">
-              Be the first disciple to share a spiritual insight or prayer from this scripture.
+            <p className="text-xs text-[#525F7F] dark:text-neutral-400 max-w-xs mt-1">
+              Be the first disciple to share how God spoke to you through this scripture.
             </p>
-            <span className="mt-2 text-xs font-bold text-primary underline underline-offset-2">
-              Share First Reflection &amp; View Comments
-            </span>
           </div>
         ) : (
-          visibleEntries.map((entry, idx) =>
-            entry.kind === "comment" ? (
-              <div key={`entry-${entry.id}-${idx}`} className="flex gap-3 items-start">
-                <Avatar className="size-8 ring-1 ring-border">
-                  <AvatarImage src={entry.avatar} alt={entry.name} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                    {entry.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex flex-1 flex-col gap-0.5">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-bold text-foreground">
-                        {entry.name}
-                      </span>
-                      {entry.isSelf && (
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-primary/10 text-primary border border-primary/20">
-                          You
-                        </span>
-                      )}
-                      {(entry.isSelf || isAdmin) && editingId !== entry.id && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingId(entry.id);
-                            setEditingText(entry.text);
-                          }}
-                          className="px-1.5 py-0.5 rounded text-[10px] font-bold text-primary hover:bg-primary/10 transition-colors flex items-center gap-0.5 cursor-pointer ml-1"
-                          title="Edit your reflection"
-                        >
-                          <Edit2 className="size-2.5" />
-                          <span>Edit</span>
-                        </button>
-                      )}
-                      {(entry.isSelf || isAdmin) && editingId !== entry.id && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (devotionalId) {
-                              removeComment(entry.id, devotionalId);
-                            } else {
-                              setEntries((prev) => prev.filter((e) => e.id !== entry.id));
-                            }
-                          }}
-                          className="p-0.5 rounded text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
-                          title="Delete reflection"
-                        >
-                          <Trash2 className="size-2.5" />
-                        </button>
-                      )}
-                    </div>
-                    <span className="text-muted-foreground text-[11px] shrink-0">
-                      {entry.time}
+          visibleComments.map((comment: Comment, idx: number) => {
+            const isAuthor = isMyComment(comment, user);
+            const canEdit = isAuthor || isAdmin;
+            const isEditingThis = editingCommentId === comment.id;
+            const authorName =
+              isAuthor && user?.displayName
+                ? user.displayName
+                : comment.displayName || "Devoted Disciple";
+            const authorPhoto =
+              isAuthor && user?.photoUrl ? user.photoUrl : comment.photoUrl || null;
+
+            return (
+              <div
+                key={`comm-${comment.id}-${idx}`}
+                className="p-4 rounded-xl bg-[#F7FAFC] dark:bg-neutral-800/60 border border-[#E9ECEF] dark:border-neutral-800 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
+              >
+                {/* Author row */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {authorPhoto ? (
+                      <img
+                        src={authorPhoto}
+                        alt={authorName}
+                        className="w-7 h-7 rounded-full object-cover shadow-sm ring-1 ring-neutral-300 dark:ring-neutral-700"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-[#5E72E4] text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                        {authorName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-xs font-bold text-[#172B4D] dark:text-neutral-200">
+                      {authorName}
                     </span>
+                    {isAuthor && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#5E72E4]/10 text-[#5E72E4] border border-[#5E72E4]/20">
+                        You
+                      </span>
+                    )}
+                    <span className="text-[10px] text-[#8898AA]">
+                      {new Date(comment.createdAt).toLocaleDateString()}
+                    </span>
+                    {comment.updatedAt && (
+                      <span className="text-[10px] text-neutral-400 italic">
+                        (edited)
+                      </span>
+                    )}
                   </div>
 
-                  {editingId === entry.id ? (
-                    <div className="mt-1 space-y-2">
-                      <textarea
-                        value={editingText}
-                        onChange={(e) => setEditingText(e.target.value)}
-                        rows={2}
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-primary bg-background text-xs text-foreground focus:outline-none"
+                  {/* Actions (Edit, Delete, Report) */}
+                  <div className="flex items-center gap-1.5">
+                    {canEdit && !isEditingThis && (
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(comment)}
+                        title="Edit your reflection"
+                        className="px-2 py-1 rounded-md text-[11px] font-bold text-[#5E72E4] bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 border border-[#5E72E4]/25 flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        <span>Edit</span>
+                      </button>
+                    )}
+                    {canEdit && !isEditingThis && (
+                      <button
+                        type="button"
+                        onClick={() => removeComment(comment.id, devotionalId || undefined)}
+                        title="Delete reflection"
+                        className="p-1 text-neutral-400 hover:text-rose-500 rounded-md transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      id={`report-comment-btn-${comment.id}`}
+                      onClick={() => handleReport(comment.id)}
+                      title="Report reflection"
+                      className="p-1 text-neutral-400 hover:text-[#F5365C] rounded-md transition-colors cursor-pointer"
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {isEditingThis ? (
+                  /* Inline editor when editing */
+                  <div className="space-y-2 pl-9">
+                    <RichTextToolbar
+                      textareaRef={editInputRef}
+                      value={editingText}
+                      onChange={setEditingText}
+                    />
+                    <textarea
+                      ref={editInputRef}
+                      rows={3}
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-[#5E72E4] bg-white dark:bg-neutral-900 text-xs text-neutral-900 dark:text-white focus:outline-none"
+                    />
+
+                    {/* Edit photo */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="file"
+                        ref={editFileInputRef}
+                        onChange={handleDeviceEditImageUpload}
+                        accept="image/*"
+                        className="hidden"
                       />
-                      <div className="flex items-center gap-2 justify-end">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingId(null);
-                            setEditingText("");
-                          }}
-                          className="h-7 px-2 text-xs cursor-pointer"
+                      {editingImage ? (
+                        <div className="relative inline-block">
+                          <img
+                            src={editingImage}
+                            alt="Reflection attachment preview"
+                            className="w-16 h-16 rounded-lg object-cover border border-neutral-300 dark:border-neutral-700"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setEditingImage(null)}
+                            title="Remove photo"
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-sm hover:bg-rose-600 cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => editFileInputRef.current?.click()}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1.5 transition-colors cursor-pointer"
                         >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          disabled={!editingText.trim() || isSavingEdit}
-                          onClick={async () => {
-                            setIsSavingEdit(true);
-                            if (devotionalId) {
-                              await editComment(entry.id, editingText.trim(), devotionalId);
-                            } else {
-                              setEntries((prev) =>
-                                prev.map((e) => (e.id === entry.id ? { ...e, text: editingText.trim() } : e))
-                              );
-                            }
-                            setIsSavingEdit(false);
-                            setEditingId(null);
-                            setEditingText("");
-                          }}
-                          className="h-7 px-3 text-xs font-bold gap-1 cursor-pointer"
-                        >
-                          <Check className="size-3" />
-                          <span>{isSavingEdit ? "Saving..." : "Save"}</span>
-                        </Button>
+                          <ImagePlus className="w-3.5 h-3.5 text-[#5E72E4]" />
+                          <span>
+                            {isProcessingEditImage ? "Processing..." : "Attach Photo"}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        className="px-3 py-1 rounded-md text-xs text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-700 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveEdit(comment.id)}
+                        className="px-3 py-1 rounded-md text-xs font-bold bg-[#5E72E4] text-white hover:bg-[#4a5ec4] flex items-center gap-1 shadow-sm cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Comment Body with RichTextRenderer & attached image */
+                  <>
+                    <div className="text-xs leading-relaxed text-[#525F7F] dark:text-neutral-300 pl-9">
+                      <RichTextRenderer content={comment.body} />
+                    </div>
+
+                    {comment.imageUrl && (
+                      <div className="mt-2.5 pl-9">
+                        <img
+                          src={comment.imageUrl}
+                          alt="Attached reflection photo"
+                          className="max-h-56 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700 shadow-xs"
+                        />
                       </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed font-sans">
-                      {entry.text}
-                    </p>
-                  )}
-                  {entry.image && (
-                    <div className="mt-2 max-w-xs rounded-xl overflow-hidden border border-border bg-muted/40">
-                      <img
-                        src={entry.image}
-                        alt="Attached reflection photo"
-                        className="w-full h-auto max-h-44 object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </>
+                )}
               </div>
-            ) : (
-              <div
-                key={`entry-${entry.id}-${idx}`}
-                className="text-muted-foreground flex items-center gap-3 text-xs py-0.5"
-              >
-                <div className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-full">
-                  <entry.icon className="size-3.5" />
-                </div>
-                <span className="flex-1 font-medium">{entry.text}</span>
-                <span className="text-[11px] opacity-75">{entry.time}</span>
-              </div>
-            )
-          )
+            );
+          })
         )}
 
-        {/* Access all reflections toggle button */}
-        {hasMore && !expanded && (
-          <div className="pt-2 flex items-center justify-between border-t border-dashed border-border/60">
-            <span className="text-xs text-muted-foreground">
-              Showing earliest reflections
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleOpenAll}
-              className="text-xs font-bold text-primary hover:text-primary/80 h-8 px-2.5 flex items-center gap-1 cursor-pointer"
+        {/* View All / More trigger button */}
+        {hasMore && (
+          <button
+            type="button"
+            onClick={handleOpenAll}
+            className="w-full py-2.5 rounded-xl bg-slate-50 dark:bg-neutral-800/80 hover:bg-slate-100 dark:hover:bg-neutral-800 border border-slate-200/80 dark:border-neutral-750 text-xs font-bold text-[#5E72E4] dark:text-[#889af7] flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98"
+          >
+            <span>View all {devotionalComments.length} reflections in full popup</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Reflection Input Form - Identical to CommentsSheet */}
+      <form
+        onSubmit={handlePost}
+        className="p-4 sm:p-5 border-t border-[#E9ECEF] dark:border-neutral-800 bg-[#F7FAFC] dark:bg-neutral-900/80 space-y-3"
+      >
+        <RichTextToolbar
+          textareaRef={newCommentInputRef}
+          value={newCommentText}
+          onChange={setNewCommentText}
+        />
+
+        <div className="relative">
+          <textarea
+            ref={newCommentInputRef}
+            rows={2}
+            value={newCommentText}
+            onChange={(e) => setNewCommentText(e.target.value)}
+            placeholder="Share your spiritual reflection, prayer insight, or revelation..."
+            className="w-full px-3.5 py-2.5 rounded-xl border border-[#CAD1D7] dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#5E72E4]/40 resize-none transition-all placeholder:text-neutral-400"
+          />
+        </div>
+
+        {/* Device Image Attachment Preview */}
+        {commentImage && (
+          <div className="relative inline-block mt-1">
+            <img
+              src={commentImage}
+              alt="Device upload preview"
+              className="w-20 h-20 rounded-xl object-cover border border-[#CAD1D7] dark:border-neutral-700 shadow-xs"
+            />
+            <button
+              type="button"
+              onClick={() => setCommentImage(null)}
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xs hover:bg-rose-600 cursor-pointer"
+              title="Remove image"
             >
-              <span>View all {entries.length} reflections</span>
-              <ChevronDown className="size-3.5" />
-            </Button>
+              <X className="w-3 h-3" />
+            </button>
           </div>
         )}
-      </CardContent>
-      <CardFooter className="pt-3 border-t border-border/40 bg-muted/20">
-        <div className="flex w-full gap-2 items-center">
-          {user && !user.isAnonymous && (
-            <Avatar className="size-8 ring-1 ring-border shrink-0">
-              <AvatarImage src={user.photoUrl || undefined} alt={user.displayName || "You"} />
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                {user.displayName
-                  ? user.displayName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
-                  : "U"}
-              </AvatarFallback>
-            </Avatar>
-          )}
-          <Input
-            placeholder="Share your spiritual reflection..."
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            className="text-xs sm:text-sm h-9 bg-background flex-1"
+
+        {/* Action Row */}
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleDeviceImageUpload}
+            accept="image/*"
+            className="hidden"
           />
-          <Button
-            onClick={send}
-            disabled={!draft.trim()}
-            size="sm"
-            className="h-9 px-4 font-bold text-xs"
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300 border border-[#CAD1D7] dark:border-neutral-700 rounded-lg hover:bg-white dark:hover:bg-neutral-800 flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            Send
-          </Button>
+            <ImagePlus className="w-3.5 h-3.5 text-[#5E72E4]" />
+            <span>{isProcessingImage ? "Processing..." : "Attach Photo"}</span>
+          </button>
+
+          <button
+            type="submit"
+            disabled={!newCommentText.trim() && !commentImage}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#5E72E4] hover:bg-[#4a5ec4] disabled:opacity-50 text-white flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer disabled:cursor-not-allowed"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Share Reflection</span>
+          </button>
         </div>
-      </CardFooter>
-    </Card>
+      </form>
+    </div>
   );
 }
 

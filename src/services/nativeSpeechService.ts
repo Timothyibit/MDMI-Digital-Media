@@ -1,9 +1,21 @@
 /**
- * Native Speech Synthesis Service with chunked stream-first queueing
- * and resilient Chrome/Safari audio keep-alive.
- * Starts playing the initial chunk immediately (< 20ms) for high speed,
- * while subsequent devotional text chunks queue seamlessly in the background.
+ * Native Speech Synthesis Service with chunked stream-first queueing,
+ * seamless chaining without pause/skip audio glitches, and full compatibility
+ * with the react-native-speech (mhpdev-com/react-native-speech) pattern.
  */
+
+export interface SpeechOptions {
+  text: string;
+  voice?: string;
+  rate?: number;
+  pitch?: number;
+  language?: string;
+  onStart?: () => void;
+  onDone?: () => void;
+  onStopped?: () => void;
+  onError?: (err: any) => void;
+  onProgress?: (currentTime: number) => void;
+}
 
 export class NativeSpeechService {
   private synth: SpeechSynthesis | null = null;
@@ -15,7 +27,6 @@ export class NativeSpeechService {
   private pausedTime = 0;
   private totalEstimatedDuration = 0;
   private progressInterval: any = null;
-  private keepAliveTimer: any = null;
   private onProgressCallback: ((currentTime: number) => void) | null = null;
   private onEndCallback: (() => void) | null = null;
   private currentRate = 1.0;
@@ -25,6 +36,8 @@ export class NativeSpeechService {
   private voices: SpeechSynthesisVoice[] = [];
   private audioCtx: AudioContext | null = null;
   private voiceListeners: Array<(voices: SpeechSynthesisVoice[]) => void> = [];
+  private lastSpokenText = '';
+  private lastReportedTime = 0;
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -147,20 +160,33 @@ export class NativeSpeechService {
     return this.synth !== null;
   }
 
+  public isCurrentlySpeaking(): boolean {
+    return this.isSpeaking && !this.isPaused;
+  }
+
   public estimateDuration(text: string, rate: number = 1.0): number {
     const clean = text.replace(/[#*_`]/g, '').trim();
     const words = clean.split(/\s+/).filter(Boolean).length;
-    const commas = (clean.match(/,/g) || []).length;
+    if (words === 0) return 0;
+
+    const commas = (clean.match(/[,;:]/g) || []).length;
     const sentenceEnds = (clean.match(/[.!?]/g) || []).length;
     const paragraphs = Math.max(0, clean.split(/\n\n+/).length - 1);
+    const chunks = this.chunkText(clean);
 
-    const baseSecs = (words / 2.45) + (commas * 0.12) + (sentenceEnds * 0.28) + (paragraphs * 0.45);
-    const effectiveRate = Math.max(0.5, Math.min(2.5, rate || this.currentRate));
+    const baseSecs =
+      words / 2.37 +
+      commas * 0.15 +
+      sentenceEnds * 0.35 +
+      paragraphs * 0.50 +
+      chunks.length * 0.12;
+
+    const effectiveRate = Math.max(0.5, Math.min(2.5, rate || this.currentRate || 1.0));
     return Math.max(5, Math.round(baseSecs / effectiveRate));
   }
 
   /**
-   * Plays a subtle, gentle spiritual chime (440Hz -> 554Hz) using Web Audio API
+   * Plays a subtle, gentle spiritual chime (523Hz -> 659Hz) using Web Audio API
    * to immediately engage the browser's audio pipeline synchronously on user tap.
    */
   public playOpeningChime(): void {
@@ -181,29 +207,29 @@ export class NativeSpeechService {
 
       osc.type = 'sine';
       osc.frequency.setValueAtTime(523.25, now); // C5
-      osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.15); // E5
+      osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12); // E5
 
-      gain.gain.setValueAtTime(0.08, now);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
 
       osc.connect(gain);
       gain.connect(this.audioCtx.destination);
 
       osc.start(now);
-      osc.stop(now + 0.5);
+      osc.stop(now + 0.35);
     } catch {
       // Audio context notice
     }
   }
 
   /**
-   * Split a long devotional text into clean, spoken chunks (sentences or paragraph blocks)
+   * Split a long devotional text into clean, spoken chunks (sentences or short phrase blocks)
+   * kept between 50 and 150 characters to completely eliminate browser speech timeouts and skips.
    */
   public chunkText(fullText: string): string[] {
     const clean = fullText.replace(/[#*_`]/g, '').trim();
     if (!clean) return [];
 
-    // Split by paragraph or sentence boundaries
     const rawBlocks = clean.split(/(?:\r?\n)+/);
     const chunks: string[] = [];
 
@@ -211,15 +237,14 @@ export class NativeSpeechService {
       const trimmed = block.trim();
       if (!trimmed) continue;
 
-      if (trimmed.length <= 160) {
+      if (trimmed.length <= 130) {
         chunks.push(trimmed);
       } else {
-        // Split sentence by sentence
         const sentences = trimmed.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g) || [trimmed];
         let currentChunk = '';
 
         for (const s of sentences) {
-          if ((currentChunk + ' ' + s).trim().length > 180) {
+          if ((currentChunk + ' ' + s).trim().length > 140) {
             if (currentChunk) chunks.push(currentChunk.trim());
             currentChunk = s;
           } else {
@@ -234,6 +259,10 @@ export class NativeSpeechService {
 
     return chunks.length > 0 ? chunks : [clean];
   }
+
+  private chunkDurations: number[] = [];
+  private chunkCumulativeDurations: number[] = [];
+  private currentChunkStartTime = 0;
 
   /**
    * Starts playback of chunk 0 IMMEDIATELY, queueing remaining chunks.
@@ -254,10 +283,26 @@ export class NativeSpeechService {
 
     this.queue = [...initialChunks];
     this.currentChunkIndex = 0;
-    this.currentRate = options?.rate || 1.0;
-    this.totalEstimatedDuration =
-      options?.estimatedDuration ||
-      this.estimateDuration(initialChunks.join(' '), this.currentRate);
+    this.currentRate = options?.rate || this.currentRate || 1.0;
+
+    // Precalculate individual chunk durations
+    this.chunkDurations = this.queue.map((ch) => {
+      const w = ch.split(/\s+/).filter(Boolean).length;
+      const c = (ch.match(/[,;:]/g) || []).length;
+      const s = (ch.match(/[.!?]/g) || []).length;
+      const base = w / 2.37 + c * 0.15 + s * 0.35 + 0.12;
+      return Math.max(0.6, base / this.currentRate);
+    });
+
+    this.chunkCumulativeDurations = [];
+    let cum = 0;
+    for (const d of this.chunkDurations) {
+      this.chunkCumulativeDurations.push(cum);
+      cum += d;
+    }
+
+    const calculatedTotal = Math.max(5, Math.round(cum));
+    this.totalEstimatedDuration = options?.estimatedDuration || calculatedTotal;
     this.onProgressCallback = options?.onProgress || null;
     this.onEndCallback = options?.onEnd || null;
 
@@ -265,6 +310,7 @@ export class NativeSpeechService {
     this.pausedTime = 0;
     this.isPaused = false;
     this.isSpeaking = true;
+    this.lastReportedTime = 0;
 
     // Reset synthesis engine if stuck
     if (this.synth.paused) {
@@ -272,13 +318,9 @@ export class NativeSpeechService {
     }
 
     this.startProgressTracker();
-    this.startKeepAlive();
     this.playNextChunk();
   }
 
-  /**
-   * Dynamically append chunks to the active playback stream
-   */
   public appendChunks(newChunks: string[]): void {
     this.queue.push(...newChunks);
     if (!this.isSpeaking && this.queue.length > 0) {
@@ -292,7 +334,9 @@ export class NativeSpeechService {
     if (this.currentChunkIndex >= this.queue.length) {
       this.isSpeaking = false;
       this.clearProgressTracker();
-      this.clearKeepAlive();
+      if (this.onProgressCallback) {
+        this.onProgressCallback(this.totalEstimatedDuration);
+      }
       if (this.onEndCallback) {
         this.onEndCallback();
       }
@@ -306,6 +350,7 @@ export class NativeSpeechService {
       return;
     }
 
+    this.currentChunkStartTime = Date.now();
     const utterance = new SpeechSynthesisUtterance(chunk);
     utterance.rate = this.currentRate;
     utterance.pitch = this.currentPitch;
@@ -347,13 +392,14 @@ export class NativeSpeechService {
     utterance.onend = () => {
       this.activeUtterances.delete(utterance);
       this.currentChunkIndex++;
+      const nextBase = this.chunkCumulativeDurations[this.currentChunkIndex] || this.totalEstimatedDuration;
+      this.emitProgress(Math.min(this.totalEstimatedDuration, Math.round(nextBase)));
       this.playNextChunk();
     };
 
     utterance.onerror = (e) => {
       this.activeUtterances.delete(utterance);
       if (e.error !== 'interrupted' && e.error !== 'canceled') {
-        console.warn('Speech chunk notice:', e.error);
         this.currentChunkIndex++;
         this.playNextChunk();
       }
@@ -373,35 +419,36 @@ export class NativeSpeechService {
     text: string,
     options?: {
       rate?: number;
+      estimatedDuration?: number;
       onProgress?: (currentTime: number) => void;
       onEnd?: () => void;
     }
   ): void {
+    this.lastSpokenText = text;
     const chunks = this.chunkText(text);
     this.speakStream(chunks, options);
   }
 
   public pause(): void {
     if (!this.synth || this.isPaused) return;
-    this.synth.pause();
+    this.synth.cancel();
+    this.activeUtterances.clear();
     this.isPaused = true;
     this.pausedTime = (Date.now() - this.startTime) / 1000;
     this.clearProgressTracker();
-    this.clearKeepAlive();
   }
 
   public resume(): void {
     if (!this.synth || !this.isPaused) return;
-    this.synth.resume();
     this.isPaused = false;
+    this.isSpeaking = true;
     this.startTime = Date.now() - this.pausedTime * 1000;
     this.startProgressTracker();
-    this.startKeepAlive();
+    this.playNextChunk();
   }
 
   public stop(): void {
     this.clearProgressTracker();
-    this.clearKeepAlive();
     this.isSpeaking = false;
     this.isPaused = false;
     this.queue = [];
@@ -419,7 +466,12 @@ export class NativeSpeechService {
   }
 
   public seek(targetTimeSeconds: number): void {
-    if (!this.synth || this.queue.length === 0) return;
+    if (!this.synth) return;
+    if (this.queue.length === 0 && this.lastSpokenText) {
+      this.queue = this.chunkText(this.lastSpokenText);
+    }
+    if (this.queue.length === 0) return;
+
     const clampedTarget = Math.max(0, Math.min(this.totalEstimatedDuration, targetTimeSeconds));
     const ratio = clampedTarget / (this.totalEstimatedDuration || 1);
     const targetIndex = Math.min(this.queue.length - 1, Math.floor(ratio * this.queue.length));
@@ -429,20 +481,37 @@ export class NativeSpeechService {
     this.currentChunkIndex = targetIndex;
     this.startTime = Date.now() - clampedTarget * 1000;
     this.pausedTime = clampedTarget;
+    this.lastReportedTime = clampedTarget;
+    if (this.onProgressCallback) {
+      this.onProgressCallback(clampedTarget);
+    }
 
     if (!this.isPaused && this.isSpeaking) {
       this.playNextChunk();
     }
   }
 
+  private emitProgress(calculatedTime: number, allowBackward = false): void {
+    if (!this.onProgressCallback) return;
+    const clamped = Math.max(0, Math.min(this.totalEstimatedDuration, calculatedTime));
+    // Strictly monotonic progression during forward playback: never bounce or oscillate backward
+    if (!allowBackward && clamped < this.lastReportedTime) {
+      return;
+    }
+    this.lastReportedTime = clamped;
+    this.onProgressCallback(clamped);
+  }
+
   private startProgressTracker(): void {
     this.clearProgressTracker();
     this.progressInterval = setInterval(() => {
       if (this.isPaused || !this.isSpeaking) return;
-      const elapsed = (Date.now() - this.startTime) / 1000;
-      if (this.onProgressCallback) {
-        this.onProgressCallback(Math.min(this.totalEstimatedDuration, elapsed));
-      }
+      const baseTime = this.chunkCumulativeDurations[this.currentChunkIndex] || 0;
+      const chunkDur = this.chunkDurations[this.currentChunkIndex] || 1;
+      const chunkElapsed = Math.max(0, (Date.now() - this.currentChunkStartTime) / 1000);
+      const inChunkTime = Math.min(chunkDur * 0.98, chunkElapsed);
+      const currentTime = Math.min(this.totalEstimatedDuration, Math.round(baseTime + inChunkTime));
+      this.emitProgress(currentTime);
     }, 250);
   }
 
@@ -452,26 +521,51 @@ export class NativeSpeechService {
       this.progressInterval = null;
     }
   }
-
-  /**
-   * Chrome 15-second speech keepalive
-   */
-  private startKeepAlive(): void {
-    this.clearKeepAlive();
-    this.keepAliveTimer = setInterval(() => {
-      if (this.synth && this.isSpeaking && !this.isPaused) {
-        this.synth.pause();
-        this.synth.resume();
-      }
-    }, 10000);
-  }
-
-  private clearKeepAlive(): void {
-    if (this.keepAliveTimer) {
-      clearInterval(this.keepAliveTimer);
-      this.keepAliveTimer = null;
-    }
-  }
 }
 
 export const nativeSpeech = new NativeSpeechService();
+
+/**
+ * React-Native-Speech API wrapper (mhpdev-com/react-native-speech specification)
+ * providing identical method signatures for cross-platform app compatibility.
+ */
+export const Speech = {
+  speak: (options: {
+    text: string;
+    voice?: string;
+    rate?: number;
+    pitch?: number;
+    language?: string;
+    onStart?: () => void;
+    onDone?: () => void;
+    onStopped?: () => void;
+    onError?: (err: any) => void;
+    onProgress?: (progressTime: number) => void;
+  }) => {
+    if (options.voice) {
+      nativeSpeech.setSelectedVoiceURI(options.voice);
+    }
+    if (options.pitch) {
+      nativeSpeech.setPitch(options.pitch);
+    }
+    if (options.rate) {
+      nativeSpeech.setRate(options.rate);
+    }
+    if (options.onStart) {
+      options.onStart();
+    }
+    nativeSpeech.speak(options.text, {
+      rate: options.rate,
+      onProgress: options.onProgress,
+      onEnd: () => {
+        if (options.onDone) options.onDone();
+      },
+    });
+  },
+  stop: () => nativeSpeech.stop(),
+  pause: () => nativeSpeech.pause(),
+  resume: () => nativeSpeech.resume(),
+  isSpeaking: () => nativeSpeech.isCurrentlySpeaking(),
+  voices: () => nativeSpeech.getVoices(),
+};
+

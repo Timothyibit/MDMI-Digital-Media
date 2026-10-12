@@ -6,8 +6,9 @@ import {
   PenLine,
   Sparkles,
   Flame,
+  BookOpen,
 } from 'lucide-react';
-import { useDevotionalStore } from '../store/useDevotionalStore';
+import { useDevotionalStore, sortDevotionalsByLatest } from '../store/useDevotionalStore';
 import { useUIStore } from '../store/useUIStore';
 import { useBookmarkStore } from '../store/useBookmarkStore';
 import { useLayoutStore } from '../store/useLayoutStore';
@@ -23,6 +24,7 @@ import {
   TiltedCollageCard,
 } from '../components/cards';
 import { PaginationPageDefault } from '@/components/application/pagination/pagination';
+import { AlertCard } from '@/components/ui/card-8';
 
 interface HomeTabProps {
   onSelectDevotional: (devotional: Devotional) => void;
@@ -38,8 +40,9 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
   const { user } = useAuthStore();
   const [feedPage, setFeedPage] = useState(1);
 
-  const published = devotionals.filter((d) => isDevotionalLive(d));
-  const rawDisplayDevotionals = published.length > 0 ? published : devotionals;
+  const sortedDevotionals = React.useMemo(() => sortDevotionalsByLatest(devotionals), [devotionals]);
+  const published = sortedDevotionals.filter((d) => isDevotionalLive(d));
+  const rawDisplayDevotionals = published.length > 0 ? published : sortedDevotionals;
   const displayDevotionals = React.useMemo(() => {
     const seen = new Set<string>();
     return rawDisplayDevotionals.filter((d) => {
@@ -201,59 +204,29 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
 
             {/* Quick Action Tiles */}
             <div className="lg:col-span-5 flex flex-col justify-between gap-4">
-              {/* Audio Reflection Card */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => featured && playDevotionalAudio(featured)}
-                className="p-5 rounded-2xl bg-neutral-900 text-white border border-neutral-800 shadow-[0_10px_25px_rgba(0,0,0,0.2)] cursor-pointer hover:border-neutral-700 transition-all flex flex-col justify-between"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
-                    <Volume2 className="w-5 h-5 text-blue-400" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
-                    Voice Narration
-                  </span>
-                </div>
-                <div className="mt-3">
-                  <h4 className="text-sm font-bold text-white">Daily Spoken Reflection</h4>
-                  <p className="text-xs text-neutral-300 mt-1 line-clamp-2">
-                    Instant stream-first audio for quiet time, prayer, and meditation.
-                  </p>
-                </div>
-                <div className="mt-3 pt-2 border-t border-neutral-800 flex items-center justify-between text-xs text-blue-400 font-semibold">
-                  <span>Listen Audio Now</span>
-                  <ChevronRight className="w-4 h-4" />
-                </div>
-              </div>
+              {/* Daily Spoken Reflection Card */}
+              <AlertCard
+                variant="ministry-green"
+                badge="Voice Narration • Discipling to Serve"
+                icon={<Volume2 className="h-6 w-6 text-white" />}
+                title="Daily Spoken Reflection"
+                description="Instant stream-first audio for quiet time, prayer, and meditation."
+                buttonText="Listen Audio Now"
+                onButtonClick={() => featured && playDevotionalAudio(featured)}
+                className="max-w-none shadow-md h-full flex flex-col justify-between"
+              />
 
               {/* Prayer Journal Card */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setActiveTab('journal')}
-                className="p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 shadow-[0_10px_25px_rgba(0,0,0,0.05)] cursor-pointer hover:border-amber-400/40 transition-all flex flex-col justify-between"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center">
-                    <PenLine className="w-5 h-5 text-amber-500" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                    Private Sanctuary
-                  </span>
-                </div>
-                <div className="mt-3">
-                  <h4 className="text-sm font-bold text-neutral-900 dark:text-white">Prayer Journal</h4>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-2">
-                    Record what the Holy Spirit whispers during scripture reading.
-                  </p>
-                </div>
-                <div className="mt-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs text-amber-600 dark:text-amber-400 font-semibold">
-                  <span>Open Journal</span>
-                  <ChevronRight className="w-4 h-4" />
-                </div>
-              </div>
+              <AlertCard
+                variant="ministry-red"
+                badge="Private Sanctuary • Ministry of Prayer"
+                icon={<PenLine className="h-6 w-6 text-white" />}
+                title="Prayer Journal"
+                description="Record what the Holy Spirit whispers during scripture reading."
+                buttonText="Open Journal"
+                onButtonClick={() => setActiveTab('journal')}
+                className="max-w-none shadow-md h-full flex flex-col justify-between"
+              />
             </div>
           </div>
         );
@@ -261,27 +234,18 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
       case 'horizontalFeed':
       case 'recent':
         return (
-          <div key="horizontalFeed" className="mt-4">
-            <div className="flex items-center justify-between mb-4 px-1">
-              <div>
-                <h2 className="text-lg font-bold font-display-scripture text-neutral-900 dark:text-white">
-                  Recent Devotional Releases
-                </h2>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Nourishing insights from The Master's Discipleship Ministries
-                </p>
-              </div>
-
-              <TouchableOpacity
-                onPress={() => setActiveTab('devotionals')}
-                className="px-3.5 py-1.5 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex-row items-center gap-1 shadow-sm"
-              >
-                <Text className="text-xs font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">
-                  View All
-                </Text>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </TouchableOpacity>
-            </div>
+          <div key="horizontalFeed" className="mt-4 space-y-4">
+            {/* Recent Devotionals AlertCard Header */}
+            <AlertCard
+              variant="ministry-dark"
+              badge="Daily Bread • Discipling to Serve"
+              icon={<BookOpen className="h-6 w-6 text-[#84CC16]" />}
+              title="Recent Devotional Releases"
+              description="Nourishing scriptural insights, exegetical reflections, and prayer guides from The Master's Discipleship Ministries."
+              buttonText="View All Devotionals"
+              onButtonClick={() => setActiveTab('devotionals')}
+              className="max-w-none shadow-md"
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {currentFeedDevotionals.map((devotional) => (

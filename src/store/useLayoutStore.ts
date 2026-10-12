@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { AppHomeLayoutConfig, HomeLayoutSection, Devotional } from '../types';
-import { db, doc, getDoc, setDoc } from '../lib/firebase';
+import { db, doc, getDoc, setDoc, onSnapshot } from '../lib/firebase';
+import { sortDevotionalsByLatest } from './useDevotionalStore';
+import { isDevotionalLive } from '../services/schedulingService';
 
 const DEFAULT_SECTIONS: HomeLayoutSection[] = [
   { id: 'headerBanner', label: 'Ministry Banner & Motto', description: 'MDMI top brand identity and motto badge', enabled: true, order: 0 },
@@ -12,10 +14,11 @@ const DEFAULT_SECTIONS: HomeLayoutSection[] = [
 ];
 
 const DEFAULT_CONFIG: AppHomeLayoutConfig = {
-  featuredDevotionalId: 'latest',
+  featuredDevotionalId: 'today',
   heroCardStyle: 'organic',
   sections: DEFAULT_SECTIONS,
   customWelcomeMessage: 'Winning souls, maturing believers in Christ, and serving in love',
+  defaultAuthorName: "The Master's Discipleship Ministries",
   updatedAt: new Date().toISOString(),
 };
 
@@ -27,12 +30,21 @@ interface LayoutState {
   updateConfig: (updates: Partial<AppHomeLayoutConfig>) => Promise<void>;
   toggleSection: (sectionId: string) => Promise<void>;
   moveSection: (sectionId: string, direction: 'up' | 'down') => Promise<void>;
-  setFeaturedDevotional: (devotionalId: string | 'latest') => Promise<void>;
+  setFeaturedDevotional: (devotionalId: string | 'latest' | 'today') => Promise<void>;
   setHeroStyle: (style: 'organic' | 'argon' | 'classic' | 'modern') => Promise<void>;
   getFeaturedDevotional: (devotionals: Devotional[]) => Devotional | undefined;
 }
 
 const STORAGE_KEY_LAYOUT = 'mdmi_home_layout_config';
+let layoutSnapshotUnsub: (() => void) | null = null;
+let layoutStorageListenerAttached = false;
+
+function formatLocalDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export const useLayoutStore = create<LayoutState>((set, get) => {
   let initial = DEFAULT_CONFIG;
@@ -46,25 +58,59 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
   }
 
   const persist = (cfg: AppHomeLayoutConfig) => {
-    localStorage.setItem(STORAGE_KEY_LAYOUT, JSON.stringify(cfg));
+    try {
+      localStorage.setItem(STORAGE_KEY_LAYOUT, JSON.stringify(cfg));
+    } catch {
+      // ignore
+    }
   };
 
+  // Cross-tab real-time sync
+  if (typeof window !== 'undefined' && !layoutStorageListenerAttached) {
+    layoutStorageListenerAttached = true;
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY_LAYOUT && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && typeof parsed === 'object') {
+            set({ config: { ...DEFAULT_CONFIG, ...parsed } });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }
+
   const initializeLayout = async () => {
+    if (layoutSnapshotUnsub) {
+      layoutSnapshotUnsub();
+      layoutSnapshotUnsub = null;
+    }
+
     try {
       const layoutRef = doc(db, 'appConfig', 'homeLayout');
-      const snap = await getDoc(layoutRef);
-      if (snap.exists()) {
-        const remoteData = snap.data() as AppHomeLayoutConfig;
-        const merged: AppHomeLayoutConfig = {
-          ...DEFAULT_CONFIG,
-          ...remoteData,
-          sections: remoteData.sections || DEFAULT_SECTIONS,
-        };
-        persist(merged);
-        set({ config: merged });
-      }
+      // 1. Instant realtime subscription
+      layoutSnapshotUnsub = onSnapshot(
+        layoutRef,
+        (snap) => {
+          if (snap.exists()) {
+            const remoteData = snap.data() as AppHomeLayoutConfig;
+            const merged: AppHomeLayoutConfig = {
+              ...DEFAULT_CONFIG,
+              ...remoteData,
+              sections: remoteData.sections || DEFAULT_SECTIONS,
+            };
+            persist(merged);
+            set({ config: merged, isLoading: false });
+          }
+        },
+        (err) => {
+          console.info('Layout realtime listener notice:', err);
+        }
+      );
     } catch (err) {
-      console.warn('Failed loading remote home layout, using local defaults:', err);
+      console.warn('Failed setting up layout realtime listener:', err);
     }
   };
 
@@ -76,13 +122,34 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
     initializeLayout,
 
     getFeaturedDevotional: (devotionals: Devotional[]) => {
+      if (!devotionals || devotionals.length === 0) return undefined;
+      const sorted = sortDevotionalsByLatest(devotionals);
       const { featuredDevotionalId } = get().config;
+      const todayStr = formatLocalDate(new Date());
+
+      // Published live teachings sorted latest-first
+      const live = sorted.filter((d) => isDevotionalLive(d));
+      const pool = live.length > 0 ? live : sorted;
+
+      if (featuredDevotionalId === 'today') {
+        // Find matching devotional for today's date
+        const todayMatch = sorted.find(
+          (d) =>
+            d.scheduledDate === todayStr ||
+            (d.publishedAt && d.publishedAt.startsWith(todayStr)) ||
+            (d.createdAt && d.createdAt.startsWith(todayStr))
+        );
+        if (todayMatch) return todayMatch;
+        return pool[0];
+      }
+
       if (featuredDevotionalId && featuredDevotionalId !== 'latest') {
-        const found = devotionals.find((d) => d.id === featuredDevotionalId);
+        const found = sorted.find((d) => d.id === featuredDevotionalId);
         if (found) return found;
       }
-      const published = devotionals.filter((d) => d.publishedAt !== null);
-      return published[0] || devotionals[0];
+
+      // 'latest' or fallback: always return newest live devotional
+      return pool[0];
     },
 
     updateConfig: async (updates) => {

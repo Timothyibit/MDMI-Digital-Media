@@ -5,6 +5,7 @@ import { useDevotionalStore } from '../../store/useDevotionalStore';
 import { nativeSpeech } from '../../services/nativeSpeechService';
 import { webAudioApi } from '../../services/webAudioApiService';
 import { calculateAudioDuration } from '../../services/aiAudioService';
+import { PlayPauseIcon } from '@/components/ui/animated-state-icons';
 import { Devotional } from '../../types';
 
 export interface MusicPlayerCardProps {
@@ -137,6 +138,7 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
           speechStartedRef.current = true;
           nativeSpeech.speak(audioState.speechText, {
             rate: audioState.playbackRate,
+            estimatedDuration: audioState.duration,
             onProgress: (time) => setAudioCurrentTime(time),
             onEnd: () => {
               speechStartedRef.current = false;
@@ -159,8 +161,26 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
       const playPromise = audioRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
-          console.warn('Audio URL playback failed; auto-switching to voice reader:', err);
-          setAudioUseNativeSpeech(true);
+          if (err && (err.name === 'AbortError' || err.code === 20)) {
+            // User paused or scrubbed before play finished loading - normal browser event
+            return;
+          }
+          console.warn('Audio URL playback notice:', err);
+          // If direct link failed and not already proxied, seamlessly try proxy stream
+          if (
+            audioState.audioUrl &&
+            !audioState.audioUrl.startsWith('/api/proxy-audio') &&
+            audioRef.current
+          ) {
+            const proxyUrl = `/api/proxy-audio?url=${encodeURIComponent(audioState.audioUrl)}`;
+            audioRef.current.src = proxyUrl;
+            audioRef.current.play().catch((proxyErr) => {
+              console.warn('Proxy audio playback also failed, auto-fallback to voice reader:', proxyErr);
+              setAudioUseNativeSpeech(true);
+            });
+          } else {
+            setAudioUseNativeSpeech(true);
+          }
         });
       }
     } else {
@@ -172,6 +192,8 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
     audioState.useNativeSpeech,
     audioState.speechText,
     audioState.isLoadingAudio,
+    audioState.playbackRate,
+    audioState.duration,
     propIsPlaying,
     setAudioCurrentTime,
     toggleAudioPlayback,
@@ -187,14 +209,7 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
     }
   }, [audioState.playbackRate, audioState.useNativeSpeech]);
 
-  // Connect HTML Audio Element to Web Audio API Analyser
-  useEffect(() => {
-    if (audioRef.current) {
-      webAudioApi.connectMediaElement(audioRef.current);
-    }
-  }, [audioState.audioUrl]);
-
-  // Real-time Web Audio API spectrum subscription
+  // Real-time visualizer spectrum subscription (uses safe acoustic simulation)
   useEffect(() => {
     webAudioApi.setSpeechActive(isPlaying && !isMuted);
 
@@ -204,7 +219,7 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
     }
 
     const unsubscribe = webAudioApi.subscribeVisualizer((bars) => {
-      // Map normalized 0..1 to height 6px..26px strictly according to CSS keyframe spec
+      // Map normalized 0..1 to height 6px..26px
       setBarHeights(bars.map((b) => Math.round(6 + b * 20)));
     });
 
@@ -303,6 +318,9 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
     }
   };
 
+  // Effective Duration for scrubbing and metric display
+  const effectiveDuration = duration && duration > 0 ? duration : (activeDevotional?.audioDurationSeconds || 195);
+
   // Scrubber calculation
   const seekToPosition = useCallback(
     (clientX: number) => {
@@ -310,11 +328,12 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
       const rect = progressBarRef.current.getBoundingClientRect();
       const clickX = Math.max(0, Math.min(rect.width, clientX - rect.left));
       const ratio = rect.width > 0 ? clickX / rect.width : 0;
-      const targetSecs = Math.round(ratio * duration);
+      const targetSecs = Math.max(0, Math.min(effectiveDuration, Math.round(ratio * effectiveDuration)));
 
       if (propOnSeek) {
         propOnSeek(targetSecs);
       } else {
+        setAudioCurrentTime(targetSecs);
         seekAudioTime(targetSecs);
         if (!audioState.useNativeSpeech && audioRef.current) {
           audioRef.current.currentTime = targetSecs;
@@ -323,7 +342,7 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
         }
       }
     },
-    [duration, propOnSeek, seekAudioTime, audioState.useNativeSpeech]
+    [effectiveDuration, propOnSeek, seekAudioTime, setAudioCurrentTime, audioState.useNativeSpeech]
   );
 
   const handleProgressBarMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -436,7 +455,7 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
     }
   };
 
-  const progressPercent = Math.min(100, Math.max(0, (currentTime / (duration || 1)) * 100));
+  const progressPercent = Math.min(100, Math.max(0, (currentTime / (effectiveDuration || 1)) * 100));
 
   return (
     <div className={`music-player-container ${className}`}>
@@ -446,17 +465,43 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
           <audio
             ref={audioRef}
             src={audioState.audioUrl}
-            onTimeUpdate={(e) => setAudioCurrentTime(e.currentTarget.currentTime)}
+            preload="auto"
+            playsInline
+            onTimeUpdate={(e) => {
+              if (!isDraggingRef.current) {
+                setAudioCurrentTime(e.currentTarget.currentTime);
+              }
+            }}
+            onDurationChange={(e) => {
+              const d = e.currentTarget.duration;
+              if (d && isFinite(d) && d > 0) {
+                setAudioDuration(Math.round(d));
+              }
+            }}
             onLoadedMetadata={(e) => {
               const d = e.currentTarget.duration;
               if (d && isFinite(d) && d > 0) {
                 setAudioDuration(Math.round(d));
               }
             }}
-            onEnded={() => toggleAudioPlayback()}
+            onEnded={() => {
+              speechStartedRef.current = false;
+              toggleAudioPlayback();
+            }}
             onError={() => {
-              console.warn('Audio URL load error; auto-fallback to voice reader');
-              setAudioUseNativeSpeech(true);
+              if (
+                audioState.audioUrl &&
+                !audioState.audioUrl.startsWith('/api/proxy-audio') &&
+                audioRef.current
+              ) {
+                const proxyUrl = `/api/proxy-audio?url=${encodeURIComponent(audioState.audioUrl)}`;
+                audioRef.current.src = proxyUrl;
+                audioRef.current.play().catch(() => {
+                  setAudioUseNativeSpeech(true);
+                });
+              } else {
+                setAudioUseNativeSpeech(true);
+              }
             }}
           />
         )}
@@ -483,7 +528,7 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
             <button
               type="button"
               onClick={handleClose}
-              className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white flex items-center justify-center transition-colors shadow-xs"
+              className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white flex items-center justify-center transition-colors shadow-xs cursor-pointer"
               aria-label="Close audio player"
               title="Close Player"
             >
@@ -498,15 +543,6 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
             {radarTooltip}
           </div>
         )}
-
-        {/* Pure CSS Checkbox Sync */}
-        <input
-          type="checkbox"
-          id="play-toggle"
-          hidden
-          checked={isPlaying}
-          onChange={handlePlayToggle}
-        />
 
         {/* Track Info Row */}
         <div className="track-info">
@@ -528,7 +564,7 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
             role="button"
             tabIndex={0}
           >
-            <div className="track-title group-hover:text-[#5E72E4] transition-colors">
+            <div className="track-title group-hover:text-[#65A30D] dark:group-hover:text-[#84CC16] transition-colors">
               {title}
             </div>
             <div className="artist-name">
@@ -566,28 +602,29 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
               title={showRemaining ? 'Click to show total audio duration' : 'Click to show remaining time'}
             >
               {showRemaining
-                ? `-${formatTime(Math.max(0, duration - currentTime))}`
-                : formatTime(duration)}
+                ? `-${formatTime(Math.max(0, effectiveDuration - currentTime))}`
+                : formatTime(effectiveDuration)}
             </button>
           </div>
 
           {/* Interactive Progress Bar */}
           <div
             ref={progressBarRef}
-            className="progress-bar group"
+            className="progress-bar group py-1.5 -my-1 cursor-pointer"
+            onClick={(e) => seekToPosition(e.clientX)}
             onMouseDown={handleProgressBarMouseDown}
             onTouchStart={handleProgressBarTouchStart}
             role="slider"
             aria-label="Seek track position"
             aria-valuemin={0}
-            aria-valuemax={duration}
+            aria-valuemax={effectiveDuration}
             aria-valuenow={currentTime}
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === 'ArrowLeft') {
                 seekAudioTime(Math.max(0, currentTime - 5));
               } else if (e.key === 'ArrowRight') {
-                seekAudioTime(Math.min(duration, currentTime + 5));
+                seekAudioTime(Math.min(effectiveDuration, currentTime + 5));
               }
             }}
           >
@@ -625,39 +662,19 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
 
               {/* Play / Pause Signature Button */}
               <div className="play-pause-btns">
-                <label
-                  htmlFor="play-toggle"
-                  className="control-button play-pause-button cursor-pointer"
+                <button
+                  type="button"
+                  onClick={handlePlayToggle}
+                  className="control-button play-pause-button cursor-pointer flex items-center justify-center transition-transform active:scale-95"
                   aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
                   title={isPlaying ? 'Pause' : 'Play'}
                 >
                   {audioState.isLoadingAudio ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    <Loader2 className="w-6 h-6 animate-spin text-white" />
                   ) : (
-                    <>
-                      <svg
-                        className="icon-play"
-                        xmlns="http://www.w3.org/2000/svg"
-                        width={30}
-                        height={30}
-                        fill="currentColor"
-                        viewBox="0 0 16 16"
-                      >
-                        <path d="M11.596 8.697l-6.363 3.692c-.54.314-1.233-.065-1.233-.696V4.308c0-.63.693-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393" />
-                      </svg>
-                      <svg
-                        className="icon-pause"
-                        xmlns="http://www.w3.org/2000/svg"
-                        width={30}
-                        height={30}
-                        fill="currentColor"
-                        viewBox="0 0 16 16"
-                      >
-                        <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5m5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5" />
-                      </svg>
-                    </>
+                    <PlayPauseIcon size={24} color="#FFFFFF" active={isPlaying} />
                   )}
-                </label>
+                </button>
               </div>
 
               {/* Next Button (Forward 15s) */}

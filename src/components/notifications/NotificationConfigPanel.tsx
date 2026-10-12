@@ -57,6 +57,9 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
     restoreAllArchived,
     archivedIds,
     notifications,
+    maxStoredAmount,
+    setMaxStoredAmount,
+    pruneOldNotifications,
   } = useNotificationStore();
 
   const { user, updateNotificationSettings } = useAuthStore();
@@ -65,6 +68,17 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
   const [soundTested, setSoundTested] = useState(false);
   const [archiveSuccess, setArchiveSuccess] = useState(false);
   const [restoreSuccess, setRestoreSuccess] = useState(false);
+  const [pruneResult, setPruneResult] = useState<string | null>(null);
+
+  const handlePruneNow = async () => {
+    const res = await pruneOldNotifications();
+    if (res.prunedCount > 0) {
+      setPruneResult(`Pruned ${res.prunedCount} old alerts! Recent ${res.preservedCount} preserved.`);
+    } else {
+      setPruneResult(`All ${res.preservedCount} alerts are within the maximum limit.`);
+    }
+    setTimeout(() => setPruneResult(null), 3000);
+  };
 
   const handleTestChime = () => {
     playNotificationSound();
@@ -72,8 +86,8 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
     setTimeout(() => setSoundTested(false), 2000);
   };
 
-  const handleTriggerTest = async () => {
-    await triggerTestNotification();
+  const handleTriggerTest = () => {
+    playNotificationSound();
     setTestSent(true);
     setTimeout(() => setTestSent(false), 2500);
   };
@@ -99,16 +113,16 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
 
   return (
     <div
-      className={`rounded-2xl bg-neutral-50/70 dark:bg-neutral-850/60 border border-neutral-200 dark:border-neutral-800 p-4 sm:p-5 space-y-6 transition-colors ${className}`}
+      className={`rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 p-4 sm:p-5 space-y-6 shadow-sm transition-colors ${className}`}
     >
       {/* Section Header */}
-      <div className="flex items-center justify-between border-b border-neutral-200/80 dark:border-neutral-800 pb-3">
+      <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
         <div>
-          <h3 className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-50 flex items-center gap-2">
             <Bell className="w-4 h-4 text-[#5E72E4]" />
             <span>Alert Configurations & Preferences</span>
           </h3>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+          <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-0.5">
             Configure sound, daily devotional reminders, category filters, and device push.
           </p>
         </div>
@@ -116,7 +130,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
           <button
             type="button"
             onClick={onClose}
-            className="text-xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white px-2 py-1 rounded-lg hover:bg-neutral-200/60 dark:hover:bg-neutral-800 transition-colors"
+            className="text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:text-neutral-950 dark:hover:text-white px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors cursor-pointer"
           >
             Done
           </button>
@@ -127,7 +141,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#5E72E4]/10 dark:bg-[#5E72E4]/20 text-[#5E72E4] dark:text-[#889af7] flex items-center justify-center font-bold">
+            <div className="w-8 h-8 rounded-xl bg-[#5E72E4]/10 dark:bg-[#5E72E4]/20 text-[#5E72E4] dark:text-[#889af7] flex items-center justify-center font-bold shrink-0">
               {soundEnabled ? (
                 <Volume2 className="w-4 h-4" />
               ) : (
@@ -135,10 +149,10 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
               )}
             </div>
             <div>
-              <p className="text-xs font-bold text-neutral-900 dark:text-white">
+              <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50">
                 Sacred Temple Bell Chime
               </p>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
                 Gentle, reverent chime plays when spiritual notifications arrive
               </p>
             </div>
@@ -148,9 +162,9 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
             <button
               type="button"
               onClick={handleTestChime}
-              className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-750 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+              className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
             >
-              <Volume2 className="w-3 h-3 text-[#5E72E4]" />
+              <Volume2 className="w-3 h-3 text-[#5E72E4] dark:text-[#889af7]" />
               <span>{soundTested ? 'Chimed!' : 'Test Sound'}</span>
             </button>
 
@@ -174,17 +188,17 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
       </div>
 
       {/* 2. Daily Quiet Time Reminder */}
-      <div className="pt-3 border-t border-neutral-200/80 dark:border-neutral-800 space-y-3">
+      <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold shrink-0">
               <Clock className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-xs font-bold text-neutral-900 dark:text-white">
+              <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50">
                 Daily Devotional Reminder
               </p>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
                 Scheduled quiet time prompt to build your daily reading streak
               </p>
             </div>
@@ -195,7 +209,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
               type="time"
               value={dailyReminderTime}
               onChange={(e) => handleTimeChange(e.target.value)}
-              className="px-2.5 py-1 text-xs font-bold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#5E72E4] cursor-pointer"
+              className="px-2.5 py-1 text-xs font-bold rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-50 focus:outline-none focus:ring-2 focus:ring-[#5E72E4] cursor-pointer shadow-xs"
             />
           </div>
         </div>
@@ -209,10 +223,10 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
                 key={preset.time}
                 type="button"
                 onClick={() => handleTimeChange(preset.time)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer shadow-2xs ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer shadow-xs ${
                   isSelected
-                    ? 'bg-[#5E72E4] text-white'
-                    : 'bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-750'
+                    ? 'bg-[#5E72E4] text-white shadow-sm'
+                    : 'bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700'
                 }`}
               >
                 {preset.label}
@@ -223,27 +237,27 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
       </div>
 
       {/* 3. Category Subscriptions */}
-      <div className="pt-3 border-t border-neutral-200/80 dark:border-neutral-800 space-y-3">
+      <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
         <div>
-          <p className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+          <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50 flex items-center gap-2">
             <Layers className="w-4 h-4 text-[#5E72E4]" />
             <span>Category Preferences</span>
           </p>
-          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+          <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
             Choose what spiritual alerts you want to receive
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {/* Devotionals */}
-          <div className="p-3 rounded-xl bg-white dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+          <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/90 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-[#5E72E4]" />
               <div>
-                <p className="text-xs font-bold text-neutral-900 dark:text-white">
+                <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50">
                   Devotional Word
                 </p>
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                <p className="text-[10px] text-neutral-600 dark:text-neutral-300">
                   Daily teachings & scripture
                 </p>
               </div>
@@ -268,14 +282,14 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
           </div>
 
           {/* Prayers */}
-          <div className="p-3 rounded-xl bg-white dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+          <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/90 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Heart className="w-4 h-4 text-rose-500" />
               <div>
-                <p className="text-xs font-bold text-neutral-900 dark:text-white">
+                <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50">
                   Prayer Requests
                 </p>
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                <p className="text-[10px] text-neutral-600 dark:text-neutral-300">
                   Intercession & community needs
                 </p>
               </div>
@@ -300,14 +314,14 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
           </div>
 
           {/* Fellowship */}
-          <div className="p-3 rounded-xl bg-white dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+          <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/90 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-emerald-500" />
               <div>
-                <p className="text-xs font-bold text-neutral-900 dark:text-white">
+                <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50">
                   Fellowship & Replies
                 </p>
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                <p className="text-[10px] text-neutral-600 dark:text-neutral-300">
                   Comments & discussion updates
                 </p>
               </div>
@@ -332,14 +346,14 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
           </div>
 
           {/* Broadcasts */}
-          <div className="p-3 rounded-xl bg-white dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
+          <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/90 border border-neutral-200 dark:border-neutral-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-500" />
               <div>
-                <p className="text-xs font-bold text-neutral-900 dark:text-white">
+                <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50">
                   Overseer Broadcasts
                 </p>
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                <p className="text-[10px] text-neutral-600 dark:text-neutral-300">
                   Important announcements
                 </p>
               </div>
@@ -366,7 +380,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
       </div>
 
       {/* 4. Multi-Platform Device Push Integration */}
-      <div className="pt-3 border-t border-neutral-200/80 dark:border-neutral-800 space-y-3">
+      <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {platform === 'ios' ? (
@@ -382,10 +396,10 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
             <span
               className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
                 permission === 'granted'
-                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                   : permission === 'denied'
-                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
-                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
               }`}
             >
               {permission === 'granted'
@@ -401,7 +415,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
               <button
                 type="button"
                 onClick={() => requestPermission()}
-                className="px-3 py-1 bg-[#5E72E4] hover:bg-[#485ec4] text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#5E72E4] hover:bg-[#485ec4] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 Enable Push
               </button>
@@ -409,17 +423,17 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
               <button
                 type="button"
                 onClick={handleTriggerTest}
-                className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-750 transition-colors flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
               >
-                <Send className="w-3 h-3 text-[#5E72E4]" />
-                <span>{testSent ? 'Sent!' : 'Test Push'}</span>
+                <Send className="w-3 h-3 text-[#5E72E4] dark:text-[#889af7]" />
+                <span>{testSent ? 'Chimed!' : 'Preview Alert'}</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={() => setShowPlatformGuide((p) => !p)}
-              className="text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-white flex items-center gap-0.5 cursor-pointer ml-1"
+              className="text-xs font-bold text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white flex items-center gap-0.5 cursor-pointer ml-1"
             >
               <span>Guide</span>
               <ChevronDown
@@ -433,14 +447,14 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
 
         {/* Collapsible Device Push Guide */}
         {showPlatformGuide && (
-          <div className="p-3 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-700 dark:text-neutral-300 space-y-1.5 animate-in fade-in duration-150">
+          <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-800 dark:text-neutral-200 space-y-1.5 animate-in fade-in duration-150">
             {platform === 'ios' ? (
               <div>
                 <p className="font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                   <Apple className="w-3.5 h-3.5" />
                   <span>iOS (iPhone / iPad) PWA Push Setup</span>
                 </p>
-                <ol className="list-decimal list-inside text-[11px] text-neutral-600 dark:text-neutral-400 space-y-0.5 mt-1">
+                <ol className="list-decimal list-inside text-[11px] text-neutral-600 dark:text-neutral-300 space-y-0.5 mt-1">
                   <li>Tap the Share icon in Safari (⎙ / box with arrow).</li>
                   <li>Scroll down and select "Add to Home Screen".</li>
                   <li>Open MDMI from your Home Screen to unlock push alerts.</li>
@@ -452,7 +466,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
                   <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Android Push Setup</span>
                 </p>
-                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-1">
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-1">
                   Tap <strong>Enable Push</strong> above. Android Chrome will prompt you to allow
                   notifications. Alert popups will show up on your lock screen with the sacred
                   temple chime.
@@ -464,7 +478,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
                   <Globe className="w-3.5 h-3.5 text-blue-600" />
                   <span>Desktop Browser Push Setup</span>
                 </p>
-                <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-1">
+                <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-1">
                   Allow notifications when prompted by your browser to receive instant spiritual
                   encouragements and morning devotional reminders right on your desktop.
                 </p>
@@ -474,24 +488,88 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
         )}
       </div>
 
-      {/* 5. Quick Actions & Maintenance */}
-      <div className="pt-3 border-t border-neutral-200/80 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-2">
+      {/* 5. Storage Capacity & Auto-Deletion Limit */}
+      <div className="space-y-3 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+              <Archive className="w-3.5 h-3.5 text-[#5E72E4]" />
+              <span>Storage Retention &amp; Automatic Cleanup</span>
+            </h4>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              Marked notifications remain permanently saved. Older notifications exceeding the max capacity are auto-deleted.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
+              Capacity:
+            </span>
+            <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-800 p-1 rounded-xl border border-neutral-200 dark:border-neutral-700">
+              {[15, 30, 50, 100].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setMaxStoredAmount(num)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                    maxStoredAmount === num
+                      ? 'bg-[#5E72E4] text-white shadow-2xs'
+                      : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                  }`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/80 border border-neutral-200/90 dark:border-neutral-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="text-xs space-y-1">
+            <div className="flex items-center gap-2 font-bold text-neutral-900 dark:text-white">
+              <span>{notifications.length} of {maxStoredAmount} alerts saved</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold">
+                {notifications.length <= maxStoredAmount ? 'Within Capacity' : 'Auto-Pruning'}
+              </span>
+            </div>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              Recent {maxStoredAmount} alerts remain saved across sessions. Alerts past {maxStoredAmount} are automatically purged.
+            </p>
+            {pruneResult && (
+              <p className="text-xs font-bold text-[#5E72E4] dark:text-[#889af7] animate-in fade-in">
+                {pruneResult}
+              </p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handlePruneNow}
+            className="px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-xs font-bold text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-all cursor-pointer shrink-0 shadow-2xs"
+          >
+            Prune Old Alerts Now
+          </button>
+        </div>
+      </div>
+
+      {/* 6. Quick Actions & Maintenance (High Contrast Bottom Buttons) */}
+      <div className="pt-3.5 border-t border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={markAllAsRead}
-            className="px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-750 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            className="px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bold text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
           >
-            <CheckCheck className="w-3.5 h-3.5 text-[#5E72E4]" />
+            <CheckCheck className="w-3.5 h-3.5 text-[#5E72E4] dark:text-[#889af7]" />
             <span>Mark All as Read</span>
           </button>
 
           <button
             type="button"
             onClick={handleArchiveAllRead}
-            className="px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-750 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            className="px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bold text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
           >
-            <Archive className="w-3.5 h-3.5" />
+            <Archive className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300" />
             <span>{archiveSuccess ? 'Archived!' : 'Archive Read Alerts'}</span>
           </button>
 
@@ -499,9 +577,9 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
             <button
               type="button"
               onClick={handleRestoreArchived}
-              className="px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-750 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              className="px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bold text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 hover:border-neutral-400 dark:hover:border-neutral-600 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <RefreshCw className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300" />
               <span>{restoreSuccess ? 'Restored!' : 'Restore Archived'}</span>
             </button>
           )}
@@ -510,10 +588,10 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
         <button
           type="button"
           onClick={handleTriggerTest}
-          className="px-3 py-1.5 rounded-xl bg-[#5E72E4]/10 dark:bg-[#5E72E4]/20 hover:bg-[#5E72E4]/20 dark:hover:bg-[#5E72E4]/30 text-xs font-bold text-[#5E72E4] dark:text-[#889af7] transition-colors flex items-center gap-1.5 cursor-pointer"
+          className="px-3.5 py-2 rounded-xl bg-[#5E72E4] hover:bg-[#485ec4] text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>{testSent ? 'Test Alert Added!' : 'Add Sample Alert'}</span>
+          <Sparkles className="w-3.5 h-3.5 text-white" />
+          <span>{testSent ? 'Sample Alert Added!' : 'Add Sample Alert'}</span>
         </button>
       </div>
     </div>

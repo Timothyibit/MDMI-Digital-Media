@@ -18,13 +18,17 @@ import {
   BookHeart,
   Edit3,
   Image as ImageIcon,
+  Save,
+  X,
 } from 'lucide-react';
+import MotionButton from '@/components/ui/motion-button';
 import { useJournalStore } from '../store/useJournalStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUIStore } from '../store/useUIStore';
 import { useDevotionalStore } from '../store/useDevotionalStore';
 import { Button, Badge, Input } from '../components/common';
 import { PaginationPageDefault } from '@/components/application/pagination/pagination';
+import { AlertCard } from '@/components/ui/card-8';
 import { EditJournalModal } from '../components/journal/EditJournalModal';
 import { DeviceImageUploader } from '../components/common/DeviceImageUploader';
 import { JournalEntry } from '../types';
@@ -114,10 +118,13 @@ export const JournalTab: React.FC = () => {
             </Text>
           </View>
 
-          <Button
+          <MotionButton
             id="new-journal-entry-btn"
-            color="primary"
-            onPress={() => {
+            variant="ministry-green"
+            size="md"
+            icon={<Plus className="w-4 h-4 text-white" />}
+            label={isCreating ? "Close Form" : "New Entry"}
+            onClick={() => {
               if (user?.isAnonymous) {
                 openAuthGate(
                   'Create an account to keep your personal Prayer Journal safe.'
@@ -126,11 +133,7 @@ export const JournalTab: React.FC = () => {
                 setIsCreating(!isCreating);
               }
             }}
-            className="flex-row items-center gap-1.5 self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4 text-white mr-1" />
-            New Entry
-          </Button>
+          />
         </View>
 
         {/* Anonymous Notice Banner if Guest */}
@@ -150,18 +153,18 @@ export const JournalTab: React.FC = () => {
               </View>
             </View>
 
-            <Button
-              small
-              color="warning"
+            <MotionButton
+              size="sm"
+              variant="warning"
               id="journal-auth-gate-trigger"
-              onPress={() =>
+              icon={<Lock className="w-3.5 h-3.5 text-white" />}
+              label="Connect Account"
+              onClick={() =>
                 openAuthGate(
                   'Create an account to save your private prayer reflections across all your devices.'
                 )
               }
-            >
-              Connect Account
-            </Button>
+            />
           </View>
         )}
 
@@ -177,7 +180,7 @@ export const JournalTab: React.FC = () => {
 
         {/* Entry Creation Form */}
         {isCreating && (
-          <div className="p-5 sm:p-6 rounded-lg border border-[#E9ECEF] dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_2px_12px_rgba(0,0,0,0.08)] space-y-4">
+          <div className="p-5 sm:p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.06)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#E9ECEF] dark:border-neutral-800">
               <span className="text-xs font-extrabold uppercase tracking-wider text-[#5E72E4] font-mono">
                 New Journal Reflection
@@ -254,20 +257,22 @@ export const JournalTab: React.FC = () => {
               />
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-2.5">
-              <Button
-                color="secondary"
-                onPress={() => setIsCreating(false)}
-              >
-                Discard
-              </Button>
-              <Button
+            <div className="pt-2 flex flex-wrap items-center justify-end gap-2.5">
+              <MotionButton
+                variant="secondary"
+                size="md"
+                icon={<X className="w-3.5 h-3.5" />}
+                label="Discard"
+                onClick={() => setIsCreating(false)}
+              />
+              <MotionButton
                 id="save-journal-entry-btn"
-                color="primary"
-                onPress={handleSaveEntry}
-              >
-                Save To Journal
-              </Button>
+                variant="ministry-green"
+                size="md"
+                icon={<Save className="w-4 h-4 text-white" />}
+                label="Save To Journal"
+                onClick={handleSaveEntry}
+              />
             </div>
           </div>
         )}
@@ -275,39 +280,50 @@ export const JournalTab: React.FC = () => {
         {/* Journal Entries List */}
         <View className="space-y-4">
           {entries.length === 0 ? (
-            <View className="py-16 sm:py-20 items-center justify-center border border-dashed border-[#E9ECEF] dark:border-neutral-800 rounded-lg p-6 sm:p-8 bg-white dark:bg-neutral-900/50 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-              <div className="w-14 h-14 rounded-full bg-[#5E72E4]/10 text-[#5E72E4] flex items-center justify-center mb-3">
-                <BookHeart className="w-7 h-7" />
-              </div>
-              <Text className="font-extrabold text-base text-[#172B4D] dark:text-white">
-                Your private spiritual sanctuary is empty
-              </Text>
-              <Text className="text-xs text-[#525F7F] dark:text-neutral-400 mt-1 max-w-sm text-center leading-relaxed">
-                Cultivate the spiritual discipline of recording what the Lord teaches you through the scriptures and prayer.
-              </Text>
-              <div className="mt-5">
-                <Button
-                  color="primary"
-                  onPress={() => {
-                    if (user?.isAnonymous) {
-                      openAuthGate('Link your account to write personal prayer journal reflections.');
-                    } else {
-                      setIsCreating(true);
-                    }
-                  }}
-                  className="flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Write First Reflection
-                </Button>
-              </div>
-            </View>
+            <div className="py-4 flex justify-center w-full">
+              <AlertCard
+                variant="ministry-red"
+                badge="Sacred Sanctuary • Discipling to Serve"
+                icon={<BookHeart className="h-6 w-6 text-white" />}
+                title="Write Your First Reflection"
+                description="Cultivate the spiritual discipline of recording what the Lord teaches you through the scriptures, prayers, and quiet meditations."
+                buttonText="Write First Reflection"
+                onButtonClick={() => {
+                  if (user?.isAnonymous) {
+                    openAuthGate('Link your account to write personal prayer journal reflections.');
+                  } else {
+                    setIsCreating(true);
+                  }
+                }}
+                className="max-w-xl mx-auto shadow-xl"
+              />
+            </div>
           ) : (
             <>
+              {!isCreating && (
+                <div className="mb-2">
+                  <AlertCard
+                    variant="ministry-green"
+                    badge="Sanctuary Composer • MDMI"
+                    icon={<PenLine className="h-6 w-6 text-white" />}
+                    title="Record Today's Reflection"
+                    description="Capture the impressions, scripture promises, and prayer petitions received in devotion today."
+                    buttonText="New Entry"
+                    onButtonClick={() => {
+                      if (user?.isAnonymous) {
+                        openAuthGate('Create an account to keep your personal Prayer Journal safe.');
+                      } else {
+                        setIsCreating(true);
+                      }
+                    }}
+                    className="max-w-none shadow-md"
+                  />
+                </div>
+              )}
               {paginatedEntries.map((entry) => (
                 <div
                   key={entry.id}
-                  className="p-5 sm:p-6 rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)] hover:border-[#5E72E4]/40 transition-all duration-200 group/card"
+                  className="p-5 sm:p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:border-[#5E72E4]/50 transition-all duration-200 group/card"
                 >
                   {/* Author profile details & Actions header */}
                   <div className="flex items-center justify-between gap-3 pb-3 mb-3 border-b border-neutral-100 dark:border-neutral-800">
@@ -333,26 +349,25 @@ export const JournalTab: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <button
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <MotionButton
                         id={`edit-journal-${entry.id}`}
+                        size="sm"
+                        variant="primary"
+                        icon={<Edit3 className="w-3.5 h-3.5" />}
+                        label="Edit Note"
                         onClick={() => setEditingEntry(entry)}
-                        aria-label="Edit journal entry"
                         title="Edit reflection, scripture, and photo"
-                        className="px-3 py-1.5 rounded-xl flex items-center gap-1.5 border border-[#5E72E4]/30 bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 text-xs font-bold text-[#5E72E4] transition-colors cursor-pointer"
-                      >
-                        <Edit3 className="w-3.5 h-3.5 text-[#5E72E4]" />
-                        <span>Edit Note</span>
-                      </button>
-                      <button
+                      />
+                      <MotionButton
                         id={`delete-journal-${entry.id}`}
+                        size="sm"
+                        variant="danger"
+                        icon={<Trash2 className="w-3.5 h-3.5" />}
+                        label="Delete"
                         onClick={() => deleteEntry(entry.id)}
-                        aria-label="Delete entry"
                         title="Delete reflection"
-                        className="w-8 h-8 rounded-xl flex items-center justify-center border border-transparent hover:border-red-500/30 hover:bg-red-500/10 text-neutral-400 hover:text-red-500 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      />
                     </div>
                   </div>
 

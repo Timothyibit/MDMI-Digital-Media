@@ -207,7 +207,7 @@ export function AnimatedNavFramer({
           "pointer-events-auto relative flex items-center overflow-hidden rounded-full border border-neutral-300/80 dark:border-neutral-700/80 bg-white/95 dark:bg-neutral-900/95 shadow-[0_10px_35px_rgba(0,0,0,0.18)] dark:shadow-[0_14px_40px_rgba(0,0,0,0.65)] backdrop-blur-md h-12 select-none transition-shadow",
           isExpanded
             ? "w-full sm:w-auto max-w-full justify-between sm:justify-center px-1.5 sm:px-2.5"
-            : "cursor-pointer justify-center w-[3.25rem] ring-2 ring-[#5E72E4]/30 hover:ring-[#5E72E4]/60"
+            : "cursor-pointer justify-center w-[3.25rem] ring-2 ring-[#84CC16]/40 hover:ring-[#84CC16]/70"
         )}
       >
         {/* Brand Icon (shown on desktop or when isTop; hidden on bottom mobile dock to maximize tab space) */}
@@ -218,7 +218,7 @@ export function AnimatedNavFramer({
             isTop ? "flex" : "hidden sm:flex"
           )}
         >
-          {logo || <Navigation className="h-5 w-5 text-[#5E72E4] dark:text-blue-400" />}
+          {logo || <Navigation className="h-5 w-5 text-[#65A30D] dark:text-[#84CC16]" />}
         </motion.div>
 
         {/* Navigation Items (smoothly animated with stagger children) */}
@@ -251,8 +251,8 @@ export function AnimatedNavFramer({
                 className={cn(
                   "relative flex-1 sm:flex-initial flex items-center justify-center gap-1.5 text-xs font-semibold rounded-full px-2.5 sm:px-3.5 py-2 sm:py-1.5 transition-all duration-200 min-w-[42px] min-h-[40px] cursor-pointer",
                   isActive
-                    ? "bg-[#5E72E4] text-white shadow-sm font-bold active:scale-95"
-                    : "text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95"
+                    ? "bg-gradient-to-r from-[#84CC16] to-[#65A30D] text-white shadow-sm font-bold active:scale-95"
+                    : "text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-[#84CC16]/10 active:scale-95"
                 )}
               >
                 {ItemIcon && (
@@ -273,7 +273,7 @@ export function AnimatedNavFramer({
                       "hidden sm:inline-block ml-0.5 px-1.5 py-0.2 text-[9px] font-black rounded-full",
                       isActive
                         ? "bg-white/20 text-white"
-                        : "bg-[#5E72E4]/15 text-[#5E72E4] dark:text-blue-300"
+                        : "bg-[#DC2626] text-white"
                     )}
                   >
                     {item.badge}
@@ -303,11 +303,11 @@ export function AnimatedNavFramer({
           <motion.div
             variants={collapsedIconVariants}
             animate={isExpanded ? "expanded" : "collapsed"}
-            className="flex items-center justify-center relative w-full h-full text-[#5E72E4] dark:text-blue-400"
+            className="flex items-center justify-center relative w-full h-full text-[#65A30D] dark:text-[#84CC16]"
           >
             <ActiveIcon className="w-5 h-5" />
-            {/* Ambient active indicator dot */}
-            <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-neutral-900" />
+            {/* Ambient active indicator dot in Cross Red */}
+            <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full bg-[#DC2626] ring-2 ring-white dark:ring-neutral-900 shadow-xs" />
           </motion.div>
         </div>
       </motion.nav>

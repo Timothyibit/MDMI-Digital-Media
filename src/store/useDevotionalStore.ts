@@ -75,13 +75,36 @@ const DUMMY_LIKE_COUNTS = new Set([382, 512, 678, 445, 560]);
 const DUMMY_VIEW_COUNTS = new Set([1420, 1890, 2310, 1650, 1980]);
 const DUMMY_COMMENT_IDS = new Set(['comm-1', 'comm-2', 'comm-3', 'c1', 'c2', 'e1', 'e2', 'e3']);
 
+export function getDevotionalTimestamp(d: Devotional): number {
+  if (!d) return 0;
+  if (d.scheduledDate) {
+    const time = d.scheduledTime || '06:00';
+    const ts = new Date(`${d.scheduledDate}T${time}:00`).getTime();
+    if (!isNaN(ts) && ts > 0) return ts;
+  }
+  if (d.publishedAt) {
+    const ts = new Date(d.publishedAt).getTime();
+    if (!isNaN(ts) && ts > 0) return ts;
+  }
+  if (d.createdAt) {
+    const ts = new Date(d.createdAt).getTime();
+    if (!isNaN(ts) && ts > 0) return ts;
+  }
+  return 0;
+}
+
+export function sortDevotionalsByLatest(items: Devotional[]): Devotional[] {
+  return [...items].sort((a, b) => getDevotionalTimestamp(b) - getDevotionalTimestamp(a));
+}
+
 export function deduplicateDevotionals(items: Devotional[]): Devotional[] {
   const seen = new Set<string>();
-  return items.filter((d) => {
+  const deduped = items.filter((d) => {
     if (!d || !d.id || seen.has(d.id)) return false;
     seen.add(d.id);
     return true;
   });
+  return sortDevotionalsByLatest(deduped);
 }
 
 export function deduplicateComments(items: Comment[]): Comment[] {
@@ -122,6 +145,7 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
         initialDevotionals = deduplicateDevotionals(
           parsed.map((d: Devotional) => ({
             ...d,
+            videoUrl: d.videoUrl !== undefined ? d.videoUrl : (SEED_DEVOTIONALS.find((s) => s.id === d.id)?.videoUrl || null),
             likeCount: DUMMY_LIKE_COUNTS.has(d.likeCount) ? 0 : (d.likeCount || 0),
             viewCount: DUMMY_VIEW_COUNTS.has(d.viewCount) ? 0 : (d.viewCount || 0),
           }))
@@ -156,6 +180,40 @@ export const useDevotionalStore = create<DevotionalState>((set, get) => {
   const persistLikes = (items: string[]) => {
     localStorage.setItem(STORAGE_KEY_LIKES, JSON.stringify(items));
   };
+
+  // Cross-tab real-time storage synchronization
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY_DEVOTIONALS && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            set({ devotionals: deduplicateDevotionals(parsed) });
+          }
+        } catch {
+          // ignore
+        }
+      } else if (e.key === STORAGE_KEY_COMMENTS && e.newValue) {
+        try {
+          const parsedC = JSON.parse(e.newValue);
+          if (Array.isArray(parsedC)) {
+            set({ comments: deduplicateComments(parsedC) });
+          }
+        } catch {
+          // ignore
+        }
+      } else if (e.key === STORAGE_KEY_LIKES && e.newValue) {
+        try {
+          const parsedL = JSON.parse(e.newValue);
+          if (Array.isArray(parsedL)) {
+            set({ likedIds: parsedL });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }
 
   return {
     devotionals: initialDevotionals,

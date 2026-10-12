@@ -23,6 +23,7 @@ When trials arise or schedules press, our immediate spiritual reflex must not be
     prayerPrompt: 'Lord Jesus, forgive my foolish attempts to produce spiritual fruit by my own strength. Today I surrender my striving and rest deeply in Your abiding life.',
     audioUrl: 'https://assets.mixkit.co/music/preview/mixkit-meditation-flute-and-bells-ambient-9.mp3',
     audioDurationSeconds: 195,
+    videoUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     authorId: 'mdmi-founder',
     authorName: 'Dr. Timothy Adeboye',
     authorRole: 'Senior Overseer, MDMI',

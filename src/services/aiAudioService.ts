@@ -29,42 +29,138 @@ export function formatAudioDuration(seconds: number): string {
 }
 
 /**
+ * Normalizes user-provided audio URLs into direct streamable audio links:
+ * - Google Drive share links -> direct streaming proxy URL
+ * - Dropbox share links -> direct raw/dl stream
+ * - OneDrive links -> direct stream
+ * - Cleans whitespace, quotes, and protocol
+ */
+export function normalizeAudioUrl(rawUrl?: string | null): string {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  let url = rawUrl.trim();
+  if (!url) return '';
+
+  // Remove surrounding quotes if pasted with quotes
+  url = url.replace(/^["']|["']$/g, '').trim();
+
+  // If starts with //
+  if (url.startsWith('//')) {
+    url = 'https:' + url;
+  } else if (
+    !/^https?:\/\//i.test(url) &&
+    !url.startsWith('data:') &&
+    !url.startsWith('blob:') &&
+    !url.startsWith('/api/')
+  ) {
+    url = 'https://' + url;
+  }
+
+  // Google Drive:
+  // e.g. drive.google.com/file/d/FILE_ID/view?usp=sharing
+  // e.g. drive.google.com/open?id=FILE_ID
+  // e.g. drive.google.com/uc?id=FILE_ID
+  const gdriveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/i);
+  if (gdriveMatch && gdriveMatch[1]) {
+    const fileId = gdriveMatch[1];
+    return `/api/proxy-audio?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}`)}`;
+  }
+
+  // Dropbox:
+  // e.g. www.dropbox.com/s/xyz/audio.mp3?dl=0 -> replace with raw=1
+  if (/dropbox\.com\//i.test(url)) {
+    if (url.includes('dl=0')) {
+      return url.replace('dl=0', 'raw=1');
+    }
+    if (!url.includes('raw=1') && !url.includes('dl=1')) {
+      return url.includes('?') ? `${url}&raw=1` : `${url}?raw=1`;
+    }
+    return url;
+  }
+
+  // OneDrive:
+  if (/1drv\.ms\/|onedrive\.live\.com\//i.test(url)) {
+    if (!url.includes('download=1')) {
+      return url.includes('?') ? `${url}&download=1` : `${url}?download=1`;
+    }
+  }
+
+  return url;
+}
+
+/**
+ * Accurately calculates text-to-speech duration for spoken narration.
+ * Uses exact spoken word count, punctuation pause pacing, chunk overhead, and playback rate.
+ */
+export function calculateTextToSpeechDuration(
+  scriptOrDevotional: string | Partial<Devotional>,
+  playbackRate: number = 1.0
+): number {
+  let script = '';
+  if (typeof scriptOrDevotional === 'string') {
+    script = scriptOrDevotional;
+  } else {
+    script = buildDevotionalScript(scriptOrDevotional);
+  }
+
+  const clean = script.replace(/[#*_`]/g, '').trim();
+  const words = clean.split(/\s+/).filter(Boolean).length;
+  if (words === 0) return 0;
+
+  // Calibrated pacing for Web Speech Synthesis across modern browser engines:
+  // Average speaking pace: ~142 words per minute (~2.37 words per second)
+  // Commas / colons / semicolons: ~0.15s pause
+  // Sentence endings (. ! ?): ~0.35s pause
+  // Paragraph breaks: ~0.50s contemplation pause
+  // Approximate chunk boundary latency: ~0.12s per chunk
+  const commas = (clean.match(/[,;:]/g) || []).length;
+  const sentenceEnds = (clean.match(/[.!?]/g) || []).length;
+  const paragraphs = Math.max(0, clean.split(/\n\n+/).length - 1);
+  const approxChunks = Math.max(1, Math.ceil(clean.length / 120));
+
+  const baseSeconds =
+    words / 2.37 +
+    commas * 0.15 +
+    sentenceEnds * 0.35 +
+    paragraphs * 0.50 +
+    approxChunks * 0.12;
+
+  const safeRate = Math.max(0.5, Math.min(2.5, playbackRate || 1.0));
+  return Math.max(5, Math.round(baseSeconds / safeRate));
+}
+
+/**
  * Calculates audio duration for a devotional based on:
  * 1. Probed metadata cache from audioUrl if a real audio file exists
- * 2. Exact word count, punctuation pacing, and playback rate of the spoken script
+ * 2. Stored audio file duration if explicit audio link is provided
+ * 3. Exact word count, punctuation pacing, and playback rate of the spoken script
  */
 export function calculateAudioDuration(
   devotional: Partial<Devotional>,
   playbackRate: number = 1.0
 ): number {
-  if (devotional.audioUrl && probedAudioDurationCache.has(devotional.audioUrl)) {
-    const probed = probedAudioDurationCache.get(devotional.audioUrl)!;
+  const normUrl = devotional.audioUrl ? normalizeAudioUrl(devotional.audioUrl) : null;
+  if (normUrl && probedAudioDurationCache.has(normUrl)) {
+    const probed = probedAudioDurationCache.get(normUrl)!;
     if (probed > 0) return probed;
   }
 
-  const script = buildDevotionalScript(devotional);
-  const words = script.trim().split(/\s+/).filter(Boolean).length;
-  if (words === 0) return 0;
+  // If this devotional has an explicit audio file and stored duration, use it
+  if (normUrl && devotional.audioDurationSeconds && devotional.audioDurationSeconds > 0) {
+    return devotional.audioDurationSeconds;
+  }
 
-  // Natural spoken pacing: ~145 words per minute (~2.42 words/second)
-  // Commas: ~0.12s; Sentence terminals: ~0.28s; Paragraph pauses: ~0.45s
-  const commas = (script.match(/,/g) || []).length;
-  const sentenceEnds = (script.match(/[.!?:]/g) || []).length;
-  const paragraphs = Math.max(0, script.split(/\n\n+/).length - 1);
-
-  const baseSeconds =
-    words / 2.42 + commas * 0.12 + sentenceEnds * 0.28 + paragraphs * 0.45;
-  const safeRate = Math.max(0.5, Math.min(2.5, playbackRate || 1.0));
-  return Math.max(10, Math.round(baseSeconds / safeRate));
+  // Otherwise calculate exact text-to-speech narration duration
+  return calculateTextToSpeechDuration(devotional, playbackRate);
 }
 
 /**
  * Probes the actual audio file metadata from an audioUrl to extract true duration in seconds.
  */
 export async function probeAudioFileDuration(audioUrl: string): Promise<number> {
-  if (!audioUrl || typeof window === 'undefined') return 0;
-  if (probedAudioDurationCache.has(audioUrl)) {
-    return probedAudioDurationCache.get(audioUrl)!;
+  const normUrl = normalizeAudioUrl(audioUrl);
+  if (!normUrl || typeof window === 'undefined') return 0;
+  if (probedAudioDurationCache.has(normUrl)) {
+    return probedAudioDurationCache.get(normUrl)!;
   }
 
   return new Promise((resolve) => {
@@ -77,6 +173,7 @@ export async function probeAudioFileDuration(audioUrl: string): Promise<number> 
         if (resolved) return;
         resolved = true;
         if (dur > 0) {
+          probedAudioDurationCache.set(normUrl, dur);
           probedAudioDurationCache.set(audioUrl, dur);
         }
         audio.removeEventListener('loadedmetadata', onLoaded);
@@ -93,15 +190,32 @@ export async function probeAudioFileDuration(audioUrl: string): Promise<number> 
         }
       };
 
-      const onError = () => finish(0);
+      const onError = () => {
+        // If probing direct URL failed and it wasn't already through proxy, try via proxy
+        if (!normUrl.startsWith('/api/proxy-audio')) {
+          const proxyAudio = new Audio(`/api/proxy-audio?url=${encodeURIComponent(normUrl)}`);
+          proxyAudio.preload = 'metadata';
+          proxyAudio.onloadedmetadata = () => {
+            if (proxyAudio.duration && isFinite(proxyAudio.duration) && proxyAudio.duration > 0) {
+              finish(Math.round(proxyAudio.duration));
+            } else {
+              finish(0);
+            }
+          };
+          proxyAudio.onerror = () => finish(0);
+          setTimeout(() => finish(0), 3000);
+        } else {
+          finish(0);
+        }
+      };
 
       audio.addEventListener('loadedmetadata', onLoaded);
       audio.addEventListener('error', onError);
 
-      // Timeout fallback after 3.5 seconds
-      setTimeout(() => finish(0), 3500);
+      // Timeout fallback after 4 seconds
+      setTimeout(() => finish(0), 4000);
 
-      audio.src = audioUrl;
+      audio.src = normUrl;
     } catch {
       resolve(0);
     }

@@ -209,21 +209,64 @@ export const DEFAULT_AUTOMATIC_RULES: Array<Omit<NotificationSchedule, 'id' | 'c
  */
 export function interpolateNotificationTemplate(
   text: string,
-  context?: { title?: string; scripture?: string; streak?: number; name?: string }
+  context?: {
+    title?: string;
+    scripture?: string;
+    streak?: number;
+    name?: string;
+    minutes?: number;
+    completed?: number;
+    devotionalId?: string;
+  }
 ): string {
   if (!text) return '';
   let result = text;
+
+  // Dynamically resolve streak if not provided in context
+  let effectiveStreak = context?.streak;
+  let effectiveName = context?.name;
+  let effectiveMinutes = context?.minutes;
+  let effectiveCompleted = context?.completed;
+
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('mdmi_user_profile');
+      if (stored) {
+        const user = JSON.parse(stored);
+        if (effectiveStreak === undefined && typeof user.streakCount === 'number') {
+          effectiveStreak = user.streakCount;
+        }
+        if (!effectiveName && user.displayName) {
+          effectiveName = user.displayName;
+        }
+        if (effectiveMinutes === undefined) {
+          const logsSum = user.readingLogs
+            ? Object.values(user.readingLogs).reduce((acc: number, m: any) => acc + (typeof m === 'number' && !isNaN(m) ? m : 0), 0)
+            : 0;
+          const rawMins = typeof user.totalMinutesRead === 'number' && !isNaN(user.totalMinutesRead) ? user.totalMinutesRead : 0;
+          effectiveMinutes = Math.max(rawMins, logsSum);
+        }
+        if (effectiveCompleted === undefined && typeof user.completedDevotionalsCount === 'number') {
+          effectiveCompleted = user.completedDevotionalsCount;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const streakVal = typeof effectiveStreak === 'number' ? effectiveStreak : 0;
+  result = result.replace(/\{streak\}/gi, String(streakVal));
+
   if (context?.title) {
     result = result.replace(/\{title\}/gi, context.title);
   }
   if (context?.scripture) {
     result = result.replace(/\{scripture\}/gi, context.scripture);
   }
-  if (context?.streak !== undefined) {
-    result = result.replace(/\{streak\}/gi, String(context.streak || 1));
-  }
-  if (context?.name) {
-    result = result.replace(/\{name\}/gi, context.name);
-  }
+  result = result.replace(/\{name\}/gi, effectiveName || 'Beloved Disciple');
+  result = result.replace(/\{minutes\}/gi, String(effectiveMinutes ?? 0));
+  result = result.replace(/\{completed\}/gi, String(effectiveCompleted ?? 0));
+
   return result;
 }

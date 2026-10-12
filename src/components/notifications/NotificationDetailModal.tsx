@@ -146,7 +146,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
           className="relative w-full max-w-2xl max-h-[90vh] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col z-10 transition-colors"
         >
           {/* Header Bar */}
-          <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between bg-neutral-50/90 dark:bg-neutral-850/80">
+          <div className="px-5 py-4 sm:px-6 sm:py-5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between bg-neutral-50 dark:bg-neutral-900">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-2xl bg-[#5E72E4]/10 dark:bg-[#5E72E4]/20 text-[#5E72E4] dark:text-[#889af7] flex items-center justify-center font-bold shrink-0">
                 {notif.type === 'devotional' ? (
@@ -216,8 +216,8 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
             </div>
 
             {/* Main Rich Text Notification Body */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-850/80 border border-neutral-200/90 dark:border-neutral-800">
-              <p className="text-sm sm:text-base leading-relaxed text-neutral-800 dark:text-neutral-200 font-sans whitespace-pre-line">
+            <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-800/90 border border-neutral-200/90 dark:border-neutral-700">
+              <p className="text-sm sm:text-base leading-relaxed text-neutral-800 dark:text-neutral-100 font-sans whitespace-pre-line">
                 {notif.body}
               </p>
             </div>
@@ -239,7 +239,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
                 onClick={() => {
                   archiveNotification(notif.id, !isArchived);
                 }}
-                className="px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-750 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-3.5 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bold text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 {isArchived ? (
                   <>
@@ -259,7 +259,7 @@ export const NotificationDetailModal: React.FC<NotificationDetailModalProps> = (
                 onClick={() => {
                   markAsRead(notif.id, !notif.read);
                 }}
-                className="px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-750 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                className="px-3.5 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bold text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>{notif.read ? 'Mark as Unread' : 'Mark as Read'}</span>

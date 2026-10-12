@@ -4,7 +4,7 @@ import {
   Text,
   TouchableOpacity,
 } from 'react-native';
-import { FlatList } from '../lib/react-native';
+import { FlashList } from '../lib/react-native';
 import {
   Search,
   Bookmark,
@@ -12,8 +12,11 @@ import {
   X,
   Filter,
   Sparkles,
+  ArrowUpDown,
+  RotateCcw,
 } from 'lucide-react';
-import { useDevotionalStore } from '../store/useDevotionalStore';
+import MotionButton from '@/components/ui/motion-button';
+import { useDevotionalStore, sortDevotionalsByLatest } from '../store/useDevotionalStore';
 import { useBookmarkStore } from '../store/useBookmarkStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useUIStore } from '../store/useUIStore';
@@ -25,6 +28,7 @@ import { Calendar } from 'lucide-react';
 import { PaginationPageDefault } from '@/components/application/pagination/pagination';
 import { isDevotionalLive } from '../services/schedulingService';
 import { EditDevotionalModal } from '../components/admin/EditDevotionalModal';
+import { SearchWithFilterBox } from '@/components/ui/search-with-filter-box';
 
 interface DevotionalsTabProps {
   onSelectDevotional: (devotional: Devotional) => void;
@@ -52,16 +56,17 @@ export const DevotionalsTab: React.FC<DevotionalsTabProps> = ({ onSelectDevotion
   const [activeTag, setActiveTag] = useState<string>('All');
   const [onlyBookmarked, setOnlyBookmarked] = useState<boolean>(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'latest' | 'oldest' | 'popular'>('latest');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [editingDevotional, setEditingDevotional] = useState<Devotional | null>(null);
 
   // Reset page to 1 whenever filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, activeTag, onlyBookmarked, selectedDate]);
+  }, [searchQuery, activeTag, onlyBookmarked, selectedDate, sortBy]);
 
   const filteredDevotionals = useMemo(() => {
-    return devotionals.filter((d) => {
+    const list = devotionals.filter((d) => {
       // Disciples only see live teachings unless admin
       if (!isAdmin && !isDevotionalLive(d)) return false;
 
@@ -84,7 +89,16 @@ export const DevotionalsTab: React.FC<DevotionalsTabProps> = ({ onSelectDevotion
 
       return matchesSearch && matchesTag && matchesBookmark && matchesDate;
     });
-  }, [devotionals, searchQuery, activeTag, onlyBookmarked, bookmarkedIds, selectedDate, isAdmin]);
+
+    if (sortBy === 'latest') {
+      return sortDevotionalsByLatest(list);
+    } else if (sortBy === 'oldest') {
+      return [...sortDevotionalsByLatest(list)].reverse();
+    } else if (sortBy === 'popular') {
+      return [...list].sort((a, b) => ((b.likeCount || 0) + (b.viewCount || 0)) - ((a.likeCount || 0) + (a.viewCount || 0)));
+    }
+    return sortDevotionalsByLatest(list);
+  }, [devotionals, searchQuery, activeTag, onlyBookmarked, bookmarkedIds, selectedDate, isAdmin, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredDevotionals.length / ITEMS_PER_PAGE));
   const paginatedDevotionals = useMemo(() => {
@@ -106,14 +120,16 @@ export const DevotionalsTab: React.FC<DevotionalsTabProps> = ({ onSelectDevotion
 
   const featuredForDeck = useMemo(() => {
     const seen = new Set<string>();
-    return devotionals
+    const sorted = sortDevotionalsByLatest(devotionals);
+    return sorted
       .filter((d) => {
         if (!d || !d.id || seen.has(d.id)) return false;
+        if (!isAdmin && !isDevotionalLive(d)) return false;
         seen.add(d.id);
         return true;
       })
       .slice(0, 5);
-  }, [devotionals]);
+  }, [devotionals, isAdmin]);
 
   const renderDevotionalItem = ({ item: devotional }: { item: Devotional }) => {
     return (
@@ -152,132 +168,36 @@ export const DevotionalsTab: React.FC<DevotionalsTabProps> = ({ onSelectDevotion
         </div>
       )}
 
-      {/* Sticky Search & Quick Suggestions Bar */}
+      {/* Search Bar with Hidden Filter Box (Modeled after react-native-search-component & TaskFilters) */}
       <View className="mb-4">
-        <div className="relative">
-          <Input
-            id="devotionals-search-input"
-            placeholder="Search devotionals, scripture, topics..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            iconContent={<Search className="w-4 h-4 text-[#ADB5BD]" />}
-            iconPosition="left"
-          />
-          {searchQuery ? (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300"
-              aria-label="Clear search"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          ) : null}
-        </div>
-
-        {/* Quick Suggested Searches */}
-        <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto pb-1 text-xs">
-          <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-[#5E72E4]" /> Suggested:
-          </span>
-          {['Vine', 'Prayer', 'Faith', 'Consecration', 'Fruit'].map((tag) => (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => setSearchQuery(tag)}
-              className="px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 hover:border-[#5E72E4] hover:text-[#5E72E4] transition-colors shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-      </View>
-
-      {/* Filter Chips & Bookmark Toggle (Template 1 Spec: Clean Pill Tabs) */}
-      <View className="space-y-3 mb-4">
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-[#5E72E4]" />
-            <Text className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-              Topic Filter
-            </Text>
-          </View>
-
-          <Button
-            small
-            color={onlyBookmarked ? 'warning' : 'secondary'}
-            id="toggle-bookmarked-filter-btn"
-            onPress={() => setOnlyBookmarked(!onlyBookmarked)}
-            className="flex-row items-center gap-1 min-h-[38px] px-3.5 rounded-full"
-          >
-            <Bookmark
-              className={`w-3.5 h-3.5 mr-1 ${
-                onlyBookmarked ? 'fill-white text-white' : 'text-amber-500'
-              }`}
-            />
-            Bookmarked ({bookmarkedIds.length})
-          </Button>
-        </View>
-
-        {/* Template 1 Pill Menu Navigation */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {TAG_FILTERS.map((tag) => {
-            const isActive = activeTag === tag;
-            return (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => setActiveTag(tag)}
-                className={`px-4 py-1.5 rounded-[12px] text-xs font-extrabold uppercase tracking-wide transition-all whitespace-nowrap ${
-                  isActive
-                    ? 'bg-black text-white dark:bg-white dark:text-black shadow-md scale-[1.02]'
-                    : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-700'
-                }`}
-              >
-                {tag}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Date Filter Bar using DateTimePicker */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-[#5E72E4] dark:text-[#7BDEB2] shrink-0" />
-            <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
-              Browse by Date:
-            </span>
-          </div>
-          <div className="flex items-center gap-2 flex-1 sm:max-w-xs">
-            <DateTimePicker
-              value={selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date()}
-              mode="date"
-              placeholder="Pick a publishing date..."
-              onChange={(event, date) => {
-                if (event.type === 'set' && date) {
-                  const y = date.getFullYear();
-                  const m = String(date.getMonth() + 1).padStart(2, '0');
-                  const d = String(date.getDate()).padStart(2, '0');
-                  setSelectedDate(`${y}-${m}-${d}`);
-                }
-              }}
-            />
-            {selectedDate && (
-              <button
-                type="button"
-                onClick={() => setSelectedDate(null)}
-                className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 px-2.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-center gap-1 transition-colors shrink-0"
-              >
-                <X className="w-3.5 h-3.5" />
-                <span>Clear</span>
-              </button>
-            )}
-          </div>
-        </div>
+        <SearchWithFilterBox
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search devotionals, scriptures, themes..."
+          activeTag={activeTag}
+          onTagChange={setActiveTag}
+          availableTags={TAG_FILTERS}
+          onlyBookmarked={onlyBookmarked}
+          onToggleBookmarked={() => setOnlyBookmarked(!onlyBookmarked)}
+          bookmarkedCount={bookmarkedIds.length}
+          selectedDate={selectedDate || ''}
+          onDateChange={(d) => setSelectedDate(d || null)}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          suggestedTags={['Vine', 'Prayer', 'Faith', 'Consecration', 'Fruit']}
+          onSuggestedTagClick={(tag) => setSearchQuery(tag)}
+          onResetAll={() => {
+            setSearchQuery('');
+            setActiveTag('All');
+            setOnlyBookmarked(false);
+            setSelectedDate(null);
+            setSortBy('latest');
+          }}
+        />
       </View>
 
       {/* Devotionals List: ProductCardHorizontal (Template 3 Spec) */}
-      <FlatList<Devotional>
+      <FlashList<Devotional>
         data={paginatedDevotionals}
         keyExtractor={(item: Devotional, idx: number) => (item?.id ? `${item.id}-${idx}` : `dev-${idx}`)}
         renderItem={renderDevotionalItem}
@@ -311,16 +231,17 @@ export const DevotionalsTab: React.FC<DevotionalsTabProps> = ({ onSelectDevotion
               We couldn't find matches for &ldquo;{searchQuery || activeTag}&rdquo;. Try another term, or reset your filters to browse the complete archive.
             </Text>
             <div className="mt-5">
-              <Button
-                color="primary"
-                onPress={() => {
+              <MotionButton
+                variant="ministry-green"
+                size="md"
+                icon={<RotateCcw className="w-4 h-4 text-white" />}
+                label="Reset All Filters"
+                onClick={() => {
                   setSearchQuery('');
                   setActiveTag('All');
                   setOnlyBookmarked(false);
                 }}
-              >
-                Reset All Filters
-              </Button>
+              />
             </div>
           </View>
         }

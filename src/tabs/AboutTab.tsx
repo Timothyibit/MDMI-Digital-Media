@@ -19,6 +19,8 @@ import { useAuthStore } from '../store/useAuthStore';
 import { TabType } from '../types';
 import { TiltedCollageCard } from '../components/cards';
 import { MorphingCardStack, CardData } from '@/components/ui/morphing-card-stack';
+import MotionButton from '@/components/ui/motion-button';
+import { TjTechLogo } from '../components/ui/TjTechLogo';
 
 interface AboutTabProps {
   onBack?: () => void;
@@ -36,6 +38,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
       description: "Rooted in infallible Holy Scripture. Expository teachings and daily meditation to anchor the soul in truth and godly wisdom.",
       icon: <BookOpen className="w-5 h-5" />,
       color: "#5E72E4",
+      image: "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "pillar_prayer",
@@ -43,6 +46,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
       description: "Awakening watchmen on the wall. Fervent, spirit-led intercession and midnight prayers that dismantle darkness and align with God's will.",
       icon: <Flame className="w-5 h-5" />,
       color: "#FB6340",
+      image: "https://images.unsplash.com/photo-1438032005730-c779502df39b?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "pillar_fellowship",
@@ -50,6 +54,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
       description: "Covenant community and selfless brotherhood in Christ. Bearing one another's burdens and discipling believers to serve in love.",
       icon: <Heart className="w-5 h-5" />,
       color: "#2DCE89",
+      image: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=800&q=80",
     },
     {
       id: "pillar_commission",
@@ -57,6 +62,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
       description: "Winning souls across nations. Equipping ordinary disciples with spiritual power to take the gospel to unreached communities.",
       icon: <Globe className="w-5 h-5" />,
       color: "#11CDEF",
+      image: "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=800&q=80",
     },
   ];
 
@@ -96,7 +102,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
         />
 
         {/* Official Website Card */}
-        <div className="p-6 rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)]">
+        <div className="p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-[#5E72E4]/10 dark:bg-[#5E72E4]/20 flex items-center justify-center shrink-0 text-[#5E72E4]">
@@ -128,7 +134,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
         </div>
 
         {/* 2. Discipleship Ministry Pillars - Interactive Morphing Card Stack */}
-        <div className="p-6 rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)] space-y-4">
+        <div className="p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-100 dark:border-neutral-800">
             <div>
               <h3 className="font-bold text-sm sm:text-base text-neutral-900 dark:text-white flex items-center gap-2">
@@ -155,7 +161,7 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
         </div>
 
         {/* Mobile App Capabilities Card */}
-        <div className="p-6 rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)] space-y-4">
+        <div className="p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] space-y-4">
           <h4 className="text-xs font-black uppercase tracking-wider text-neutral-900 dark:text-white">
             React Native Mobile Features
           </h4>
@@ -192,48 +198,48 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
         </div>
 
         {/* Spiritual Pathways / Navigation */}
-        <div className="p-6 rounded-[24px] border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-[0_10px_35px_rgba(0,0,0,0.05)] space-y-3">
+        <div className="p-6 rounded-[24px] border border-slate-200/90 dark:border-neutral-800 bg-gradient-to-br from-[#FFFFFF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#080E1B] dark:via-[#101C33] dark:to-[#04070D] text-neutral-950 dark:text-white shadow-[0_10px_35px_rgba(0,0,0,0.05)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] space-y-3">
           <h4 className="text-xs font-black uppercase tracking-wider text-neutral-900 dark:text-white">
             Quick Pathways
           </h4>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-semibold">
-            <button
-              type="button"
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <MotionButton
+              size="md"
+              variant="secondary"
+              icon={<Compass className="w-4 h-4 text-[#5E72E4]" />}
+              label="Today's Word"
               onClick={() => onNavigate('home')}
-              className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800 text-center hover:bg-neutral-200/50 dark:hover:bg-neutral-700 transition-colors"
-            >
-              <Compass className="w-5 h-5 mx-auto mb-1 text-[#5E72E4]" />
-              <span>Today's Word</span>
-            </button>
-            <button
-              type="button"
+              className="w-full justify-start"
+            />
+            <MotionButton
+              size="md"
+              variant="secondary"
+              icon={<BookOpen className="w-4 h-4 text-[#5E72E4]" />}
+              label="Archive"
               onClick={() => onNavigate('devotionals')}
-              className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800 text-center hover:bg-neutral-200/50 dark:hover:bg-neutral-700 transition-colors"
-            >
-              <BookOpen className="w-5 h-5 mx-auto mb-1 text-[#5E72E4]" />
-              <span>Archive</span>
-            </button>
-            <button
-              type="button"
+              className="w-full justify-start"
+            />
+            <MotionButton
+              size="md"
+              variant="secondary"
+              icon={<BookHeart className="w-4 h-4 text-[#5E72E4]" />}
+              label="Prayer Journal"
               onClick={() => onNavigate('journal')}
-              className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800 text-center hover:bg-neutral-200/50 dark:hover:bg-neutral-700 transition-colors"
-            >
-              <BookHeart className="w-5 h-5 mx-auto mb-1 text-[#5E72E4]" />
-              <span>Prayer Journal</span>
-            </button>
-            <button
-              type="button"
+              className="w-full justify-start"
+            />
+            <MotionButton
+              size="md"
+              variant="secondary"
+              icon={<ShieldCheck className="w-4 h-4 text-[#5E72E4]" />}
+              label="Profile & Walk"
               onClick={() => onNavigate('profile')}
-              className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-800 text-center hover:bg-neutral-200/50 dark:hover:bg-neutral-700 transition-colors"
-            >
-              <ShieldCheck className="w-5 h-5 mx-auto mb-1 text-[#5E72E4]" />
-              <span>Profile &amp; Walk</span>
-            </button>
+              className="w-full justify-start"
+            />
           </div>
         </div>
 
-        {/* Bottom Copyright Row */}
-        <div className="py-6 text-center space-y-2">
+        {/* Bottom Copyright & Builder Row */}
+        <div className="py-8 text-center space-y-3">
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
             © {currentYear} The Master's Discipleship Ministries Int'l. All rights reserved.
           </p>
@@ -243,6 +249,25 @@ export const AboutTab: React.FC<AboutTabProps> = ({ onBack, onNavigate }) => {
             <span className="flex items-center gap-1 text-[#5E72E4]">
               <Heart className="w-3 h-3 fill-red-500 text-red-500" /> In His Love
             </span>
+          </div>
+
+          <div className="pt-2 flex justify-center">
+            <a
+              href="https://www.linkedin.com/company/t-j-tech/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Built by T-J Tech on LinkedIn"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800 dark:hover:bg-neutral-700/80 border border-neutral-200/80 dark:border-neutral-700/80 text-neutral-800 dark:text-neutral-200 transition-all hover:scale-[1.02] shadow-2xs group cursor-pointer"
+            >
+              <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                Built by
+              </span>
+              <TjTechLogo size={24} showText={false} />
+              <span className="font-extrabold text-xs text-neutral-900 dark:text-white group-hover:text-black dark:group-hover:text-neutral-200 transition-colors">
+                T-J Tech
+              </span>
+              <ExternalLink className="w-3 h-3 text-neutral-400 group-hover:text-[#0066FF] transition-colors" />
+            </a>
           </div>
         </div>
       </View>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Flame, Sparkles, X, Award } from 'lucide-react';
+import MotionButton from '@/components/ui/motion-button';
 import { useUIStore } from '../../store/useUIStore';
 
 interface Particle {
@@ -147,13 +148,17 @@ export const StreakConfetti: React.FC = () => {
             {getMilestoneDescription(confettiMilestone)}
           </p>
 
-          <button
-            id="continue-streak-btn"
-            onClick={dismissConfetti}
-            className="mt-6 w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-bold text-sm tracking-wide shadow-md transition-all active:scale-95"
-          >
-            Praise God & Continue
-          </button>
+          <div className="mt-6 flex justify-center">
+            <MotionButton
+              id="continue-streak-btn"
+              onClick={dismissConfetti}
+              variant="warning"
+              size="lg"
+              icon={<Sparkles className="w-5 h-5 text-white" />}
+              label="Praise God & Continue"
+              className="w-full justify-center"
+            />
+          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>

@@ -9,8 +9,10 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),
+        'next/image': path.resolve(import.meta.dirname, 'src/lib/next-image.tsx'),
         '@untitledui/icons': path.resolve(import.meta.dirname, 'src/lib/untitledui-icons.tsx'),
         'react-native': path.resolve(import.meta.dirname, 'src/lib/react-native.tsx'),
+        'react-native-paper': path.resolve(import.meta.dirname, 'src/lib/react-native-paper.tsx'),
         'lucide-react-native': 'lucide-react',
       },
     },
