@@ -1,12 +1,12 @@
 {
-  "projectId": "edges-africa-lms",
-  "appId": "1:493737736736:web:ea7f7f27b03f30d3fd9a45",
-  "apiKey": "AIzaSyBtdWNY3kw1vK96p6ytyehgNNBWLy0Mmg4",
-  "authDomain": "edges-africa-lms.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-mdmidevotionals-6e833b42-2864-4435-9171-6785bf7838ab",
-  "storageBucket": "edges-africa-lms.firebasestorage.app",
-  "messagingSenderId": "493737736736",
+  "projectId": "gen-lang-client-0398777759",
+  "appId": "1:266035394687:web:4a931ebca6d1ed2e67674a",
+  "apiKey": "AIzaSyC7O76A4ovZJDHQKeGEZFSFYqu6H-XPc9M",
+  "authDomain": "gen-lang-client-0398777759.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-mdmidevotionals-67aa3489-e34b-4eff-bbe2-7bcb09ef2d19",
+  "storageBucket": "gen-lang-client-0398777759.firebasestorage.app",
+  "messagingSenderId": "266035394687",
   "measurementId": "",
-  "oAuthClientId": "493737736736-0718mo98e9mtrhr72pem39rsq2qhujn3.apps.googleusercontent.com",
+  "oAuthClientId": "266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
