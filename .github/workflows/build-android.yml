@@ -40,7 +40,8 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug bundleRelease
+          yes | $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager --licenses 2>/dev/null || true
+          ./gradlew assembleDebug bundleRelease --no-daemon
 
       - name: Upload Sideloadable APK (.apk)
         uses: actions/upload-artifact@v4
