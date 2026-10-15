@@ -381,9 +381,9 @@ export class NativeSpeechService {
         ) || this.voices.find((v) => v.lang.startsWith('en')) || this.voices[0];
     }
 
+    utterance.lang = activeVoice?.lang || 'en-US';
     if (activeVoice) {
       utterance.voice = activeVoice;
-      utterance.lang = activeVoice.lang;
     }
 
     // Retain reference in set to prevent GC collection during speech
@@ -406,6 +406,9 @@ export class NativeSpeechService {
     };
 
     try {
+      if (this.synth.paused) {
+        this.synth.resume();
+      }
       this.synth.speak(utterance);
       if (this.synth.paused) {
         this.synth.resume();

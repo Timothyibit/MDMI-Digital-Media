@@ -28,6 +28,18 @@ export function formatAudioDuration(seconds: number): string {
   return `${mins}m ${rem < 10 ? '0' : ''}${rem}s`;
 }
 
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const isLocalCapacitor =
+      window.location.protocol === 'capacitor:' ||
+      (window.location.hostname === 'localhost' && window.location.port !== '3000');
+    if (isLocalCapacitor) {
+      return 'https://ais-dev-noshvwsdf4lvq2c2pvcajb-458537113715.europe-west3.run.app';
+    }
+  }
+  return '';
+}
+
 /**
  * Normalizes user-provided audio URLs into direct streamable audio links:
  * - Google Drive share links -> direct streaming proxy URL
@@ -62,7 +74,7 @@ export function normalizeAudioUrl(rawUrl?: string | null): string {
   const gdriveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/i);
   if (gdriveMatch && gdriveMatch[1]) {
     const fileId = gdriveMatch[1];
-    return `/api/proxy-audio?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}`)}`;
+    return `${getApiBaseUrl()}/api/proxy-audio?url=${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}`)}`;
   }
 
   // Dropbox:
@@ -302,7 +314,7 @@ export async function generateDevotionalSpeech(
     }
 
     try {
-      const res = await fetch('/api/tts', {
+      const res = await fetch(`${getApiBaseUrl()}/api/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -4,7 +4,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { useDevotionalStore } from '../../store/useDevotionalStore';
 import { nativeSpeech } from '../../services/nativeSpeechService';
 import { webAudioApi } from '../../services/webAudioApiService';
-import { calculateAudioDuration } from '../../services/aiAudioService';
+import { calculateAudioDuration, getApiBaseUrl } from '../../services/aiAudioService';
 import { PlayPauseIcon } from '@/components/ui/animated-state-icons';
 import { Devotional } from '../../types';
 
@@ -172,7 +172,7 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
             !audioState.audioUrl.startsWith('/api/proxy-audio') &&
             audioRef.current
           ) {
-            const proxyUrl = `/api/proxy-audio?url=${encodeURIComponent(audioState.audioUrl)}`;
+            const proxyUrl = `${getApiBaseUrl()}/api/proxy-audio?url=${encodeURIComponent(audioState.audioUrl)}`;
             audioRef.current.src = proxyUrl;
             audioRef.current.play().catch((proxyErr) => {
               console.warn('Proxy audio playback also failed, auto-fallback to voice reader:', proxyErr);

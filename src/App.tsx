@@ -114,6 +114,18 @@ export default function App() {
     initializeDevotionals();
     initializeLayout();
     const unsubNotifs = initializeNotifications();
+
+    // Prompt for notification permission on mobile / web startup
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        if (Notification.permission === 'default') {
+          Notification.requestPermission().catch(() => {});
+        }
+      } catch {
+        // Notification permission notice
+      }
+    }
+
     return () => {
       unsubNotifs?.();
     };

@@ -719,7 +719,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       console.warn('Registration error:', err);
       let errorMsg = 'Failed to register account. Please check your details.';
       if (err.code === 'auth/operation-not-allowed') {
-        errorMsg = 'Email sign-in is temporarily unavailable. Please sign in with Google or contact support.';
+        errorMsg = 'Email/Password sign-in is disabled in your Firebase Console. Please open the Firebase Console, go to Authentication > Sign-in method, and enable Email/Password.';
       } else if (err.code === 'auth/email-already-in-use') {
         errorMsg = 'This email is already registered. Please sign in or use Forgot Password.';
       } else if (err.code === 'auth/weak-password') {
@@ -859,7 +859,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       console.warn('Sign-in error:', err);
       let errorMsg = 'Failed to sign in. Please verify your credentials.';
       if (err.code === 'auth/operation-not-allowed') {
-        errorMsg = 'Email sign-in is temporarily unavailable. Please sign in with Google or contact support.';
+        errorMsg = 'Email/Password sign-in is disabled in your Firebase Console. Please open the Firebase Console, go to Authentication > Sign-in method, and enable Email/Password.';
       } else if (
         err.code === 'auth/user-not-found' ||
         err.code === 'auth/wrong-password' ||

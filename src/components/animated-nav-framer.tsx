@@ -28,7 +28,6 @@ const containerVariants: Variants = {
   expanded: {
     y: 0,
     opacity: 1,
-    width: "auto",
     transition: {
       y: { type: "spring", damping: 20, stiffness: 280 },
       opacity: { duration: 0.25 },
@@ -42,7 +41,6 @@ const containerVariants: Variants = {
   collapsed: {
     y: 0,
     opacity: 1,
-    width: "3.25rem",
     transition: {
       type: "spring",
       damping: 22,
@@ -203,11 +201,10 @@ export function AnimatedNavFramer({
         aria-label={isExpanded ? "Navigation Bar" : "Expand Navigation Menu"}
         title={isExpanded ? undefined : "Tap to expand navigation menu"}
         className={cn(
-          // CRITICAL: pointer-events-auto strictly on the nav itself
-          "pointer-events-auto relative flex items-center overflow-hidden rounded-full border border-neutral-300/80 dark:border-neutral-700/80 bg-white/95 dark:bg-neutral-900/95 shadow-[0_10px_35px_rgba(0,0,0,0.18)] dark:shadow-[0_14px_40px_rgba(0,0,0,0.65)] backdrop-blur-md h-12 select-none transition-shadow",
+          "pointer-events-auto relative flex items-center overflow-hidden rounded-full border border-neutral-300/80 dark:border-neutral-700/80 bg-white/95 dark:bg-neutral-900/95 shadow-[0_10px_35px_rgba(0,0,0,0.18)] dark:shadow-[0_14px_40px_rgba(0,0,0,0.65)] backdrop-blur-md select-none transition-all duration-200",
           isExpanded
-            ? "w-full sm:w-auto max-w-full justify-between sm:justify-center px-1.5 sm:px-2.5"
-            : "cursor-pointer justify-center w-[3.25rem] ring-2 ring-[#84CC16]/40 hover:ring-[#84CC16]/70"
+            ? "w-[94%] max-w-md sm:w-auto h-14 sm:h-12 justify-around sm:justify-center px-2 sm:px-3"
+            : "cursor-pointer justify-center w-12 h-12 ring-2 ring-[#84CC16]/40 hover:ring-[#84CC16]/70"
         )}
       >
         {/* Brand Icon (shown on desktop or when isTop; hidden on bottom mobile dock to maximize tab space) */}
@@ -249,7 +246,7 @@ export function AnimatedNavFramer({
                 aria-label={item.name}
                 title={item.name}
                 className={cn(
-                  "relative flex-1 sm:flex-initial flex items-center justify-center gap-1.5 text-xs font-semibold rounded-full px-2.5 sm:px-3.5 py-2 sm:py-1.5 transition-all duration-200 min-w-[42px] min-h-[40px] cursor-pointer",
+                  "relative flex-1 sm:flex-initial flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 text-xs font-semibold rounded-2xl sm:rounded-full px-2 sm:px-3.5 py-1 sm:py-1.5 transition-all duration-200 min-h-[44px] cursor-pointer",
                   isActive
                     ? "bg-gradient-to-r from-[#84CC16] to-[#65A30D] text-white shadow-sm font-bold active:scale-95"
                     : "text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-[#84CC16]/10 active:scale-95"
@@ -258,19 +255,19 @@ export function AnimatedNavFramer({
                 {ItemIcon && (
                   <ItemIcon
                     className={cn(
-                      "w-5 h-5 sm:w-4 sm:h-4 flex-shrink-0 transition-transform",
+                      "w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0 transition-transform",
                       isActive ? "text-white scale-105" : "text-neutral-500 dark:text-neutral-400"
                     )}
                   />
                 )}
-                {/* On mobile screens, only the icon is displayed. Text label is visible on tablet and desktop */}
-                <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap">
+                {/* Visible on mobile and desktop */}
+                <span className="text-[10px] sm:text-xs font-semibold whitespace-nowrap leading-none tracking-tight">
                   {item.name}
                 </span>
                 {item.badge !== undefined && (
                   <span
                     className={cn(
-                      "hidden sm:inline-block ml-0.5 px-1.5 py-0.2 text-[9px] font-black rounded-full",
+                      "ml-0.5 px-1.5 py-0.2 text-[9px] font-black rounded-full leading-none",
                       isActive
                         ? "bg-white/20 text-white"
                         : "bg-[#DC2626] text-white"
