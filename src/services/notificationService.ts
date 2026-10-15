@@ -4,6 +4,9 @@
  * service worker registration, and backend device synchronization.
  */
 
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { Capacitor } from '@capacitor/core';
+
 export type PlatformType = 'web' | 'android' | 'ios';
 
 /** Detect user device / OS platform */
@@ -184,10 +187,21 @@ export async function clearBackendTestNotifications(): Promise<{ success: boolea
 }
 
 export async function requestDeviceNotificationPermission(userId?: string): Promise<NotificationPermission> {
+  // 1. If running as a native Android APK via Capacitor
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+    try {
+      const res = await LocalNotifications.requestPermissions();
+      const granted = res.display === 'granted';
+      return granted ? 'granted' : 'denied';
+    } catch (nativeErr) {
+      console.warn('Native notification permission notice:', nativeErr);
+    }
+  }
+
+  // 2. Browser Web Push Notification fallback
   if (typeof window === 'undefined' || !('Notification' in window)) {
     const platform = detectPlatform();
     if (platform === 'ios') {
-      // In iOS Safari non-PWA, Notification might not be in window until added to home screen
       console.info('iOS requires Add to Home Screen for background Web Push');
     }
     return 'denied';
@@ -225,9 +239,23 @@ export function showDeviceNotification(
 ) {
   playNotificationSound();
 
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    console.info('Device notifications not available in this environment');
-    return;
+  // 1. Native Android notification banner via Capacitor
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+    try {
+      LocalNotifications.schedule({
+        notifications: [
+          {
+            id: Math.floor(Math.random() * 100000) + 1,
+            title,
+            body: options.body,
+            smallIcon: 'ic_launcher_round',
+          },
+        ],
+      }).catch((e) => console.warn('Native notification schedule notice:', e));
+      return;
+    } catch {
+      // fallback
+    }
   }
 
   if (Notification.permission === 'granted') {

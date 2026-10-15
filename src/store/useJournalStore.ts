@@ -37,6 +37,16 @@ export const useJournalStore = create<JournalState>((set, get) => {
     }
   };
 
+  const cleanData = (data: Record<string, any>) => {
+    const sanitized: Record<string, any> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined) {
+        sanitized[k] = v;
+      }
+    }
+    return sanitized;
+  };
+
   const attachFirestoreListener = (targetUid: string) => {
     if (activeJournalUnsub) {
       activeJournalUnsub();
@@ -48,13 +58,27 @@ export const useJournalStore = create<JournalState>((set, get) => {
       activeJournalUnsub = onSnapshot(
         journalColRef,
         (snapshot) => {
-          const list: JournalEntry[] = [];
+          const remoteList: JournalEntry[] = [];
           snapshot.forEach((entryDoc) => {
-            list.push({ id: entryDoc.id, ...entryDoc.data() } as JournalEntry);
+            remoteList.push({ id: entryDoc.id, ...entryDoc.data() } as JournalEntry);
           });
-          list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          persist(list, targetUid);
-          set({ entries: list });
+          
+          // Merge with any freshly added local entries so nothing is lost if snapshot is in-flight
+          const currentLocal = get().entries;
+          const map = new Map<string, JournalEntry>();
+          remoteList.forEach((e) => map.set(e.id, e));
+          currentLocal.forEach((e) => {
+            if (!map.has(e.id)) {
+              map.set(e.id, e);
+            }
+          });
+
+          const finalList = Array.from(map.values()).sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+
+          persist(finalList, targetUid);
+          set({ entries: finalList });
         },
         (err) => {
           console.info('Journal real-time sync notice:', err.message);
@@ -148,9 +172,9 @@ export const useJournalStore = create<JournalState>((set, get) => {
       if (uid && auth.currentUser && auth.currentUser.uid === uid) {
         try {
           const entryRef = doc(db, 'users', uid, 'journal', id);
-          await setDoc(entryRef, newEntry);
+          await setDoc(entryRef, cleanData(newEntry));
         } catch (err) {
-          console.info('Journal entry persisted locally:', err);
+          console.warn('Journal Firestore write notice:', err);
         }
       }
     },

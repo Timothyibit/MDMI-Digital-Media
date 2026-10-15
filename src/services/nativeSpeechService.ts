@@ -4,6 +4,9 @@
  * with the react-native-speech (mhpdev-com/react-native-speech) pattern.
  */
 
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
+import { Capacitor } from '@capacitor/core';
+
 export interface SpeechOptions {
   text: string;
   voice?: string;
@@ -156,8 +159,12 @@ export class NativeSpeechService {
     }
   }
 
+  private isNative(): boolean {
+    return typeof window !== 'undefined' && Capacitor.isNativePlatform();
+  }
+
   public isAvailable(): boolean {
-    return this.synth !== null;
+    return this.synth !== null || this.isNative();
   }
 
   public isCurrentlySpeaking(): boolean {
@@ -276,7 +283,7 @@ export class NativeSpeechService {
       onEnd?: () => void;
     }
   ): void {
-    if (!this.synth) return;
+    if (!this.synth && !this.isNative()) return;
 
     this.stop();
     this.playOpeningChime();
@@ -329,7 +336,7 @@ export class NativeSpeechService {
   }
 
   private playNextChunk(): void {
-    if (!this.synth || this.isPaused || !this.isSpeaking) return;
+    if ((!this.synth && !this.isNative()) || this.isPaused || !this.isSpeaking) return;
 
     if (this.currentChunkIndex >= this.queue.length) {
       this.isSpeaking = false;
@@ -347,6 +354,31 @@ export class NativeSpeechService {
     if (!chunk || !chunk.trim()) {
       this.currentChunkIndex++;
       this.playNextChunk();
+      return;
+    }
+
+    // 1. Native Android TTS Execution via Capacitor
+    if (this.isNative()) {
+      TextToSpeech.speak({
+        text: chunk,
+        lang: 'en-US',
+        rate: Math.max(0.5, Math.min(2.0, this.currentRate)),
+        pitch: this.currentPitch,
+        volume: 1.0,
+        category: 'ambient',
+      })
+        .then(() => {
+          this.currentChunkIndex++;
+          const nextBase =
+            this.chunkCumulativeDurations[this.currentChunkIndex] || this.totalEstimatedDuration;
+          this.emitProgress(Math.min(this.totalEstimatedDuration, Math.round(nextBase)));
+          this.playNextChunk();
+        })
+        .catch((err) => {
+          console.warn('Native TTS chunk notice:', err);
+          this.currentChunkIndex++;
+          this.playNextChunk();
+        });
       return;
     }
 
@@ -433,6 +465,13 @@ export class NativeSpeechService {
   }
 
   public pause(): void {
+    if (this.isNative()) {
+      TextToSpeech.stop().catch(() => {});
+      this.isPaused = true;
+      this.pausedTime = (Date.now() - this.startTime) / 1000;
+      this.clearProgressTracker();
+      return;
+    }
     if (!this.synth || this.isPaused) return;
     this.synth.cancel();
     this.activeUtterances.clear();
@@ -442,7 +481,8 @@ export class NativeSpeechService {
   }
 
   public resume(): void {
-    if (!this.synth || !this.isPaused) return;
+    if (!this.synth && !this.isNative()) return;
+    if (!this.isPaused) return;
     this.isPaused = false;
     this.isSpeaking = true;
     this.startTime = Date.now() - this.pausedTime * 1000;
@@ -451,6 +491,9 @@ export class NativeSpeechService {
   }
 
   public stop(): void {
+    if (this.isNative()) {
+      TextToSpeech.stop().catch(() => {});
+    }
     this.clearProgressTracker();
     this.isSpeaking = false;
     this.isPaused = false;

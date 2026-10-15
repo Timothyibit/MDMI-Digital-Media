@@ -16,6 +16,8 @@ import { useDevotionalStore } from './store/useDevotionalStore';
 import { useJournalStore } from './store/useJournalStore';
 import { useBookmarkStore } from './store/useBookmarkStore';
 import { Devotional, TabType } from './types';
+import { App as CapApp } from '@capacitor/app';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 // Components & Tabs
 import { HomeTab } from './tabs/HomeTab';
@@ -115,7 +117,18 @@ export default function App() {
     initializeLayout();
     const unsubNotifs = initializeNotifications();
 
-    // Prompt for notification permission on mobile / web startup
+    // 1. Native Android notification permission via Capacitor
+    try {
+      LocalNotifications.checkPermissions().then((status) => {
+        if (status.display === 'prompt' || status.display === 'prompt-with-rationale') {
+          LocalNotifications.requestPermissions().catch(() => {});
+        }
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
+
+    // 2. Web browser fallback
     if (typeof window !== 'undefined' && 'Notification' in window) {
       try {
         if (Notification.permission === 'default') {
@@ -130,6 +143,65 @@ export default function App() {
       unsubNotifs?.();
     };
   }, [initAuth, initializeDevotionals, initializeLayout, initializeNotifications]);
+
+  // Native Android Hardware / Gesture Back Button Handling
+  useEffect(() => {
+    let backListener: any = null;
+
+    try {
+      CapApp.addListener('backButton', () => {
+        const {
+          voiceSelectorOpen,
+          closeVoiceSelector,
+          onboardingOpen,
+          closeOnboarding,
+          introSplashOpen,
+          closeIntroSplash,
+          activeTab,
+          setActiveTab,
+        } = useUIStore.getState();
+
+        const { activeDevotionalId, setActiveDevotionalId } = useDevotionalStore.getState();
+
+        // 1. If reading a devotional, close reader and return to devotional list
+        if (activeDevotionalId) {
+          setActiveDevotionalId(null);
+          return;
+        }
+
+        // 2. If modal is open, close it
+        if (voiceSelectorOpen) {
+          closeVoiceSelector();
+          return;
+        }
+        if (onboardingOpen) {
+          closeOnboarding();
+          return;
+        }
+        if (introSplashOpen) {
+          closeIntroSplash();
+          return;
+        }
+
+        // 3. If on a sub-tab (library, journal, profile, admin), navigate back to Home
+        if (activeTab !== 'home') {
+          setActiveTab('home');
+          return;
+        }
+
+        // 4. If already at Home root with nothing open, exit/minimize app cleanly
+        CapApp.exitApp();
+      }).then((handle) => {
+        backListener = handle;
+      }).catch(() => {});
+    } catch {
+      // Not on native device
+    }
+
+    return () => {
+      backListener?.remove?.();
+    };
+  }, []);
 
   // Connect user subcollections when authenticated
   useEffect(() => {

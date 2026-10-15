@@ -80,8 +80,10 @@ export const AuthGateSheet: React.FC = () => {
       } else {
         if (res.error?.includes('popup-blocked') || res.error?.includes('popup')) {
           setError('Browser popup blocked. Please allow popups or use the instant email sign-in form below.');
+        } else if (res.error?.includes('action') || res.error?.includes('invalid')) {
+          setError('Google OAuth is not supported inside Android APK WebView. Please sign in or register with Email & Password below.');
         } else {
-          setError(res.error || 'Google Sign-In failed.');
+          setError(res.error || 'Google Sign-In failed. Please use Email Sign-In below.');
         }
         setIsGoogleLoading(false);
       }
