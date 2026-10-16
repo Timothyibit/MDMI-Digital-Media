@@ -41,6 +41,7 @@ jobs:
           cd android
           chmod +x gradlew
           yes | $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager --licenses 2>/dev/null || true
+          ./gradlew signingReport --no-daemon || true
           ./gradlew assembleDebug bundleRelease --no-daemon
 
       - name: Upload Sideloadable APK (.apk)

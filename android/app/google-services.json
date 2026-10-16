@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "266035394687",
+    "project_id": "gen-lang-client-0398777759",
+    "storage_bucket": "gen-lang-client-0398777759.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:266035394687:android:3e0d8b7244a13fca67674a",
+        "android_client_info": {
+          "package_name": "org.mdmi.devotionals"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7O76A4ovZJDHQKeGEZFSFYqu6H-XPc9M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
