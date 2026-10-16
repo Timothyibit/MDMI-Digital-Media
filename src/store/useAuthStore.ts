@@ -3,6 +3,7 @@ import { UserProfile, DailyActivityItem, ReadingSessionRecord } from '../types';
 import { useJournalStore } from './useJournalStore';
 import { useBookmarkStore } from './useBookmarkStore';
 import { useDevotionalStore } from './useDevotionalStore';
+import { Capacitor } from '@capacitor/core';
 import {
   auth,
   db,
@@ -487,9 +488,21 @@ export const useAuthStore = create<AuthState>((set, get) => {
     try {
       let fbUser: any;
 
-      if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+      const isNative =
+        typeof window !== 'undefined' &&
+        (Capacitor.isNativePlatform() ||
+          Capacitor.getPlatform() === 'android' ||
+          Capacitor.getPlatform() === 'ios' ||
+          window.location.protocol === 'capacitor:' ||
+          (window.location.hostname === 'localhost' && window.location.port !== '3000'));
+
+      if (isNative) {
         const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
-        GoogleAuth.initialize();
+        GoogleAuth.initialize({
+          clientId: '266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com',
+          scopes: ['profile', 'email'],
+          grantOfflineAccess: true,
+        });
         const googleUser = await GoogleAuth.signIn();
         const idToken = googleUser?.authentication?.idToken;
         if (!idToken) {
@@ -653,6 +666,15 @@ export const useAuthStore = create<AuthState>((set, get) => {
       return { success: true };
     } catch (err: any) {
       console.warn('Google Sign-In Notice:', err);
+      if (
+        err?.message?.includes('cancel') ||
+        err?.message?.includes('12501') ||
+        err?.code === '12501' ||
+        err?.message?.includes('closed')
+      ) {
+        set({ isLoading: false, error: null });
+        return { success: false, error: 'Sign in was cancelled.' };
+      }
       const errorMessage = err.message || 'Google Sign-In failed. Please try again.';
       set({ isLoading: false, error: errorMessage });
       return { success: false, error: errorMessage };
