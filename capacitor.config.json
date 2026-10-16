@@ -3,10 +3,11 @@
   "appName": "MDMI Devotionals",
   "webDir": "dist",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "hostname": "localhost"
   },
   "android": {
-    "backgroundColor": "#1E3A8A",
+    "backgroundColor": "#0B0F19",
     "allowMixedContent": true
   }
 }

@@ -1075,15 +1075,15 @@ export const AdminBroadcastManager: React.FC = () => {
 
             {/* Recurrence Rule Config */}
             <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-700 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <label className="text-xs font-bold text-neutral-900 dark:text-white">
                   Recurrence Cadence
                 </label>
-                <div className="flex items-center gap-1 bg-white dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                <div className="flex flex-wrap items-center gap-1 bg-white dark:bg-neutral-800 p-0.5 rounded-lg border border-neutral-200 dark:border-neutral-700 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => setRecFrequency('daily')}
-                    className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all ${
+                    className={`flex-1 sm:flex-initial px-2.5 py-1.5 rounded text-[11px] font-bold transition-all text-center ${
                       recFrequency === 'daily'
                         ? 'bg-indigo-600 text-white'
                         : 'text-neutral-600 dark:text-neutral-400'
@@ -1094,7 +1094,7 @@ export const AdminBroadcastManager: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setRecFrequency('weekly')}
-                    className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all ${
+                    className={`flex-1 sm:flex-initial px-2.5 py-1.5 rounded text-[11px] font-bold transition-all text-center ${
                       recFrequency === 'weekly'
                         ? 'bg-indigo-600 text-white'
                         : 'text-neutral-600 dark:text-neutral-400'
@@ -1105,7 +1105,7 @@ export const AdminBroadcastManager: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setRecFrequency('custom_hours')}
-                    className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all ${
+                    className={`flex-1 sm:flex-initial px-2.5 py-1.5 rounded text-[11px] font-bold transition-all text-center ${
                       recFrequency === 'custom_hours'
                         ? 'bg-indigo-600 text-white'
                         : 'text-neutral-600 dark:text-neutral-400'
@@ -1118,8 +1118,8 @@ export const AdminBroadcastManager: React.FC = () => {
 
               {/* Time of Day */}
               {recFrequency !== 'custom_hours' && (
-                <div className="flex items-center gap-3">
-                  <div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <div className="w-full sm:w-auto">
                     <label className="block text-[11px] font-bold text-neutral-600 dark:text-neutral-400 mb-1">
                       Release Time of Day:
                     </label>
@@ -1127,10 +1127,10 @@ export const AdminBroadcastManager: React.FC = () => {
                       type="time"
                       value={recTimeOfDay}
                       onChange={(e) => setRecTimeOfDay(e.target.value)}
-                      className="px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-mono font-bold text-xs"
+                      className="w-full sm:w-auto px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white font-mono font-bold text-xs"
                     />
                   </div>
-                  <div className="text-xs text-neutral-500 pt-4">
+                  <div className="text-xs text-neutral-500 pt-0 sm:pt-4">
                     Delivered at {recTimeOfDay} every day
                   </div>
                 </div>

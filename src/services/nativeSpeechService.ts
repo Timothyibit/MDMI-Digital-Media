@@ -359,27 +359,32 @@ export class NativeSpeechService {
 
     // 1. Native Android TTS Execution via Capacitor
     if (this.isNative()) {
-      TextToSpeech.speak({
-        text: chunk,
-        lang: 'en-US',
-        rate: Math.max(0.5, Math.min(2.0, this.currentRate)),
-        pitch: this.currentPitch,
-        volume: 1.0,
-        category: 'ambient',
-      })
-        .then(() => {
-          this.currentChunkIndex++;
-          const nextBase =
-            this.chunkCumulativeDurations[this.currentChunkIndex] || this.totalEstimatedDuration;
-          this.emitProgress(Math.min(this.totalEstimatedDuration, Math.round(nextBase)));
-          this.playNextChunk();
+      try {
+        TextToSpeech.speak({
+          text: chunk,
+          lang: 'en-US',
+          rate: Math.max(0.5, Math.min(2.0, this.currentRate)),
+          pitch: this.currentPitch,
+          volume: 1.0,
+          category: 'ambient',
         })
-        .catch((err) => {
-          console.warn('Native TTS chunk notice:', err);
-          this.currentChunkIndex++;
-          this.playNextChunk();
-        });
-      return;
+          .then(() => {
+            this.currentChunkIndex++;
+            const nextBase =
+              this.chunkCumulativeDurations[this.currentChunkIndex] || this.totalEstimatedDuration;
+            this.emitProgress(Math.min(this.totalEstimatedDuration, Math.round(nextBase)));
+            this.playNextChunk();
+          })
+          .catch((err) => {
+            console.warn('Native TTS chunk notice:', err);
+            this.currentChunkIndex++;
+            this.playNextChunk();
+          });
+        return;
+      } catch (nativeErr) {
+        console.warn('Native TTS synchronous error, falling back to browser synthesis:', nativeErr);
+        // Fall back to browser Web Speech below
+      }
     }
 
     this.currentChunkStartTime = Date.now();

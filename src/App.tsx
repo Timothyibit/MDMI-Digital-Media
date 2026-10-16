@@ -18,6 +18,7 @@ import { useBookmarkStore } from './store/useBookmarkStore';
 import { Devotional, TabType } from './types';
 import { App as CapApp } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { scheduleNativeDailyReminder } from './services/notificationService';
 
 // Components & Tabs
 import { HomeTab } from './tabs/HomeTab';
@@ -117,11 +118,19 @@ export default function App() {
     initializeLayout();
     const unsubNotifs = initializeNotifications();
 
-    // 1. Native Android notification permission via Capacitor
+    // 1. Native Android notification permission and daily offline alarm via Capacitor
     try {
       LocalNotifications.checkPermissions().then((status) => {
-        if (status.display === 'prompt' || status.display === 'prompt-with-rationale') {
-          LocalNotifications.requestPermissions().catch(() => {});
+        if (status.display !== 'granted') {
+          LocalNotifications.requestPermissions().then((res) => {
+            if (res.display === 'granted') {
+              const savedTime = localStorage.getItem('mdmi_notification_reminder_time') || '07:00';
+              scheduleNativeDailyReminder(savedTime).catch(() => {});
+            }
+          }).catch(() => {});
+        } else {
+          const savedTime = localStorage.getItem('mdmi_notification_reminder_time') || '07:00';
+          scheduleNativeDailyReminder(savedTime).catch(() => {});
         }
       }).catch(() => {});
     } catch {

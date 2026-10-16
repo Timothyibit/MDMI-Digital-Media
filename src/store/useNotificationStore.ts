@@ -33,6 +33,7 @@ import {
   syncScheduleToBackend,
   deleteScheduleFromBackend,
   clearBackendTestNotifications,
+  scheduleNativeDailyReminder,
 } from '../services/notificationService';
 export { playNotificationSound } from '../services/notificationService';
 import {
@@ -495,6 +496,7 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
   setDailyReminderTime: (time) => {
     try {
       localStorage.setItem(STORAGE_KEY_REMINDER_TIME, time);
+      scheduleNativeDailyReminder(time).catch(() => {});
     } catch {
       // ignore
     }

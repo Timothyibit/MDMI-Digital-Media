@@ -309,3 +309,60 @@ function createWindowNotification(
     console.warn('Window notification fallback notice:', err);
   }
 }
+
+/**
+ * Schedules a daily recurring notification directly with Android's native AlarmManager / LocalNotifications.
+ * This guarantees the morning devotional alert fires even when the app is completely closed or device is in sleep/Doze mode.
+ */
+export async function scheduleNativeDailyReminder(
+  timeStr: string = '07:00',
+  title: string = "Daily Devotional Ready 📖",
+  body: string = "Start your morning with spiritual reflection from The Master's Discipleship Ministries."
+): Promise<boolean> {
+  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) {
+    return false;
+  }
+
+  try {
+    const parts = (timeStr || '07:00').split(':');
+    const hour = parseInt(parts[0], 10) || 7;
+    const minute = parseInt(parts[1], 10) || 0;
+
+    // Check / request permission first if needed
+    const perm = await LocalNotifications.checkPermissions();
+    if (perm.display !== 'granted') {
+      const req = await LocalNotifications.requestPermissions();
+      if (req.display !== 'granted') return false;
+    }
+
+    // Cancel existing reminder alarm ID 1001
+    await LocalNotifications.cancel({ notifications: [{ id: 1001 }] }).catch(() => {});
+
+    // Schedule persistent native daily alarm
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: 1001,
+          title,
+          body,
+          schedule: {
+            on: {
+              hour,
+              minute,
+            },
+            repeats: true,
+            allowWhileIdle: true,
+          },
+          smallIcon: 'ic_launcher_round',
+          sound: undefined,
+        },
+      ],
+    });
+
+    console.info(`Native daily reminder successfully registered for ${hour}:${String(minute).padStart(2, '0')}`);
+    return true;
+  } catch (err) {
+    console.warn('Native daily reminder scheduling notice:', err);
+    return false;
+  }
+}

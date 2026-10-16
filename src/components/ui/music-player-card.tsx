@@ -494,7 +494,7 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
                 !audioState.audioUrl.startsWith('/api/proxy-audio') &&
                 audioRef.current
               ) {
-                const proxyUrl = `/api/proxy-audio?url=${encodeURIComponent(audioState.audioUrl)}`;
+                const proxyUrl = `${getApiBaseUrl()}/api/proxy-audio?url=${encodeURIComponent(audioState.audioUrl)}`;
                 audioRef.current.src = proxyUrl;
                 audioRef.current.play().catch(() => {
                   setAudioUseNativeSpeech(true);

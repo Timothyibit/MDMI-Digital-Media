@@ -80,6 +80,8 @@ export const AuthGateSheet: React.FC = () => {
       } else {
         if (res.error?.includes('popup-blocked') || res.error?.includes('popup')) {
           setError('Browser popup blocked. Please allow popups or use the instant email sign-in form below.');
+        } else if (res.error?.includes('unauthorized-domain') || res.error?.includes('unauthorized')) {
+          setError('Unauthorized domain: Please add "localhost" to Firebase Console > Authentication > Settings > Authorized domains. For instant login, use Email Sign-In below.');
         } else if (res.error?.includes('action') || res.error?.includes('invalid')) {
           setError('Google OAuth is not supported inside Android APK WebView. Please sign in or register with Email & Password below.');
         } else {
@@ -88,7 +90,9 @@ export const AuthGateSheet: React.FC = () => {
         setIsGoogleLoading(false);
       }
     } catch (err: any) {
-      if (err?.message?.includes('popup-blocked') || err?.code === 'auth/popup-blocked') {
+      if (err?.message?.includes('unauthorized-domain') || err?.code === 'auth/unauthorized-domain') {
+        setError('Unauthorized domain: Please add "localhost" to Firebase Console > Authentication > Settings > Authorized domains. For instant login, use Email Sign-In below.');
+      } else if (err?.message?.includes('popup-blocked') || err?.code === 'auth/popup-blocked') {
         setError('Browser popup was blocked. Please allow popups or use the email form below.');
       } else {
         setError(err?.message || 'Google Sign-In encountered an issue.');

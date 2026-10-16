@@ -681,7 +681,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
           />
 
           <View className="flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-            <View>
+            <View className="flex-1">
               <Text className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
                 Adjust Reminder Time
               </Text>
@@ -690,8 +690,8 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
               </Text>
             </View>
 
-            <View className="flex-col sm:flex-row sm:items-center gap-2.5">
-              <div className="w-36">
+            <View className="flex-row items-center gap-2.5 flex-wrap sm:flex-nowrap w-full sm:w-auto">
+              <div className="flex-1 sm:w-36 min-w-[140px]">
                 <DateTimePicker
                   value={(() => {
                     const d = new Date();
@@ -720,6 +720,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                 icon={<Bell className="w-3.5 h-3.5" />}
                 label={notificationsActive ? 'Active' : 'Turn On'}
                 onClick={() => handleSaveNotifications(!notificationsActive, reminderTime)}
+                className="shrink-0"
               />
             </View>
           </View>
