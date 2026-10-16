@@ -9,5 +9,12 @@
   "android": {
     "backgroundColor": "#0B0F19",
     "allowMixedContent": true
+  },
+  "plugins": {
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": false
+    }
   }
 }

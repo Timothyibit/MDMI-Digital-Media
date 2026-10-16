@@ -13,8 +13,10 @@ import {
   sendEmailVerification,
   applyActionCode,
   updateProfile,
+  signInWithCredential,
   User as FirebaseUser,
 } from 'firebase/auth';
+
 import {
   getFirestore,
   collection,
@@ -114,7 +116,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 }
 
 export {
+  GoogleAuthProvider,
   signInWithPopup,
+  signInWithCredential,
   fbSignInAnonymously,
   linkWithPopup,
   fbSignOut,

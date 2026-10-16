@@ -4,4 +4,5 @@
     <string name="title_activity_main">MDMI Devotionals</string>
     <string name="package_name">org.mdmi.devotionals</string>
     <string name="custom_url_scheme">org.mdmi.devotionals</string>
+    <string name="server_client_id">266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com</string>
 </resources>

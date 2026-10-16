@@ -7,7 +7,9 @@ import {
   auth,
   db,
   googleProvider,
+  GoogleAuthProvider,
   signInWithPopup,
+  signInWithCredential,
   fbSignInAnonymously,
   linkWithPopup,
   fbSignOut,
@@ -483,9 +485,24 @@ export const useAuthStore = create<AuthState>((set, get) => {
     set({ isLoading: true, error: null });
 
     try {
-      // Single direct signInWithPopup call — eliminates double redirect & duplicate sign-in requests
-      const credential = await signInWithPopup(auth, googleProvider);
-      const fbUser = credential.user;
+      let fbUser: any;
+
+      if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.()) {
+        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+        GoogleAuth.initialize();
+        const googleUser = await GoogleAuth.signIn();
+        const idToken = googleUser?.authentication?.idToken;
+        if (!idToken) {
+          throw new Error('Google Sign-In failed to retrieve native ID token.');
+        }
+        const credential = GoogleAuthProvider.credential(idToken);
+        const userCredential = await signInWithCredential(auth, credential);
+        fbUser = userCredential.user;
+      } else {
+        const credential = await signInWithPopup(auth, googleProvider);
+        fbUser = credential.user;
+      }
+
       const userEmail = (fbUser.email || '').toLowerCase().trim();
       const isBootstrapAdmin = userEmail === BOOTSTRAP_ADMIN_EMAIL.toLowerCase();
 
