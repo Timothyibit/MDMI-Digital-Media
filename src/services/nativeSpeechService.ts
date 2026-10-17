@@ -366,7 +366,6 @@ export class NativeSpeechService {
           rate: Math.max(0.5, Math.min(2.0, this.currentRate)),
           pitch: this.currentPitch,
           volume: 1.0,
-          category: 'ambient',
         })
           .then(() => {
             this.currentChunkIndex++;
@@ -376,15 +375,29 @@ export class NativeSpeechService {
             this.playNextChunk();
           })
           .catch((err) => {
-            console.warn('Native TTS chunk notice:', err);
-            this.currentChunkIndex++;
-            this.playNextChunk();
+            console.warn('Native TTS chunk notice, falling back to Web Speech:', err);
+            this.playUtteranceWeb(chunk);
           });
         return;
       } catch (nativeErr) {
         console.warn('Native TTS synchronous error, falling back to browser synthesis:', nativeErr);
-        // Fall back to browser Web Speech below
+        this.playUtteranceWeb(chunk);
+        return;
       }
+    }
+
+    this.playUtteranceWeb(chunk);
+  }
+
+  private playUtteranceWeb(chunk: string): void {
+    if (!this.synth && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      this.synth = window.speechSynthesis;
+    }
+
+    if (!this.synth) {
+      this.currentChunkIndex++;
+      this.playNextChunk();
+      return;
     }
 
     this.currentChunkStartTime = Date.now();

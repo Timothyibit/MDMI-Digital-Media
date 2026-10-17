@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { ThemeMode, Devotional, TabType } from '../types';
-import { generateDevotionalSpeech } from '../services/aiAudioService';
+import {
+  generateDevotionalSpeech,
+  buildDevotionalScript,
+  calculateAudioDuration,
+  calculateTextToSpeechDuration,
+  probeAudioFileDuration,
+  normalizeAudioUrl,
+} from '../services/aiAudioService';
 import { useDevotionalStore } from './useDevotionalStore';
 
 interface UIState {
@@ -184,15 +191,7 @@ export const useUIStore = create<UIState>((set, get) => {
     openVoiceSelector: () => set({ voiceSelectorOpen: true }),
     closeVoiceSelector: () => set({ voiceSelectorOpen: false }),
 
-    playDevotionalAudio: async (devotional) => {
-      const {
-        buildDevotionalScript,
-        calculateAudioDuration,
-        calculateTextToSpeechDuration,
-        probeAudioFileDuration,
-        normalizeAudioUrl,
-      } = await import('../services/aiAudioService');
-
+    playDevotionalAudio: (devotional) => {
       const currentRate = get().audioState.playbackRate || 1.0;
       const script = buildDevotionalScript(devotional);
       const rawAudio = devotional.audioUrl ? devotional.audioUrl.trim() : null;
