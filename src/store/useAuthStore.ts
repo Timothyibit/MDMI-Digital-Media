@@ -4,6 +4,7 @@ import { useJournalStore } from './useJournalStore';
 import { useBookmarkStore } from './useBookmarkStore';
 import { useDevotionalStore } from './useDevotionalStore';
 import { Capacitor } from '@capacitor/core';
+import { diagnosticLogger } from '../services/loggerService';
 import {
   auth,
   db,
@@ -667,6 +668,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
       return { success: true };
     } catch (err: any) {
       console.warn('Google Sign-In Notice:', err);
+      diagnosticLogger.logError('Google Sign-In failed on device', {
+        code: err?.code,
+        message: err?.message,
+      });
+
       if (
         err?.message?.includes('cancel') ||
         err?.message?.includes('12501') ||
@@ -676,7 +682,17 @@ export const useAuthStore = create<AuthState>((set, get) => {
         set({ isLoading: false, error: null });
         return { success: false, error: 'Sign in was cancelled.' };
       }
-      const errorMessage = err.message || 'Google Sign-In failed. Please try again.';
+
+      let errorMessage = err.message || 'Google Sign-In failed. Please try again.';
+      if (
+        err?.message?.includes('10') ||
+        err?.code === '10' ||
+        err?.message?.includes('DEVELOPER_ERROR')
+      ) {
+        errorMessage =
+          'Firebase SHA-1 Verification Required: Please ensure the SHA-1 fingerprint "21:D6:12:31:6B:01:61:88:25:1B:3F:D3:B3:A5:A7:02:34:EF:15:E3" is saved in your Firebase Console under Android app settings. Or use Email & Password below.';
+      }
+
       set({ isLoading: false, error: errorMessage });
       return { success: false, error: errorMessage };
     }

@@ -43,6 +43,7 @@ import { LikeButton } from '../ui/LikeButton';
 import MotionButton from '@/components/ui/motion-button';
 import { DevotionalReflectionsSection } from '../comments/DevotionalReflectionsSection';
 import { RichTextRenderer } from '../ui/RichTextRenderer';
+import { AudioErrorBoundary } from '../common/AudioErrorBoundary';
 import { EditDevotionalModal } from '../admin/EditDevotionalModal';
 import { EditJournalModal } from '../journal/EditJournalModal';
 import { FancyMobileAudioCard } from '../ui/FancyMobileAudioCard';
@@ -537,23 +538,25 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
         {/* Fancy Mobile-First Audio Narration Card */}
         {(devotional.audioUrl || devotional.body) && (
           <div className="my-5 w-full">
-            <FancyMobileAudioCard
-              devotional={devotional}
-              isPlaying={isThisAudioPlaying}
-              currentTime={audioState.currentTime}
-              duration={activeAudioDuration}
-              playbackRate={audioState.playbackRate}
-              onPlayPause={() => {
-                if (audioState.devotionalId === devotional.id) {
-                  toggleAudioPlayback();
-                } else {
-                  playDevotionalAudio(devotional);
-                }
-              }}
-              onSeek={seekAudioTime}
-              onSpeedChange={setAudioPlaybackRate}
-              onOpenVoiceSelector={openVoiceSelector}
-            />
+            <AudioErrorBoundary>
+              <FancyMobileAudioCard
+                devotional={devotional}
+                isPlaying={isThisAudioPlaying}
+                currentTime={audioState.currentTime}
+                duration={activeAudioDuration}
+                playbackRate={audioState.playbackRate}
+                onPlayPause={() => {
+                  if (audioState.devotionalId === devotional.id) {
+                    toggleAudioPlayback();
+                  } else {
+                    playDevotionalAudio(devotional);
+                  }
+                }}
+                onSeek={seekAudioTime}
+                onSpeedChange={setAudioPlaybackRate}
+                onOpenVoiceSelector={openVoiceSelector}
+              />
+            </AudioErrorBoundary>
           </div>
         )}
 

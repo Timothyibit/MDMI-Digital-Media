@@ -27,6 +27,7 @@ interface UIState {
   verseShareModalOpen: boolean;
   shareVerseData: { scripture: string; scriptureText: string; title: string; author: string } | null;
   voiceSelectorOpen: boolean;
+  diagnosticLogsOpen: boolean;
 
   // Audio Narration Mini-Player (AI Auto Text-to-Speech & Native Voice Engine)
   audioState: {
@@ -72,6 +73,9 @@ interface UIState {
 
   openVoiceSelector: () => void;
   closeVoiceSelector: () => void;
+
+  openDiagnosticLogs: () => void;
+  closeDiagnosticLogs: () => void;
 
   playDevotionalAudio: (devotional: Devotional) => void;
   toggleAudioPlayback: () => void;
@@ -122,6 +126,7 @@ export const useUIStore = create<UIState>((set, get) => {
     verseShareModalOpen: false,
     shareVerseData: null,
     voiceSelectorOpen: false,
+    diagnosticLogsOpen: false,
 
     audioState: {
       devotionalId: null,
@@ -190,6 +195,9 @@ export const useUIStore = create<UIState>((set, get) => {
 
     openVoiceSelector: () => set({ voiceSelectorOpen: true }),
     closeVoiceSelector: () => set({ voiceSelectorOpen: false }),
+
+    openDiagnosticLogs: () => set({ diagnosticLogsOpen: true }),
+    closeDiagnosticLogs: () => set({ diagnosticLogsOpen: false }),
 
     playDevotionalAudio: (devotional) => {
       const currentRate = get().audioState.playbackRate || 1.0;

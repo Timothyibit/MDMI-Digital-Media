@@ -37,6 +37,7 @@ import {
   Volume2,
   LogIn,
   UserPlus,
+  Terminal,
 } from 'lucide-react';
 import { MotionButton } from '@/components/ui/motion-button';
 import { useAuthStore } from '../store/useAuthStore';
@@ -84,6 +85,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
     setActiveTab,
     triggerConfetti,
     playDevotionalAudio,
+    openDiagnosticLogs,
   } = useUIStore();
   const { bookmarkedIds, toggleBookmark, isBookmarked } = useBookmarkStore();
   const { devotionals } = useDevotionalStore();
@@ -824,6 +826,32 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
           actionText="About MDMI Ministry"
           onAction={() => setActiveTab('about')}
         />
+
+        {/* Device Diagnostics & Debug Logs Card */}
+        <div className="p-5 rounded-[24px] border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+                <Terminal className="w-5 h-5" />
+              </div>
+              <View>
+                <Text className="text-xs font-bold text-neutral-900 dark:text-white">
+                  APK Diagnostics & Logs
+                </Text>
+                <Text className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                  Inspect in-app runtime logs and copy sanitized error reports
+                </Text>
+              </View>
+            </View>
+            <MotionButton
+              size="sm"
+              variant="secondary"
+              icon={<Terminal className="w-3.5 h-3.5 text-indigo-500" />}
+              label="View Logs"
+              onClick={openDiagnosticLogs}
+            />
+          </View>
+        </div>
 
         {/* Overseer Console Card - Only visible to Admins */}
         {isAdmin && (

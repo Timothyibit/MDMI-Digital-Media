@@ -9,6 +9,8 @@ import {
   Headphones,
   Sliders,
   Check,
+  Play,
+  Pause,
 } from 'lucide-react';
 import { Devotional } from '../../types';
 import { PlayPauseIcon } from '@/components/ui/animated-state-icons';
@@ -304,12 +306,11 @@ export const FancyMobileAudioCard: React.FC<FancyMobileAudioCardProps> = ({
             title={isPlaying ? 'Pause narration' : 'Play narration'}
             aria-label={isPlaying ? 'Pause narration' : 'Play narration'}
           >
-            <PlayPauseIcon
-              size={32}
-              color="#FFFFFF"
-              active={isPlaying}
-              className="drop-shadow-sm"
-            />
+            {isPlaying ? (
+              <Pause className="w-7 h-7 text-white fill-white" />
+            ) : (
+              <Play className="w-7 h-7 text-white fill-white ml-0.5" />
+            )}
           </button>
 
           {/* Forward 15s */}

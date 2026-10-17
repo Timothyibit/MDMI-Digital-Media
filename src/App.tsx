@@ -31,12 +31,14 @@ import { DevotionalReader } from './components/reader/DevotionalReader';
 // UI Overlays & Sheets
 import { OfflineBanner } from './components/ui/OfflineBanner';
 import { AudioPlayer } from './components/ui/AudioPlayer';
+import { AudioErrorBoundary } from './components/common/AudioErrorBoundary';
 import { AuthGateSheet } from './features/auth/AuthGateSheet';
 import { CommentsSheet } from './components/comments/CommentsSheet';
 import { VerseShareCard } from './components/share/VerseShareCard';
 import { VoiceSelectorModal } from './components/ui/VoiceSelectorModal';
 import { StreakConfetti } from './components/celebration/StreakConfetti';
 import { NotificationDrawer } from './components/notifications/NotificationDrawer';
+import { DiagnosticLogsModal } from './components/debug/DiagnosticLogsModal';
 import { NotificationsScreen } from './components/notifications/NotificationsScreen';
 import { IntroLoadingScreen } from './components/onboarding/IntroLoadingScreen';
 import { OnboardingModal } from './components/onboarding/OnboardingModal';
@@ -59,6 +61,8 @@ export default function App() {
     onboardingOpen,
     openOnboarding,
     closeOnboarding,
+    diagnosticLogsOpen,
+    closeDiagnosticLogs,
   } = useUIStore();
   const { devotionals, initializeDevotionals, activeDevotionalId, setActiveDevotionalId } = useDevotionalStore();
   const { initializeJournal } = useJournalStore();
@@ -290,7 +294,9 @@ export default function App() {
       <StreakConfetti />
 
       {/* Persistent Narration Player (Docked cleanly above bottom navigation) */}
-      <AudioPlayer />
+      <AudioErrorBoundary>
+        <AudioPlayer />
+      </AudioErrorBoundary>
 
       {/* Intro Loading Screen & Craft Onboarding Tour */}
       <IntroLoadingScreen isOpen={introSplashOpen} onFinish={handleFinishIntro} />
@@ -302,6 +308,7 @@ export default function App() {
       <VerseShareCard />
       <VoiceSelectorModal />
       <NotificationDrawer />
+      <DiagnosticLogsModal isOpen={diagnosticLogsOpen} onClose={closeDiagnosticLogs} />
 
       {/* App Header (Primary tabs only; reader has its own dedicated header) */}
       {activeTab !== 'reader' && (

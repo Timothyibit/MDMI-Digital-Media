@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { X, Volume2, VolumeX, Mic, Music, RotateCcw, RotateCw, Loader2, Sparkles, ChevronDown } from 'lucide-react';
+import { X, Volume2, VolumeX, Mic, Music, RotateCcw, RotateCw, Loader2, Sparkles, ChevronDown, Play, Pause } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { useDevotionalStore } from '../../store/useDevotionalStore';
 import { nativeSpeech } from '../../services/nativeSpeechService';
@@ -671,8 +671,10 @@ export const Card: React.FC<MusicPlayerCardProps> = ({
                 >
                   {audioState.isLoadingAudio ? (
                     <Loader2 className="w-6 h-6 animate-spin text-white" />
+                  ) : isPlaying ? (
+                    <Pause className="w-5 h-5 text-white fill-white" />
                   ) : (
-                    <PlayPauseIcon size={24} color="#FFFFFF" active={isPlaying} />
+                    <Play className="w-5 h-5 text-white fill-white ml-0.5" />
                   )}
                 </button>
               </div>
