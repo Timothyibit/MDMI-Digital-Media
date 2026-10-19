@@ -15,6 +15,8 @@ public class MainActivity extends BridgeActivity {
             settings.setMediaPlaybackRequiresUserGesture(false);
             settings.setDomStorageEnabled(true);
             settings.setDatabaseEnabled(true);
+            settings.setJavaScriptCanOpenWindowsAutomatically(true);
+            settings.setSupportMultipleWindows(true);
         }
     }
 }

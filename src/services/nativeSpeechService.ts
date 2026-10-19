@@ -57,7 +57,7 @@ export class NativeSpeechService {
         // LocalStorage fallback
       }
 
-      if (this.synth.onvoiceschanged !== undefined) {
+      if (this.synth && this.synth.onvoiceschanged !== undefined) {
         this.synth.onvoiceschanged = () => {
           this.loadVoices();
           this.notifyVoiceListeners();
@@ -320,8 +320,12 @@ export class NativeSpeechService {
     this.lastReportedTime = 0;
 
     // Reset synthesis engine if stuck
-    if (this.synth.paused) {
-      this.synth.resume();
+    if (this.synth?.paused) {
+      try {
+        this.synth.resume();
+      } catch {
+        // ignore
+      }
     }
 
     this.startProgressTracker();
@@ -456,11 +460,11 @@ export class NativeSpeechService {
     };
 
     try {
-      if (this.synth.paused) {
+      if (this.synth?.paused) {
         this.synth.resume();
       }
-      this.synth.speak(utterance);
-      if (this.synth.paused) {
+      this.synth?.speak(utterance);
+      if (this.synth?.paused) {
         this.synth.resume();
       }
     } catch (err) {
@@ -530,7 +534,7 @@ export class NativeSpeechService {
   }
 
   public seek(targetTimeSeconds: number): void {
-    if (!this.synth) return;
+    if (!this.synth && !this.isNative()) return;
     if (this.queue.length === 0 && this.lastSpokenText) {
       this.queue = this.chunkText(this.lastSpokenText);
     }
@@ -540,7 +544,16 @@ export class NativeSpeechService {
     const ratio = clampedTarget / (this.totalEstimatedDuration || 1);
     const targetIndex = Math.min(this.queue.length - 1, Math.floor(ratio * this.queue.length));
 
-    this.synth.cancel();
+    if (this.synth) {
+      try {
+        this.synth.cancel();
+      } catch {
+        // ignore
+      }
+    }
+    if (this.isNative()) {
+      TextToSpeech.stop().catch(() => {});
+    }
     this.activeUtterances.clear();
     this.currentChunkIndex = targetIndex;
     this.startTime = Date.now() - clampedTarget * 1000;
