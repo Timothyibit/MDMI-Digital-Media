@@ -504,7 +504,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
             clientId: '266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com',
             serverClientId: '266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com',
             scopes: ['profile', 'email'],
-            grantOfflineAccess: true,
+            grantOfflineAccess: false,
           });
           const googleUser = await GoogleAuth.signIn();
           const idToken = googleUser?.authentication?.idToken;
