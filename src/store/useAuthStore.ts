@@ -701,7 +701,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         err?.message?.includes('DEVELOPER_ERROR')
       ) {
         errorMessage =
-          'Firebase SHA-1 Verification Required: Please ensure the SHA-1 fingerprint "21:D6:12:31:6B:01:61:88:25:1B:3F:D3:B3:A5:A7:02:34:EF:15:E3" is saved in your Firebase Console under Android app settings. Or use Email & Password below.';
+          'Firebase SHA-1 Verification: Ensure SHA-1 "26:96:F2:D3:73:6C:29:76:0C:48:FD:41:8F:64:3E:7B:8F:C3:7D:3F" is saved in Firebase Console under MDMI Devotionals (Android). Or sign in with Email & Password below.';
       }
 
       set({ isLoading: false, error: errorMessage });

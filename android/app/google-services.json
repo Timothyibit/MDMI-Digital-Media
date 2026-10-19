@@ -18,6 +18,14 @@
           "client_type": 1,
           "android_info": {
             "package_name": "org.mdmi.devotionals",
+            "certificate_hash": "2696f2d3736c29760c48fd418f643e7b8fc37d3f"
+          }
+        },
+        {
+          "client_id": "266035394687-1pc8lj8urqeju5p5q6pfb5ke34ehrf5r.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "org.mdmi.devotionals",
             "certificate_hash": "21d612316b016188251b3fd3b3a5a70234ef15e3"
           }
         },

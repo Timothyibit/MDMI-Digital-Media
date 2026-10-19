@@ -34,20 +34,16 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Setup Deterministic Keystore & Extract Firebase SHA-1
+      - name: Verify Permanent Keystore & Extract Firebase SHA-1
         run: |
-          mkdir -p android/app
-          if [ ! -f android/app/debug.keystore ]; then
-            keytool -genkey -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
-          echo "## Firebase Android Certificate Fingerprints" >> $GITHUB_STEP_SUMMARY
-          SHA1_VAL=$(keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android | grep "SHA1:" | head -n 1 | awk '{print $2}')
-          SHA256_VAL=$(keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android | grep "SHA256:" | head -n 1 | awk '{print $2}')
-          echo "**SHA-1 Fingerprint:** \`$SHA1_VAL\`" >> $GITHUB_STEP_SUMMARY
-          echo "**SHA-256 Fingerprint:** \`$SHA256_VAL\`" >> $GITHUB_STEP_SUMMARY
+          echo "## Firebase Android Certificate Fingerprints (Permanent)" >> $GITHUB_STEP_SUMMARY
+          SHA1_VAL=$(keytool -list -v -keystore android/app/mdmi-signing.keystore -alias mdmi-key -storepass mdmi-devotionals | grep "SHA1:" | head -n 1 | awk '{print $2}')
+          SHA256_VAL=$(keytool -list -v -keystore android/app/mdmi-signing.keystore -alias mdmi-key -storepass mdmi-devotionals | grep "SHA256:" | head -n 1 | awk '{print $2}')
+          echo "**Permanent SHA-1 Fingerprint:** \`$SHA1_VAL\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Permanent SHA-256 Fingerprint:** \`$SHA256_VAL\`" >> $GITHUB_STEP_SUMMARY
           echo "=================================================="
-          echo "FIREBASE SHA-1 FINGERPRINT: $SHA1_VAL"
-          echo "FIREBASE SHA-256 FINGERPRINT: $SHA256_VAL"
+          echo "PERMANENT FIREBASE SHA-1 FINGERPRINT: $SHA1_VAL"
+          echo "PERMANENT FIREBASE SHA-256 FINGERPRINT: $SHA256_VAL"
           echo "=================================================="
 
       - name: Build Sideloadable APK & Play Store AAB
