@@ -16,6 +16,14 @@
         {
           "client_id": "266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com",
           "client_type": 3
+        },
+        {
+          "client_id": "266035394687-u066a50q5tovh23f462s7q21f00a5d6f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "org.mdmi.devotionals",
+            "certificate_hash": "21d612316b016188251b3fd3b3a5a70234ef15e3"
+          }
         }
       ],
       "api_key": [

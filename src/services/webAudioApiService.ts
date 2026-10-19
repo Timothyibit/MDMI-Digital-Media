@@ -118,21 +118,25 @@ class WebAudioApiService {
 
     // 1. If analyser is available and has real frequency data from audio element
     if (this.analyser && this.dataArray) {
-      // @ts-expect-error Uint8Array typing across browsers
-      this.analyser.getByteFrequencyData(this.dataArray);
-      let sum = 0;
-      const binCount = this.analyser.frequencyBinCount;
-      const step = Math.max(1, Math.floor(binCount / numBars));
+      try {
+        // @ts-expect-error Uint8Array typing across browsers
+        this.analyser.getByteFrequencyData(this.dataArray);
+        let sum = 0;
+        const binCount = this.analyser.frequencyBinCount;
+        const step = Math.max(1, Math.floor(binCount / numBars));
 
-      for (let i = 0; i < numBars; i++) {
-        const index = Math.min(binCount - 1, i * step);
-        const val = this.dataArray[index] / 255;
-        result[i] = Math.max(0.12, Math.min(1.0, val));
-        sum += val;
-      }
+        for (let i = 0; i < numBars; i++) {
+          const index = Math.min(binCount - 1, i * step);
+          const val = this.dataArray[index] / 255;
+          result[i] = Math.max(0.12, Math.min(1.0, val));
+          sum += val;
+        }
 
-      if (sum > 0.05) {
-        return result;
+        if (sum > 0.05) {
+          return result;
+        }
+      } catch (err) {
+        // Safe visualizer fallback
       }
     }
 

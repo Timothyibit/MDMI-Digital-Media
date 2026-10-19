@@ -498,21 +498,32 @@ export const useAuthStore = create<AuthState>((set, get) => {
           (window.location.hostname === 'localhost' && window.location.port !== '3000'));
 
       if (isNative) {
-        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
-        GoogleAuth.initialize({
-          clientId: '266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com',
-          serverClientId: '266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com',
-          scopes: ['profile', 'email'],
-          grantOfflineAccess: true,
-        });
-        const googleUser = await GoogleAuth.signIn();
-        const idToken = googleUser?.authentication?.idToken;
-        if (!idToken) {
-          throw new Error('Google Sign-In failed to retrieve native ID token.');
+        try {
+          const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+          GoogleAuth.initialize({
+            clientId: '266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com',
+            serverClientId: '266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com',
+            scopes: ['profile', 'email'],
+            grantOfflineAccess: true,
+          });
+          const googleUser = await GoogleAuth.signIn();
+          const idToken = googleUser?.authentication?.idToken;
+          if (!idToken) {
+            throw new Error('Google Sign-In failed to retrieve native ID token.');
+          }
+          const credential = GoogleAuthProvider.credential(idToken);
+          const userCredential = await signInWithCredential(auth, credential);
+          fbUser = userCredential.user;
+        } catch (nativeErr: any) {
+          console.warn('Native GoogleAuth failed, attempting web OAuth popup fallback:', nativeErr);
+          diagnosticLogger.logWarn('Native GoogleAuth failed, trying browser popup fallback:', nativeErr?.message || nativeErr);
+          try {
+            const credential = await signInWithPopup(auth, googleProvider);
+            fbUser = credential.user;
+          } catch (webErr) {
+            throw nativeErr;
+          }
         }
-        const credential = GoogleAuthProvider.credential(idToken);
-        const userCredential = await signInWithCredential(auth, credential);
-        fbUser = userCredential.user;
       } else {
         const credential = await signInWithPopup(auth, googleProvider);
         fbUser = credential.user;

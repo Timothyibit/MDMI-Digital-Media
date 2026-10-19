@@ -293,10 +293,12 @@ export default function App() {
       {/* Global Streak Confetti Celebration */}
       <StreakConfetti />
 
-      {/* Persistent Narration Player (Docked cleanly above bottom navigation) */}
-      <AudioErrorBoundary>
-        <AudioPlayer />
-      </AudioErrorBoundary>
+      {/* Persistent Narration Player (Docked cleanly above bottom navigation on primary tabs) */}
+      {activeTab !== 'reader' && (
+        <AudioErrorBoundary>
+          <AudioPlayer />
+        </AudioErrorBoundary>
+      )}
 
       {/* Intro Loading Screen & Craft Onboarding Tour */}
       <IntroLoadingScreen isOpen={introSplashOpen} onFinish={handleFinishIntro} />
