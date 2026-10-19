@@ -6,3 +6,17 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Security, Signing Keys & Certificates (Never commit to Git)
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*.p8
+*.mobileprovision
+debug.keystore
+mdmi-signing.keystore
+secrets.json
+service-account*.json
+

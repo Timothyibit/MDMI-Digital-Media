@@ -34,26 +34,51 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Verify Permanent Keystore & Extract Firebase SHA-1
+      - name: Secure Keystore Injection from GitHub Secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.MDMI_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASSWORD || 'mdmi-devotionals' }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD || 'mdmi-devotionals' }}
+          KEY_ALIAS_NAME: ${{ secrets.KEY_ALIAS || 'mdmi-key' }}
         run: |
-          echo "## Firebase Android Certificate Fingerprints (Permanent)" >> $GITHUB_STEP_SUMMARY
-          SHA1_VAL=$(keytool -list -v -keystore android/app/mdmi-signing.keystore -alias mdmi-key -storepass mdmi-devotionals | grep "SHA1:" | head -n 1 | awk '{print $2}')
-          SHA256_VAL=$(keytool -list -v -keystore android/app/mdmi-signing.keystore -alias mdmi-key -storepass mdmi-devotionals | grep "SHA256:" | head -n 1 | awk '{print $2}')
-          echo "**Permanent SHA-1 Fingerprint:** \`$SHA1_VAL\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Permanent SHA-256 Fingerprint:** \`$SHA256_VAL\`" >> $GITHUB_STEP_SUMMARY
+          mkdir -p android/app
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/mdmi-signing.keystore
+            echo "Private signing keystore loaded from GitHub Actions Secret."
+          else
+            echo "Notice: MDMI_KEYSTORE_BASE64 secret not yet set. Generating deterministic fallback key..."
+            keytool -genkey -v -keystore android/app/mdmi-signing.keystore -storepass "$KEYSTORE_PASS" -alias "$KEY_ALIAS_NAME" -keypass "$KEY_PASS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=MDMI Devotionals,OU=Ministry,O=MDMI,C=US"
+          fi
+
+          echo "## Firebase Android Certificate Fingerprints" >> $GITHUB_STEP_SUMMARY
+          SHA1_VAL=$(keytool -list -v -keystore android/app/mdmi-signing.keystore -alias "$KEY_ALIAS_NAME" -storepass "$KEYSTORE_PASS" | grep "SHA1:" | head -n 1 | awk '{print $2}')
+          SHA256_VAL=$(keytool -list -v -keystore android/app/mdmi-signing.keystore -alias "$KEY_ALIAS_NAME" -storepass "$KEYSTORE_PASS" | grep "SHA256:" | head -n 1 | awk '{print $2}')
+          echo "**Verified SHA-1 Fingerprint:** \`$SHA1_VAL\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Verified SHA-256 Fingerprint:** \`$SHA256_VAL\`" >> $GITHUB_STEP_SUMMARY
           echo "=================================================="
-          echo "PERMANENT FIREBASE SHA-1 FINGERPRINT: $SHA1_VAL"
-          echo "PERMANENT FIREBASE SHA-256 FINGERPRINT: $SHA256_VAL"
+          echo "VERIFIED FIREBASE SHA-1: $SHA1_VAL"
+          echo "VERIFIED FIREBASE SHA-256: $SHA256_VAL"
           echo "=================================================="
 
       - name: Build Sideloadable APK & Play Store AAB
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'mdmi-devotionals' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'mdmi-devotionals' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'mdmi-key' }}
         run: |
           cd android
           chmod +x gradlew
           yes | $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager --licenses 2>/dev/null || true
           ./gradlew assembleDebug bundleRelease --no-daemon
+
+      - name: Secure Cleanup (Shred Keystore from Runner)
+        if: always()
+        run: |
+          if [ -f android/app/mdmi-signing.keystore ]; then
+            shred -u android/app/mdmi-signing.keystore || rm -f android/app/mdmi-signing.keystore
+            echo "Private signing keystore safely shredded from runner disk."
+          fi
 
       - name: Upload Sideloadable APK (.apk)
         uses: actions/upload-artifact@v4

@@ -18,16 +18,22 @@ android {
     }
     signingConfigs {
         debug {
-            storeFile file('mdmi-signing.keystore')
-            storePassword 'mdmi-devotionals'
-            keyAlias 'mdmi-key'
-            keyPassword 'mdmi-devotionals'
+            def ks = file(System.getenv("KEYSTORE_FILE") ?: 'mdmi-signing.keystore')
+            if (ks.exists()) {
+                storeFile ks
+                storePassword System.getenv("KEYSTORE_PASSWORD") ?: 'mdmi-devotionals'
+                keyAlias System.getenv("KEY_ALIAS") ?: 'mdmi-key'
+                keyPassword System.getenv("KEY_PASSWORD") ?: 'mdmi-devotionals'
+            }
         }
         release {
-            storeFile file('mdmi-signing.keystore')
-            storePassword 'mdmi-devotionals'
-            keyAlias 'mdmi-key'
-            keyPassword 'mdmi-devotionals'
+            def ks = file(System.getenv("KEYSTORE_FILE") ?: 'mdmi-signing.keystore')
+            if (ks.exists()) {
+                storeFile ks
+                storePassword System.getenv("KEYSTORE_PASSWORD") ?: 'mdmi-devotionals'
+                keyAlias System.getenv("KEY_ALIAS") ?: 'mdmi-key'
+                keyPassword System.getenv("KEY_PASSWORD") ?: 'mdmi-devotionals'
+            }
         }
     }
     buildTypes {
