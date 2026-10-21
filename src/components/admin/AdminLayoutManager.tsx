@@ -9,6 +9,9 @@ import {
   LayoutTemplate,
   Star,
   Check,
+  Smartphone,
+  Volume2,
+  PenLine,
 } from 'lucide-react';
 import { useLayoutStore } from '../../store/useLayoutStore';
 import { useDevotionalStore } from '../../store/useDevotionalStore';
@@ -134,6 +137,103 @@ export const AdminLayoutManager: React.FC = () => {
           <span className="text-[10px] text-neutral-400 mt-1 block">
             This name will be automatically populated on all newly authored or drafted devotionals.
           </span>
+        </div>
+      </div>
+
+      {/* Quick Action Cards Device Structure Toggles */}
+      <div className="p-5 sm:p-6 rounded-xl border border-[#E9ECEF] dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800">
+          <div className="flex items-center gap-2">
+            <Smartphone className="w-4 h-4 text-[#84CC16]" />
+            <h4 className="font-bold text-sm text-[#172B4D] dark:text-white">
+              Device Card Architecture & Visibility
+            </h4>
+          </div>
+          <span className="text-[11px] text-neutral-400">
+            Show or hide quick action cards on disciples' devices
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          {/* Daily Spoken Reflection Card Toggle */}
+          <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/60 dark:bg-neutral-800/40 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Volume2 className="w-3.5 h-3.5 text-[#84CC16]" />
+                <h5 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                  Daily Spoken Reflection
+                </h5>
+              </div>
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
+                Audio player launch card on home feed
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                updateConfig({
+                  showSpokenReflectionCard: config.showSpokenReflectionCard === false ? true : false,
+                })
+              }
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                config.showSpokenReflectionCard !== false
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                  : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'
+              }`}
+            >
+              {config.showSpokenReflectionCard !== false ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Visible</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3.5 h-3.5" />
+                  <span>Hidden</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Personal Prayer Journal Card Toggle */}
+          <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/60 dark:bg-neutral-800/40 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <PenLine className="w-3.5 h-3.5 text-[#5E72E4]" />
+                <h5 className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                  Prayer Journal Card
+                </h5>
+              </div>
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
+                Personal prayer vault access card on home feed
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                updateConfig({
+                  showPrayerJournalCard: config.showPrayerJournalCard === false ? true : false,
+                })
+              }
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                config.showPrayerJournalCard !== false
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                  : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300'
+              }`}
+            >
+              {config.showPrayerJournalCard !== false ? (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Visible</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="w-3.5 h-3.5" />
+                  <span>Hidden</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

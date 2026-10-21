@@ -505,7 +505,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
             serverClientId: '266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com',
             scopes: ['profile', 'email'],
             grantOfflineAccess: false,
-          });
+          } as any);
           const googleUser = await GoogleAuth.signIn();
           const idToken = googleUser?.authentication?.idToken;
           if (!idToken) {
@@ -688,21 +688,15 @@ export const useAuthStore = create<AuthState>((set, get) => {
         err?.message?.includes('cancel') ||
         err?.message?.includes('12501') ||
         err?.code === '12501' ||
-        err?.message?.includes('closed')
+        err?.message?.includes('closed') ||
+        err?.message?.includes('popup-closed')
       ) {
         set({ isLoading: false, error: null });
         return { success: false, error: 'Sign in was cancelled.' };
       }
 
-      let errorMessage = err.message || 'Google Sign-In failed. Please try again.';
-      if (
-        err?.message?.includes('10') ||
-        err?.code === '10' ||
-        err?.message?.includes('DEVELOPER_ERROR')
-      ) {
-        errorMessage =
-          'Firebase SHA-1 Verification: Ensure SHA-1 "26:96:F2:D3:73:6C:29:76:0C:48:FD:41:8F:64:3E:7B:8F:C3:7D:3F" is saved in Firebase Console under MDMI Devotionals (Android). Or sign in with Email & Password below.';
-      }
+      // Friendly reverent error message without sensitive developer traces
+      const errorMessage = 'Unable to complete Google Sign-In at this time. Please try again or sign in with your Email & Password below.';
 
       set({ isLoading: false, error: errorMessage });
       return { success: false, error: errorMessage };

@@ -186,13 +186,71 @@ export async function clearBackendTestNotifications(): Promise<{ success: boolea
   }
 }
 
+export async function checkAndSyncNotificationPermission(userId?: string): Promise<NotificationPermission> {
+  // If running as native Capacitor Android
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+    try {
+      const res = await LocalNotifications.checkPermissions();
+      const granted = res.display === 'granted';
+      if (granted) {
+        localStorage.setItem('mdmi_notification_permission', 'granted');
+        await LocalNotifications.createChannel({
+          id: 'mdmi_channel',
+          name: 'MDMI Devotionals',
+          description: 'Daily devotional notifications and sacred broadcasts',
+          importance: 5,
+          visibility: 1,
+          vibration: true,
+        }).catch(() => {});
+        syncDeviceRegistration('granted', userId).catch(() => {});
+        return 'granted';
+      }
+    } catch (e) {
+      console.warn('Native check permissions note:', e);
+    }
+  }
+
+  // Web check
+  if (typeof window !== 'undefined' && 'Notification' in window) {
+    if (Notification.permission === 'granted') {
+      localStorage.setItem('mdmi_notification_permission', 'granted');
+      syncDeviceRegistration('granted', userId).catch(() => {});
+      return 'granted';
+    }
+    return Notification.permission;
+  }
+
+  const stored = typeof window !== 'undefined' ? localStorage.getItem('mdmi_notification_permission') : null;
+  return stored === 'granted' ? 'granted' : 'denied';
+}
+
 export async function requestDeviceNotificationPermission(userId?: string): Promise<NotificationPermission> {
   // 1. If running as a native Android APK via Capacitor
   if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
     try {
       const res = await LocalNotifications.requestPermissions();
       const granted = res.display === 'granted';
-      return granted ? 'granted' : 'denied';
+      const perm: NotificationPermission = granted ? 'granted' : 'denied';
+
+      if (granted) {
+        localStorage.setItem('mdmi_notification_permission', 'granted');
+        await LocalNotifications.createChannel({
+          id: 'mdmi_channel',
+          name: 'MDMI Devotionals',
+          description: 'Daily devotional alerts and ministry announcements',
+          importance: 5,
+          visibility: 1,
+          vibration: true,
+        }).catch(() => {});
+
+        const savedReminder = localStorage.getItem('mdmi_daily_reminder_time') || '07:00';
+        scheduleNativeDailyReminder(savedReminder).catch(() => {});
+      } else {
+        localStorage.setItem('mdmi_notification_permission', 'denied');
+      }
+
+      await syncDeviceRegistration(perm, userId);
+      return perm;
     } catch (nativeErr) {
       console.warn('Native notification permission notice:', nativeErr);
     }
@@ -209,6 +267,11 @@ export async function requestDeviceNotificationPermission(userId?: string): Prom
 
   try {
     const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      localStorage.setItem('mdmi_notification_permission', 'granted');
+    } else {
+      localStorage.setItem('mdmi_notification_permission', permission);
+    }
     // Register SW
     await registerServiceWorker();
     // Sync to backend
@@ -221,8 +284,16 @@ export async function requestDeviceNotificationPermission(userId?: string): Prom
 }
 
 export function getDeviceNotificationPermission(): NotificationPermission {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
+  if (typeof window === 'undefined') {
     return 'denied';
+  }
+  // Check persisted state first (vital for native Android WebView where window.Notification may be absent)
+  const stored = localStorage.getItem('mdmi_notification_permission');
+  if (stored === 'granted') {
+    return 'granted';
+  }
+  if (!('Notification' in window)) {
+    return stored === 'denied' ? 'denied' : 'default';
   }
   return Notification.permission;
 }
@@ -239,7 +310,7 @@ export function showDeviceNotification(
 ) {
   playNotificationSound();
 
-  // 1. Native Android notification banner via Capacitor
+  // 1. Native Android notification banner via Capacitor LocalNotifications
   if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
     try {
       LocalNotifications.schedule({
@@ -248,7 +319,9 @@ export function showDeviceNotification(
             id: Math.floor(Math.random() * 100000) + 1,
             title,
             body: options.body,
+            channelId: 'mdmi_channel',
             smallIcon: 'ic_launcher_round',
+            iconColor: '#5E72E4',
           },
         ],
       }).catch((e) => console.warn('Native notification schedule notice:', e));

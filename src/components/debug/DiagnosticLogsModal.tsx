@@ -39,7 +39,8 @@ export const DiagnosticLogsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     return unsub;
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Restrict raw runtime debug logs exclusively to Ministry Admins / Overseers
+  if (!isOpen || !isAdmin) return null;
 
   const filteredLogs = logs.filter((log) => {
     if (filter === 'warn-error') return log.level === 'warn' || log.level === 'error';

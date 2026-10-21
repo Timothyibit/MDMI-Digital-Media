@@ -17,6 +17,8 @@ const DEFAULT_CONFIG: AppHomeLayoutConfig = {
   featuredDevotionalId: 'today',
   heroCardStyle: 'organic',
   sections: DEFAULT_SECTIONS,
+  showSpokenReflectionCard: true,
+  showPrayerJournalCard: true,
   customWelcomeMessage: 'Winning souls, maturing believers in Christ, and serving in love',
   defaultAuthorName: "The Master's Discipleship Ministries",
   updatedAt: new Date().toISOString(),

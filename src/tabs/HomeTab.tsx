@@ -188,14 +188,18 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
         ) : null;
 
       case 'activityStats':
-      case 'activity':
+      case 'activity': {
+        const showReflection = config.showSpokenReflectionCard !== false;
+        const showJournal = config.showPrayerJournalCard !== false;
+        const hasAnyTile = showReflection || showJournal;
+
         return (
           <div
             key="activityStats"
             className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch"
           >
             {/* Interactive 7-Day Spiritual Activity Card */}
-            <div className="lg:col-span-7">
+            <div className={hasAnyTile ? 'lg:col-span-7' : 'lg:col-span-12'}>
               <ActivityCardBarGraph
                 onMorePress={() => setActiveTab('profile')}
                 className="h-full"
@@ -203,33 +207,40 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
             </div>
 
             {/* Quick Action Tiles */}
-            <div className="lg:col-span-5 flex flex-col justify-between gap-4">
-              {/* Daily Spoken Reflection Card */}
-              <AlertCard
-                variant="ministry-green"
-                badge="Voice Narration • Discipling to Serve"
-                icon={<Volume2 className="h-6 w-6 text-white" />}
-                title="Daily Spoken Reflection"
-                description="Instant stream-first audio for quiet time, prayer, and meditation."
-                buttonText="Listen Audio Now"
-                onButtonClick={() => featured && playDevotionalAudio(featured)}
-                className="max-w-none shadow-md h-full flex flex-col justify-between"
-              />
+            {hasAnyTile && (
+              <div className="lg:col-span-5 flex flex-col justify-between gap-4">
+                {/* Daily Spoken Reflection Card */}
+                {showReflection && (
+                  <AlertCard
+                    variant="ministry-green"
+                    badge="Voice Narration • Discipling to Serve"
+                    icon={<Volume2 className="h-6 w-6 text-white" />}
+                    title="Daily Spoken Reflection"
+                    description="Instant stream-first audio for quiet time, prayer, and meditation."
+                    buttonText="Listen Audio Now"
+                    onButtonClick={() => featured && playDevotionalAudio(featured)}
+                    className="max-w-none shadow-md h-full flex flex-col justify-between"
+                  />
+                )}
 
-              {/* Prayer Journal Card */}
-              <AlertCard
-                variant="ministry-red"
-                badge="Private Sanctuary • Ministry of Prayer"
-                icon={<PenLine className="h-6 w-6 text-white" />}
-                title="Prayer Journal"
-                description="Record what the Holy Spirit whispers during scripture reading."
-                buttonText="Open Journal"
-                onButtonClick={() => setActiveTab('journal')}
-                className="max-w-none shadow-md h-full flex flex-col justify-between"
-              />
-            </div>
+                {/* Prayer Journal Card */}
+                {showJournal && (
+                  <AlertCard
+                    variant="ministry-red"
+                    badge="Private Sanctuary • Ministry of Prayer"
+                    icon={<PenLine className="h-6 w-6 text-white" />}
+                    title="Prayer Journal"
+                    description="Record what the Holy Spirit whispers during scripture reading."
+                    buttonText="Open Journal"
+                    onButtonClick={() => setActiveTab('journal')}
+                    className="max-w-none shadow-md h-full flex flex-col justify-between"
+                  />
+                )}
+              </div>
+            )}
           </div>
         );
+      }
 
       case 'horizontalFeed':
       case 'recent':

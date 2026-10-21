@@ -122,6 +122,29 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
     bookmarkPage * BOOKMARK_PAGE_SIZE
   );
 
+  const [reportSending, setReportSending] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+
+  const handleSendReportToAdmin = async () => {
+    setReportSending(true);
+    try {
+      const { submitDiagnosticReport } = await import('../services/loggerService');
+      const res = await submitDiagnosticReport('User requested assistance from Profile page', {
+        email: user?.email || undefined,
+        uid: user?.uid || undefined,
+        role: user?.role,
+      });
+      if (res.success) {
+        setReportSubmitted(true);
+        setTimeout(() => setReportSubmitted(false), 5000);
+      }
+    } catch (e) {
+      console.warn('Send report note:', e);
+    } finally {
+      setReportSending(false);
+    }
+  };
+
   const handleResendVerify = async () => {
     setVerifyLoading(true);
     const res = await resendVerificationEmail();
@@ -682,18 +705,18 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
             className="max-w-none shadow-md"
           />
 
-          <View className="flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-            <View className="flex-1">
+          <div className="pt-2 space-y-3">
+            <div>
               <Text className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
                 Adjust Reminder Time
               </Text>
               <Text className="text-[11px] text-neutral-500 dark:text-neutral-400">
                 Choose the best hour for your morning discipleship routine
               </Text>
-            </View>
+            </div>
 
-            <View className="flex-row items-center gap-2.5 flex-wrap sm:flex-nowrap w-full sm:w-auto">
-              <div className="flex-1 sm:w-36 min-w-[140px]">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
+              <div className="w-full sm:flex-1 min-w-[260px] max-w-full sm:max-w-md">
                 <DateTimePicker
                   value={(() => {
                     const d = new Date();
@@ -706,6 +729,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                     return d;
                   })()}
                   mode="time"
+                  className="w-full"
                   onChange={(event, date) => {
                     if (event.type === 'set' && date) {
                       const h = String(date.getHours()).padStart(2, '0');
@@ -720,12 +744,12 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
                 size="sm"
                 variant={notificationsActive ? "ministry-green" : "secondary"}
                 icon={<Bell className="w-3.5 h-3.5" />}
-                label={notificationsActive ? 'Active' : 'Turn On'}
+                label={notificationsActive ? 'Reminder Active' : 'Turn On Reminder'}
                 onClick={() => handleSaveNotifications(!notificationsActive, reminderTime)}
-                className="shrink-0"
+                className="w-full sm:w-auto justify-center shrink-0"
               />
-            </View>
-          </View>
+            </div>
+          </div>
 
           {/* Device Notification Integration */}
           <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -827,31 +851,66 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ onSelectDevotional }) =>
           onAction={() => setActiveTab('about')}
         />
 
-        {/* Device Diagnostics & Debug Logs Card */}
-        <div className="p-5 rounded-[24px] border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
-                <Terminal className="w-5 h-5" />
-              </div>
-              <View>
-                <Text className="text-xs font-bold text-neutral-900 dark:text-white">
-                  APK Diagnostics & Logs
-                </Text>
-                <Text className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                  Inspect in-app runtime logs and copy sanitized error reports
-                </Text>
+        {/* Device Diagnostics & Ministry Support Card */}
+        {isAdmin ? (
+          /* Admins & Overseers can inspect full runtime debug logs */
+          <div className="p-5 rounded-[24px] border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+                  <Terminal className="w-5 h-5" />
+                </div>
+                <View>
+                  <Text className="text-xs font-bold text-neutral-900 dark:text-white">
+                    Overseer Diagnostics & Logs
+                  </Text>
+                  <Text className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    Inspect in-app runtime logs and copy sanitized error reports
+                  </Text>
+                </View>
               </View>
+              <MotionButton
+                size="sm"
+                variant="secondary"
+                icon={<Terminal className="w-3.5 h-3.5 text-indigo-500" />}
+                label="Inspect Logs"
+                onClick={openDiagnosticLogs}
+              />
             </View>
-            <MotionButton
-              size="sm"
-              variant="secondary"
-              icon={<Terminal className="w-3.5 h-3.5 text-indigo-500" />}
-              label="View Logs"
-              onClick={openDiagnosticLogs}
-            />
-          </View>
-        </div>
+          </div>
+        ) : (
+          /* Guests & Disciples: send diagnostic report to admin without seeing raw logs */
+          <div className="p-5 rounded-[24px] border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 shadow-sm space-y-3">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <Send className="w-5 h-5" />
+                </div>
+                <View>
+                  <Text className="text-xs font-bold text-neutral-900 dark:text-white">
+                    Ministry Technical Support
+                  </Text>
+                  <Text className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                    Send a diagnostic report if audio or sync needs attention
+                  </Text>
+                </View>
+              </View>
+              <MotionButton
+                size="sm"
+                variant={reportSubmitted ? "ministry-green" : "secondary"}
+                icon={reportSending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : reportSubmitted ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5 text-emerald-600" />}
+                label={reportSending ? "Sending..." : reportSubmitted ? "Report Sent!" : "Send to Support"}
+                disabled={reportSending || reportSubmitted}
+                onClick={handleSendReportToAdmin}
+              />
+            </View>
+            {reportSubmitted && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs">
+                Your device diagnostic report was sent securely to the ministry oversight team. Thank you!
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Overseer Console Card - Only visible to Admins */}
         {isAdmin && (

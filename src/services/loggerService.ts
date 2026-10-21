@@ -117,6 +117,26 @@ class DiagnosticLogger {
     return () => this.listeners.delete(cb);
   }
 
+  public generateSanitizedReport(userMeta?: { email?: string; role?: string }): string {
+    const lines: string[] = [];
+    lines.push('=== MDMI DEVOTIONALS DIAGNOSTIC LOG ===');
+    lines.push(`Generated: ${new Date().toISOString()}`);
+    if (typeof window !== 'undefined') {
+      lines.push(`URL: ${window.location.href}`);
+      lines.push(`UserAgent: ${navigator.userAgent}`);
+    }
+    lines.push(`User: ${userMeta?.email ? userMeta.email.slice(0, 3) + '***@***' : 'Anonymous'} (Role: ${userMeta?.role || 'user'})`);
+    lines.push('----------------------------------------');
+    lines.push('RECENT CAPTURED LOGS:');
+
+    this.logs.forEach((l) => {
+      lines.push(`[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message} ${l.details ? `| Details: ${l.details}` : ''}`);
+    });
+
+    lines.push('=== END OF DIAGNOSTIC REPORT ===');
+    return lines.join('\n');
+  }
+
   private notify(): void {
     this.listeners.forEach((cb) => {
       try {
@@ -129,3 +149,40 @@ class DiagnosticLogger {
 }
 
 export const diagnosticLogger = new DiagnosticLogger();
+
+/**
+ * Submit sanitized diagnostic report to Firestore collection 'diagnostic_reports'
+ * Accessible only by administrators in Overseer console.
+ */
+export async function submitDiagnosticReport(
+  userNote?: string,
+  userMeta?: { email?: string; uid?: string; role?: string }
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  try {
+    const { db, collection, addDoc, serverTimestamp } = await import('../lib/firebase');
+    const { Capacitor } = await import('@capacitor/core');
+
+    const errorCount = diagnosticLogger.getLogs().filter((l) => l.level === 'error').length;
+    const warnCount = diagnosticLogger.getLogs().filter((l) => l.level === 'warn').length;
+
+    const docRef = await addDoc(collection(db, 'diagnostic_reports'), {
+      report: diagnosticLogger.generateSanitizedReport(userMeta),
+      userNote: userNote?.trim() || 'Diagnostic log report submitted by user',
+      platform: Capacitor.getPlatform(),
+      isNative: Capacitor.isNativePlatform(),
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+      userEmail: userMeta?.email || 'Anonymous Disciple',
+      userId: userMeta?.uid || null,
+      userRole: userMeta?.role || 'guest',
+      errorCount,
+      warnCount,
+      createdAt: serverTimestamp(),
+      status: 'pending',
+    });
+
+    return { success: true, id: docRef.id };
+  } catch (err: any) {
+    console.warn('Diagnostic report submission note:', err?.message || err);
+    return { success: false, error: err?.message || 'Could not send report' };
+  }
+}

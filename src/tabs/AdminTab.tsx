@@ -45,6 +45,7 @@ import { EditDevotionalModal } from '../components/admin/EditDevotionalModal';
 import { AdminLayoutManager } from '../components/admin/AdminLayoutManager';
 import { AdminBroadcastManager } from '../components/admin/AdminBroadcastManager';
 import { AdminUserManager } from '../components/admin/AdminUserManager';
+import { AdminDiagnosticReports } from '../components/admin/AdminDiagnosticReports';
 import { ScheduledPublishingConfig } from '../components/admin/ScheduledPublishingConfig';
 import { RichTextEditor } from '../components/ui/RichTextEditor';
 import { DateTimePicker } from '../components/ui/DateTimePicker';
@@ -113,7 +114,7 @@ export const AdminTab: React.FC = () => {
   }, [fetchAllRegisteredUsers, isAdmin]);
 
   const [activeSection, setActiveSection] = useState<
-    'metrics' | 'users' | 'manage' | 'create' | 'layout' | 'broadcast' | 'moderate'
+    'metrics' | 'users' | 'manage' | 'create' | 'layout' | 'broadcast' | 'moderate' | 'diagnostics'
   >('metrics');
 
   // Edit Devotional State
@@ -437,6 +438,7 @@ export const AdminTab: React.FC = () => {
                 { id: 'layout', title: 'Page Structure' },
                 { id: 'broadcast', title: 'Device Alerts' },
                 { id: 'moderate', title: `Queue (${reportedComments.length})` },
+                { id: 'diagnostics', title: 'User Logs' },
               ]}
               activeTab={activeSection}
               onChange={(id) => setActiveSection(id as any)}
@@ -1214,6 +1216,9 @@ export const AdminTab: React.FC = () => {
 
         {/* PUSH NOTIFICATIONS & DEVICE POPUPS */}
         {activeSection === 'broadcast' && <AdminBroadcastManager />}
+
+        {/* USER DIAGNOSTIC LOGS & SUPPORT REPORTS */}
+        {activeSection === 'diagnostics' && <AdminDiagnosticReports />}
 
         {/* MODERATION QUEUE */}
         {activeSection === 'moderate' && (

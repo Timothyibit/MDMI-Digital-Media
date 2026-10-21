@@ -157,6 +157,8 @@ export interface AppHomeLayoutConfig {
   featuredDevotionalId: string | 'latest' | 'today';
   heroCardStyle: 'organic' | 'argon' | 'classic' | 'modern';
   sections: HomeLayoutSection[];
+  showSpokenReflectionCard?: boolean;
+  showPrayerJournalCard?: boolean;
   customWelcomeMessage?: string;
   defaultAuthorName?: string;
   updatedAt: string;

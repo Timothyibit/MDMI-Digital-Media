@@ -279,8 +279,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
           className={`${
             display === 'inline'
               ? 'w-full'
-              : 'absolute z-50 mt-1.5 w-full sm:w-80 shadow-2xl rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white'
-          } p-4 overflow-hidden animate-in fade-in zoom-in-95 duration-150`}
+              : 'absolute z-50 mt-2 left-0 right-0 sm:right-auto sm:w-88 min-w-[290px] max-w-[calc(100vw-24px)] shadow-2xl rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white'
+          } p-4 sm:p-5 overflow-hidden animate-in fade-in zoom-in-95 duration-150`}
         >
           {/* Tabs if datetime */}
           {mode === 'datetime' && (
@@ -402,10 +402,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
           {/* Time Picker View */}
           {(mode === 'time' || (mode === 'datetime' && activeTab === 'time')) && (
             <div className="space-y-4">
-              <div className="flex items-center justify-center gap-3 py-2">
+              <div className="flex items-center justify-center gap-2 sm:gap-4 py-2 w-full">
                 {/* Hours select */}
-                <div className="flex flex-col items-center">
-                  <label className="text-[10px] font-bold uppercase text-neutral-400 mb-1">
+                <div className="flex-1 max-w-[90px] flex flex-col items-center">
+                  <label className="text-[10px] font-bold uppercase text-neutral-500 dark:text-neutral-400 mb-1">
                     Hour
                   </label>
                   <select
@@ -418,7 +418,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                       }
                       handleSelectTime(val, currentMinutes);
                     }}
-                    className="p-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white font-mono font-bold text-base outline-none focus:border-[#5E72E4]"
+                    className="w-full text-center p-3 sm:p-3.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white font-mono font-bold text-lg outline-none focus:border-[#5E72E4] cursor-pointer shadow-xs"
                   >
                     {hoursOptions.map((h) => (
                       <option key={h} value={h}>
@@ -428,11 +428,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   </select>
                 </div>
 
-                <span className="text-xl font-bold font-mono text-neutral-400 mt-4">:</span>
+                <span className="text-2xl font-bold font-mono text-neutral-400 mt-5">:</span>
 
                 {/* Minutes select */}
-                <div className="flex flex-col items-center">
-                  <label className="text-[10px] font-bold uppercase text-neutral-400 mb-1">
+                <div className="flex-1 max-w-[90px] flex flex-col items-center">
+                  <label className="text-[10px] font-bold uppercase text-neutral-500 dark:text-neutral-400 mb-1">
                     Min
                   </label>
                   <select
@@ -445,7 +445,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                       const val = parseInt(e.target.value, 10);
                       handleSelectTime(currentHours, val);
                     }}
-                    className="p-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white font-mono font-bold text-base outline-none focus:border-[#5E72E4]"
+                    className="w-full text-center p-3 sm:p-3.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-white font-mono font-bold text-lg outline-none focus:border-[#5E72E4] cursor-pointer shadow-xs"
                   >
                     {minutesOptions.map((m) => (
                       <option key={m} value={m}>
@@ -457,8 +457,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
                 {/* AM / PM Toggle (if not 24 hour) */}
                 {!is24Hour && (
-                  <div className="flex flex-col items-center mt-4">
-                    <div className="flex rounded-xl overflow-hidden border border-neutral-300 dark:border-neutral-700">
+                  <div className="flex flex-col items-center mt-5 shrink-0">
+                    <div className="flex rounded-xl overflow-hidden border border-neutral-300 dark:border-neutral-700 shadow-xs">
                       <button
                         type="button"
                         onClick={() => {
@@ -466,10 +466,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                             handleSelectTime(currentHours - 12, currentMinutes);
                           }
                         }}
-                        className={`px-3 py-2 text-xs font-bold transition-all ${
+                        className={`px-3.5 py-3 text-xs font-bold transition-all ${
                           !isPM
-                            ? 'bg-[#5E72E4] text-white'
-                            : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
+                            ? 'bg-[#5E72E4] text-white shadow-xs'
+                            : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700'
                         }`}
                       >
                         AM
@@ -481,10 +481,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                             handleSelectTime(currentHours + 12, currentMinutes);
                           }
                         }}
-                        className={`px-3 py-2 text-xs font-bold transition-all ${
+                        className={`px-3.5 py-3 text-xs font-bold transition-all ${
                           isPM
-                            ? 'bg-[#5E72E4] text-white'
-                            : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300'
+                            ? 'bg-[#5E72E4] text-white shadow-xs'
+                            : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700'
                         }`}
                       >
                         PM

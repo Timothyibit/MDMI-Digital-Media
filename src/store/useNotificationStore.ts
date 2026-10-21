@@ -34,6 +34,7 @@ import {
   deleteScheduleFromBackend,
   clearBackendTestNotifications,
   scheduleNativeDailyReminder,
+  checkAndSyncNotificationPermission,
 } from '../services/notificationService';
 export { playNotificationSound } from '../services/notificationService';
 import {
@@ -802,6 +803,19 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       });
       playNotificationSound();
 
+      // Sync to backend notification registry for connected clients
+      fetch('/api/notifications/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: formattedTitle,
+          body: formattedBody,
+          type: data.type || 'broadcast',
+          devotionalId: data.devotionalId || null,
+          createdBy: data.createdBy || 'Ministry Overseer',
+        }),
+      }).catch(() => {});
+
       // Update local state immediately, ensuring strict ID uniqueness
       const newNotif: AppNotification = {
         ...data,
@@ -1173,8 +1187,10 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
     // Register SW in background
     registerServiceWorker().catch(() => {});
 
-    // Sync initial permission with backend
-    syncDeviceRegistration(getDeviceNotificationPermission()).catch(() => {});
+    // Asynchronously verify and sync persistent notification permission with OS (Android & Web)
+    checkAndSyncNotificationPermission().then((perm) => {
+      set({ permission: perm });
+    }).catch(() => {});
 
     set({
       permission: getDeviceNotificationPermission(),
@@ -1188,6 +1204,7 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
 
     // 1. Attach Firestore realtime listener for Notifications
     let unsubNotifications = () => {};
+    let isInitialSnapshot = true;
     try {
       const q = query(
         collection(db, 'notifications'),
@@ -1243,16 +1260,22 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
 
             saveStoredNotifications(finalNotifications);
 
-            // Check if there are newly arrived notifications to trigger a device popup
-            const previousIds = new Set(get().notifications.map((n) => n.id));
-            const newest = finalNotifications.find((n) => !previousIds.has(n.id) && !currentReadIds.has(n.id) && !isTestNotificationItem(n));
-            if (newest && get().notifications.length > 0) {
-              showDeviceNotification(newest.title, {
-                body: newest.body,
-                tag: newest.id,
-              });
-              playNotificationSound();
+            // Check if there are newly arrived notifications to trigger a device popup across all users
+            if (!isInitialSnapshot) {
+              const previousIds = new Set(get().notifications.map((n) => n.id));
+              const newArrivals = finalNotifications.filter(
+                (n) => !previousIds.has(n.id) && !currentReadIds.has(n.id) && !isTestNotificationItem(n)
+              );
+              if (newArrivals.length > 0) {
+                const newest = newArrivals[0];
+                showDeviceNotification(newest.title, {
+                  body: newest.body,
+                  tag: newest.id,
+                });
+                playNotificationSound();
+              }
             }
+            isInitialSnapshot = false;
 
             const unread = finalNotifications.filter((n) => !n.read && !currentArchived.has(n.id) && !isTestNotificationItem(n)).length;
             set({
@@ -1260,6 +1283,7 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
               unreadCount: unread,
             });
           } else {
+            isInitialSnapshot = false;
             // Clean empty state when no broadcasts yet (NO dummy test seeds)
             saveStoredNotifications([]);
             set({
