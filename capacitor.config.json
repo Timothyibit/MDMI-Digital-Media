@@ -15,6 +15,14 @@
       "scopes": ["profile", "email"],
       "serverClientId": "266035394687-ds6c2dv728ndnn3s32umvqo9uoptc2km.apps.googleusercontent.com",
       "forceCodeForRefreshToken": false
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_mdmi_logo",
+      "iconColor": "#5E72E4",
+      "sound": "beep.wav"
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
     }
   }
 }

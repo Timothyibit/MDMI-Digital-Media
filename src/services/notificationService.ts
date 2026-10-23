@@ -5,6 +5,7 @@
  */
 
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 
 export type PlatformType = 'web' | 'android' | 'ios';
@@ -147,7 +148,8 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 /** Sync device notification state and registration with backend server */
 export async function syncDeviceRegistration(
   permission: NotificationPermission,
-  userId?: string
+  userId?: string,
+  token?: string
 ): Promise<{ success: boolean; data?: any }> {
   try {
     const platform = detectPlatform();
@@ -157,6 +159,8 @@ export async function syncDeviceRegistration(
       localStorage.setItem('mdmi_device_id', deviceId);
     }
 
+    const savedToken = token || localStorage.getItem('mdmi_fcm_token') || undefined;
+
     const res = await fetch('/api/notifications/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -164,6 +168,7 @@ export async function syncDeviceRegistration(
         platform,
         permission,
         deviceId,
+        token: savedToken,
         userId: userId || undefined,
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       }),
@@ -175,6 +180,59 @@ export async function syncDeviceRegistration(
   } catch (err: any) {
     console.warn('Backend notification sync notice:', err?.message || err);
     return { success: false };
+  }
+}
+
+/** Initialize Google Firebase Cloud Messaging (FCM) Push Notifications for closed-app delivery */
+export async function initPushNotifications(
+  onNotificationTapped?: (data: any) => void
+): Promise<void> {
+  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) {
+    return;
+  }
+
+  try {
+    let permStatus = await PushNotifications.checkPermissions();
+    if (permStatus.receive === 'prompt') {
+      permStatus = await PushNotifications.requestPermissions();
+    }
+    if (permStatus.receive === 'granted') {
+      await PushNotifications.register();
+    }
+
+    // Capture FCM device registration token
+    PushNotifications.addListener('registration', (token) => {
+      console.info('Native FCM push token registered:', token.value);
+      localStorage.setItem('mdmi_fcm_token', token.value);
+      syncDeviceRegistration('granted', undefined, token.value).catch(() => {});
+    });
+
+    PushNotifications.addListener('registrationError', (err) => {
+      console.warn('Native FCM push registration notice:', err.error);
+    });
+
+    // Handle incoming push notification when app is open or minimized
+    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      console.info('Push notification received:', notification.title);
+      // Trigger instant in-app update
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mdmi:notification-received', { detail: notification }));
+      }
+    });
+
+    // Handle user tapping on push notification (including when app was closed/killed)
+    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      console.info('Push notification action performed:', action.notification?.data);
+      const data = action.notification?.data || {};
+      if (onNotificationTapped) {
+        onNotificationTapped(data);
+      }
+      if (typeof window !== 'undefined') {
+        window.postMessage({ type: 'MDMI_NOTIFICATION_CLICKED', data }, '*');
+      }
+    });
+  } catch (err) {
+    console.warn('Native Push Notifications init notice:', err);
   }
 }
 
@@ -392,7 +450,7 @@ export async function showDeviceNotification(
             title,
             body: options.body,
             channelId: soundOn ? 'mdmi_channel' : 'mdmi_channel_silent',
-            smallIcon: 'ic_launcher_round',
+            smallIcon: 'ic_stat_mdmi_logo',
             iconColor: '#5E72E4',
             sound: undefined,
             extra: payloadData,
@@ -566,7 +624,7 @@ export async function scheduleNativeDailyReminder(
             repeats: true,
             allowWhileIdle: true,
           },
-          smallIcon: 'ic_launcher_round',
+          smallIcon: 'ic_stat_mdmi_logo',
           sound: undefined,
         },
       ],
@@ -579,3 +637,4 @@ export async function scheduleNativeDailyReminder(
     return false;
   }
 }
+

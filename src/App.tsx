@@ -18,7 +18,7 @@ import { useBookmarkStore } from './store/useBookmarkStore';
 import { Devotional, TabType } from './types';
 import { App as CapApp } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { scheduleNativeDailyReminder } from './services/notificationService';
+import { scheduleNativeDailyReminder, initPushNotifications } from './services/notificationService';
 
 // Components & Tabs
 import { HomeTab } from './tabs/HomeTab';
@@ -194,6 +194,22 @@ export default function App() {
         } else {
           const savedTime = localStorage.getItem('mdmi_notification_reminder_time') || '07:00';
           scheduleNativeDailyReminder(savedTime).catch(() => {});
+        }
+      }).catch(() => {});
+
+      // 3. Native Firebase Push Notifications (FCM) for instant closed-app broadcasts
+      initPushNotifications((data) => {
+        const devotionalId = data?.devotionalId;
+        const notifId = data?.notificationId || data?.id;
+
+        if (devotionalId) {
+          setActiveDevotionalId(devotionalId);
+          setActiveTab('reader');
+        } else if (notifId) {
+          useNotificationStore.getState().openNotificationDetail(notifId);
+          setActiveTab('notifications');
+        } else {
+          setActiveTab('notifications');
         }
       }).catch(() => {});
     } catch {
