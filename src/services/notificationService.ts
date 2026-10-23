@@ -39,8 +39,35 @@ export function isStandalonePWA(): boolean {
   );
 }
 
+/** Check whether sound / chime is enabled in user preferences */
+export function isNotificationSoundEnabled(): boolean {
+  if (typeof window === 'undefined') return true;
+  return localStorage.getItem('mdmi_notif_sound_enabled') !== 'false';
+}
+
+/** Set notification sound preference and update Android channels */
+export function setNotificationSoundEnabled(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('mdmi_notif_sound_enabled', String(enabled));
+  ensureNotificationChannels().catch(() => {});
+}
+
+// Track last time chime played to prevent spam / rapid repeating chimes
+let lastChimeTimestamp = 0;
+
 // Synthesize a gentle, reverent temple bell / chime when a spiritual notification arrives
-export function playNotificationSound() {
+export function playNotificationSound(force = false) {
+  if (!force && !isNotificationSoundEnabled()) {
+    return;
+  }
+
+  const nowMs = Date.now();
+  // Prevent chime spam: minimum 3.5 seconds between chimes
+  if (!force && nowMs - lastChimeTimestamp < 3500) {
+    return;
+  }
+  lastChimeTimestamp = nowMs;
+
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
@@ -68,6 +95,37 @@ export function playNotificationSound() {
     });
   } catch {
     // AudioContext blocked or not supported
+  }
+}
+
+/** Ensure both audible and silent notification channels are initialized on native Android */
+export async function ensureNotificationChannels(): Promise<void> {
+  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) {
+    return;
+  }
+  try {
+    // 1. Audible Channel with Temple Sound & Vibration
+    await LocalNotifications.createChannel({
+      id: 'mdmi_channel',
+      name: 'MDMI Devotionals (Audible)',
+      description: 'Daily devotional alerts and ministry announcements with sound and vibration',
+      importance: 5,
+      visibility: 1,
+      vibration: true,
+    }).catch(() => {});
+
+    // 2. Silent Channel (Guaranteed zero sound / vibration when user disables sound)
+    await LocalNotifications.createChannel({
+      id: 'mdmi_channel_silent',
+      name: 'MDMI Devotionals (Silent)',
+      description: 'Quiet devotional alerts without chime or vibration',
+      importance: 3,
+      visibility: 1,
+      vibration: false,
+      sound: undefined,
+    }).catch(() => {});
+  } catch (e) {
+    console.warn('Channel creation notice:', e);
   }
 }
 
@@ -194,14 +252,7 @@ export async function checkAndSyncNotificationPermission(userId?: string): Promi
       const granted = res.display === 'granted';
       if (granted) {
         localStorage.setItem('mdmi_notification_permission', 'granted');
-        await LocalNotifications.createChannel({
-          id: 'mdmi_channel',
-          name: 'MDMI Devotionals',
-          description: 'Daily devotional notifications and sacred broadcasts',
-          importance: 5,
-          visibility: 1,
-          vibration: true,
-        }).catch(() => {});
+        await ensureNotificationChannels();
         syncDeviceRegistration('granted', userId).catch(() => {});
         return 'granted';
       }
@@ -234,14 +285,7 @@ export async function requestDeviceNotificationPermission(userId?: string): Prom
 
       if (granted) {
         localStorage.setItem('mdmi_notification_permission', 'granted');
-        await LocalNotifications.createChannel({
-          id: 'mdmi_channel',
-          name: 'MDMI Devotionals',
-          description: 'Daily devotional alerts and ministry announcements',
-          importance: 5,
-          visibility: 1,
-          vibration: true,
-        }).catch(() => {});
+        await ensureNotificationChannels();
 
         const savedReminder = localStorage.getItem('mdmi_daily_reminder_time') || '07:00';
         scheduleNativeDailyReminder(savedReminder).catch(() => {});
@@ -305,23 +349,32 @@ export async function showDeviceNotification(
     icon?: string;
     tag?: string;
     data?: any;
+    playSound?: boolean;
     onClick?: () => void;
   }
 ): Promise<boolean> {
-  playNotificationSound();
+  const soundOn = isNotificationSoundEnabled();
+
+  // Play audible chime only if sound is enabled AND this is not an automated background retry
+  if (options.playSound !== false && soundOn) {
+    playNotificationSound();
+  }
+
+  const payloadData = {
+    ...(options.data || {}),
+    id: options.tag || options.data?.id || `notif_${Date.now()}`,
+    notificationId: options.tag || options.data?.id || `notif_${Date.now()}`,
+    devotionalId: options.data?.devotionalId || null,
+    type: options.data?.type || 'broadcast',
+    title,
+    body: options.body,
+    createdBy: options.data?.createdBy || 'Ministry Overseer',
+  };
 
   // 1. Native Android notification banner via Capacitor LocalNotifications
   if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
     try {
-      // Ensure notification channel is active with high importance
-      await LocalNotifications.createChannel({
-        id: 'mdmi_channel',
-        name: 'MDMI Devotionals',
-        description: 'Daily devotional alerts and ministry announcements',
-        importance: 5,
-        visibility: 1,
-        vibration: true,
-      }).catch(() => {});
+      await ensureNotificationChannels();
 
       const perm = await LocalNotifications.checkPermissions();
       if (perm.display !== 'granted') {
@@ -335,12 +388,14 @@ export async function showDeviceNotification(
       await LocalNotifications.schedule({
         notifications: [
           {
-            id: Math.floor(Math.random() * 100000) + 1,
+            id: Math.floor(Math.random() * 1000000) + 1,
             title,
             body: options.body,
-            channelId: 'mdmi_channel',
+            channelId: soundOn ? 'mdmi_channel' : 'mdmi_channel_silent',
             smallIcon: 'ic_launcher_round',
             iconColor: '#5E72E4',
+            sound: undefined,
+            extra: payloadData,
             schedule: {
               at: new Date(Date.now() + 100),
               allowWhileIdle: true,
@@ -365,11 +420,15 @@ export async function showDeviceNotification(
           icon: options.icon || '/logo.svg',
           badge: '/logo.svg',
           tag: options.tag || 'mdmi-daily',
-          data: options.data,
+          silent: !soundOn,
+          data: payloadData,
         });
         return true;
       } else {
-        createWindowNotification(title, options);
+        createWindowNotification(title, {
+          ...options,
+          data: payloadData,
+        });
         return true;
       }
     } catch (err) {
@@ -387,20 +446,30 @@ function createWindowNotification(
     body: string;
     icon?: string;
     tag?: string;
+    data?: any;
     onClick?: () => void;
   }
 ) {
   try {
+    const soundOn = isNotificationSoundEnabled();
     const notif = new Notification(title, {
       body: options.body,
       icon: options.icon || '/logo.svg',
       tag: options.tag || 'mdmi-daily',
-      silent: true,
+      silent: !soundOn,
+      data: options.data,
     });
 
     notif.onclick = () => {
       window.focus();
-      if (options.onClick) options.onClick();
+      if (options.onClick) {
+        options.onClick();
+      } else if (options.data) {
+        window.postMessage({
+          type: 'MDMI_NOTIFICATION_CLICKED',
+          data: options.data,
+        }, '*');
+      }
       notif.close();
     };
   } catch (err) {

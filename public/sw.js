@@ -55,12 +55,22 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  const targetUrl = event.notification.data?.url || '/';
+  const notifData = event.notification.data || {};
+  let targetUrl = notifData.url || '/';
+  if (notifData.devotionalId) {
+    targetUrl = `/?devotionalId=${encodeURIComponent(notifData.devotionalId)}`;
+  } else if (notifData.notificationId || notifData.id) {
+    targetUrl = `/?notificationId=${encodeURIComponent(notifData.notificationId || notifData.id)}`;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if (client.url && 'focus' in client) {
+        if ('focus' in client) {
+          client.postMessage({
+            type: 'MDMI_NOTIFICATION_CLICKED',
+            data: notifData,
+          });
           return client.focus();
         }
       }

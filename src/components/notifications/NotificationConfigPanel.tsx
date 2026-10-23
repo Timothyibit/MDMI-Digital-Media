@@ -157,9 +157,13 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
 
       {/* 1. Audio & Bell Sound */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#5E72E4]/10 dark:bg-[#5E72E4]/20 text-[#5E72E4] dark:text-[#889af7] flex items-center justify-center font-bold shrink-0">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold shrink-0 transition-colors ${
+              soundEnabled
+                ? 'bg-[#5E72E4]/10 dark:bg-[#5E72E4]/20 text-[#5E72E4] dark:text-[#889af7]'
+                : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-500'
+            }`}>
               {soundEnabled ? (
                 <Volume2 className="w-4 h-4" />
               ) : (
@@ -167,30 +171,44 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
               )}
             </div>
             <div>
-              <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50">
-                Sacred Temple Bell Chime
-              </p>
-              <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
-                Gentle, reverent chime plays when spiritual notifications arrive
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50">
+                  Notification Sound &amp; Chime
+                </p>
+                <span className={`text-[10px] font-extrabold px-2 py-0.2 rounded-full ${
+                  soundEnabled
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    : 'bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
+                }`}>
+                  {soundEnabled ? 'Sound ON' : 'Muted / Silent'}
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-0.5">
+                {soundEnabled
+                  ? 'Reverent temple chime will ring on arrival (Android channel & browser).'
+                  : 'All notifications arrive silently without audio chime or vibration.'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleTestChime}
-              className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
-            >
-              <Volume2 className="w-3 h-3 text-[#5E72E4] dark:text-[#889af7]" />
-              <span>{soundTested ? 'Chimed!' : 'Test Sound'}</span>
-            </button>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {soundEnabled && (
+              <button
+                type="button"
+                onClick={handleTestChime}
+                className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
+              >
+                <Volume2 className="w-3 h-3 text-[#5E72E4] dark:text-[#889af7]" />
+                <span>{soundTested ? 'Chimed!' : 'Test Sound'}</span>
+              </button>
+            )}
 
             <button
               type="button"
               role="switch"
               aria-checked={soundEnabled}
               onClick={() => toggleSoundEnabled()}
+              aria-label="Toggle notification sound"
               className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#5E72E4] ${
                 soundEnabled ? 'bg-[#5E72E4]' : 'bg-neutral-300 dark:bg-neutral-700'
               }`}
@@ -399,7 +417,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
 
       {/* 4. Multi-Platform Device Push Integration */}
       <div className="pt-3 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {platform === 'ios' ? (
               <Apple className="w-4 h-4 text-neutral-800 dark:text-neutral-200" />
@@ -409,7 +427,11 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
               <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             )}
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
-              Device System Push:
+              {platform === 'android'
+                ? 'Android Phone Alerts:'
+                : platform === 'ios'
+                ? 'Apple iOS Push:'
+                : 'Browser Web Alerts:'}
             </span>
             <span
               className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full ${
@@ -435,7 +457,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
                 onClick={() => requestPermission()}
                 className="px-3.5 py-1.5 bg-[#5E72E4] hover:bg-[#485ec4] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
               >
-                Enable Push
+                {platform === 'android' ? 'Enable Phone Push' : 'Enable Browser Alerts'}
               </button>
             ) : (
               <button
@@ -478,6 +500,14 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
           </div>
         </div>
 
+        {/* In-App Notifications Reassurance Banner */}
+        <div className="p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-900/40 flex items-center gap-2 text-xs text-blue-900 dark:text-blue-200">
+          <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+          <p className="text-[11px]">
+            <strong>In-App Notifications Bar:</strong> Always active. All broadcasts and pastoral announcements show on your in-app notification bar whether OS push permissions are allowed or blocked.
+          </p>
+        </div>
+
         {testDeliveryFeedback && !testSent && (
           <p className="text-[11px] text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 p-2 rounded-lg">
             {testDeliveryFeedback}
@@ -503,23 +533,22 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
               <div>
                 <p className="font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                   <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Android Push Setup</span>
+                  <span>Android Push &amp; Battery Settings</span>
                 </p>
-                <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-1">
-                  Tap <strong>Enable Push</strong> above. Android Chrome will prompt you to allow
-                  notifications. Alert popups will show up on your lock screen with the sacred
-                  temple chime.
-                </p>
+                <ol className="list-decimal list-inside text-[11px] text-neutral-600 dark:text-neutral-300 space-y-0.5 mt-1">
+                  <li>Open Phone Settings → Apps → MDMI Devotionals.</li>
+                  <li>Tap <strong>Notifications</strong> → Turn ON all alert categories.</li>
+                  <li>Tap <strong>Battery</strong> → Select <strong>Unrestricted</strong> so broadcasts wake your device when closed.</li>
+                </ol>
               </div>
             ) : (
               <div>
                 <p className="font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                   <Globe className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Desktop Browser Push Setup</span>
+                  <span>Browser Web Notification Settings</span>
                 </p>
                 <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-1">
-                  Allow notifications when prompted by your browser to receive instant spiritual
-                  encouragements and morning devotional reminders right on your desktop.
+                  If blocked, click the lock or tune icon in your browser's address bar next to the URL, find <strong>Notifications</strong>, and choose <strong>Allow</strong>.
                 </p>
               </div>
             )}

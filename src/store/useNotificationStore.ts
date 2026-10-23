@@ -36,8 +36,10 @@ import {
   scheduleNativeDailyReminder,
   checkAndSyncNotificationPermission,
   testDeviceNotificationDelivery,
+  setNotificationSoundEnabled,
+  isNotificationSoundEnabled,
 } from '../services/notificationService';
-export { playNotificationSound } from '../services/notificationService';
+export { playNotificationSound, isNotificationSoundEnabled, setNotificationSoundEnabled } from '../services/notificationService';
 import {
   computeNextRecurrence,
   DEFAULT_AUTOMATIC_RULES,
@@ -219,22 +221,26 @@ export async function flushPendingDeliveries(): Promise<{ delivered: number; rem
       const success = await showDeviceNotification(item.title, {
         body: item.body,
         tag: item.id,
+        data: {
+          id: item.id,
+          notificationId: item.id,
+          devotionalId: item.devotionalId,
+          type: 'broadcast',
+          title: item.title,
+          body: item.body,
+        },
+        playSound: false, // Critical: Background flush must NEVER trigger recurring audio chime
       });
 
       if (success) {
         recordDeliveredId(item.id);
         deliveredCount++;
       } else {
-        const attempts = (item.attempts || 0) + 1;
-        const itemAgeHours = (now - new Date(item.createdAt).getTime()) / (1000 * 60 * 60);
-        // Persistently retry broadcasts up to 50 attempts or within 72 hours
-        if (attempts < 50 && (isNaN(itemAgeHours) || itemAgeHours < 72)) {
-          nextQueue.push({
-            ...item,
-            attempts,
-            lastAttemptAt: now,
-          });
-        }
+        nextQueue.push({
+          ...item,
+          attempts: (item.attempts || 0) + 1,
+          lastAttemptAt: now,
+        });
       }
     } catch {
       nextQueue.push({
@@ -377,22 +383,12 @@ function saveStoredSchedules(schedules: NotificationSchedule[]) {
 
 export function deduplicateNotifications(items: AppNotification[]): AppNotification[] {
   const seenId = new Set<string>();
-  const seenContent = new Set<string>();
   const result: AppNotification[] = [];
 
   for (const n of items) {
     if (!n || !n.id || seenId.has(n.id)) continue;
     if (isTestNotificationItem(n)) continue; // Never include test notifications
     seenId.add(n.id);
-
-    // Normalize title & body for content deduplication
-    const normTitle = (n.title || '').trim().toLowerCase();
-    const normBody = (n.body || '').trim().toLowerCase();
-    const contentKey = `${normTitle}:::${normBody}`;
-
-    if (seenContent.has(contentKey)) continue;
-    seenContent.add(contentKey);
-
     result.push(n);
   }
 
@@ -414,23 +410,15 @@ export function isTestNotificationItem(n: AppNotification): boolean {
   const titleLower = (n.title || '').toLowerCase();
   const bodyLower = (n.body || '').toLowerCase();
   return (
-    idLower.startsWith('test') ||
+    idLower.startsWith('test-') ||
+    idLower.startsWith('test_') ||
     idLower.startsWith('mock-') ||
-    idLower.startsWith('local-') ||
-    idLower.includes('test_') ||
-    idLower.includes('test-') ||
-    idLower.includes('dev_') ||
     titleLower.startsWith('test ') ||
     titleLower.startsWith('[test]') ||
     titleLower.startsWith('(test)') ||
     titleLower === 'test' ||
     titleLower.includes('test notification') ||
-    titleLower.includes('faith alert • mdmi') ||
-    titleLower.includes('testing delivery') ||
-    bodyLower.includes('testing web notification') ||
-    bodyLower.includes('testing android notification') ||
-    bodyLower.includes('testing ios notification') ||
-    bodyLower.includes('live audio chime')
+    bodyLower.includes('testing delivery verification')
   );
 }
 
@@ -608,9 +596,10 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
     } catch {
       // ignore
     }
+    setNotificationSoundEnabled(next);
     set({ soundEnabled: next });
     if (next) {
-      playNotificationSound();
+      playNotificationSound(true); // Single user-interaction audio confirmation
     }
   },
 
@@ -905,19 +894,6 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       const formattedTitle = interpolateNotificationTemplate(data.title);
       const formattedBody = interpolateNotificationTemplate(data.body);
 
-      // 2. Prevent sending duplicate notifications with identical title and body
-      const cleanTitle = formattedTitle.trim().toLowerCase();
-      const cleanBody = formattedBody.trim().toLowerCase();
-      const isDuplicate = get().notifications.some(
-        (n) => (n.title || '').trim().toLowerCase() === cleanTitle &&
-               (n.body || '').trim().toLowerCase() === cleanBody
-      );
-
-      if (isDuplicate) {
-        console.info('Notification already exists; skipping duplicate broadcast:', formattedTitle);
-        return { success: true };
-      }
-
       const payload = {
         title: formattedTitle,
         body: formattedBody,
@@ -927,15 +903,25 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         createdAt: serverTimestamp(),
       };
 
-      // Add to Firestore
+      // Add to Firestore so all clients and devices receive it
       const docRef = await addDoc(collection(db, 'notifications'), payload);
+      recordDeliveredId(docRef.id);
 
-      // Trigger instant device popup & sacred chime
+      // Trigger device popup & chime for this device
       showDeviceNotification(formattedTitle, {
         body: formattedBody,
         tag: docRef.id,
+        data: {
+          id: docRef.id,
+          notificationId: docRef.id,
+          devotionalId: data.devotionalId || null,
+          type: data.type || 'broadcast',
+          title: formattedTitle,
+          body: formattedBody,
+          createdBy: data.createdBy || 'Ministry Overseer',
+        },
+        playSound: true,
       });
-      playNotificationSound();
 
       // Sync to backend notification registry for connected clients
       fetch('/api/notifications/broadcast', {
@@ -950,7 +936,7 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         }),
       }).catch(() => {});
 
-      // Update local state immediately, ensuring strict ID uniqueness
+      // Update local state immediately so in-app notifications bar shows it instantly
       const newNotif: AppNotification = {
         ...data,
         title: formattedTitle,
@@ -971,13 +957,6 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
 
         const maxAmount = state.maxStoredAmount || getStoredMaxAmount() || DEFAULT_MAX_NOTIFICATIONS;
         const preserved = deduped.slice(0, maxAmount);
-        const oldExcess = deduped.slice(maxAmount);
-
-        // Delete excess old notifications from Firestore
-        oldExcess.forEach((old) => {
-          deleteDoc(doc(db, 'notifications', old.id)).catch(() => {});
-        });
-
         saveStoredNotifications(preserved);
 
         const archivedSet = new Set(state.archivedIds);
@@ -994,11 +973,21 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       const formattedTitle = interpolateNotificationTemplate(data.title);
       const formattedBody = interpolateNotificationTemplate(data.body);
       const fallbackId = 'notif-' + Date.now();
+      recordDeliveredId(fallbackId);
+
       showDeviceNotification(formattedTitle, {
         body: formattedBody,
         tag: fallbackId,
+        data: {
+          id: fallbackId,
+          notificationId: fallbackId,
+          devotionalId: data.devotionalId || null,
+          type: data.type || 'broadcast',
+          title: formattedTitle,
+          body: formattedBody,
+        },
+        playSound: true,
       });
-      playNotificationSound();
 
       const newNotif: AppNotification = {
         ...data,
@@ -1399,49 +1388,31 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
             // Sort by createdAt descending (newest first)
             dedupedRemote.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-            // Auto-delete excess old notifications beyond max amount, preserving saved ones below max
+            // Respect local client storage cache without mutating or deleting remote Firestore documents
             const maxAmount = get().maxStoredAmount || getStoredMaxAmount() || DEFAULT_MAX_NOTIFICATIONS;
-            let finalNotifications = dedupedRemote;
-            if (dedupedRemote.length > maxAmount) {
-              finalNotifications = dedupedRemote.slice(0, maxAmount);
-              const excessOld = dedupedRemote.slice(maxAmount);
-              excessOld.forEach((old) => {
-                deleteDoc(doc(db, 'notifications', old.id)).catch(() => {});
-              });
-              const excessIds = new Set(excessOld.map((d) => d.id));
-              const nextReadIds = getStoredArray(STORAGE_KEY_READ_IDS).filter((id) => !excessIds.has(id));
-              saveStoredArray(STORAGE_KEY_READ_IDS, nextReadIds);
-              const nextArchived = getStoredArray(STORAGE_KEY_ARCHIVED_IDS).filter((id) => !excessIds.has(id));
-              saveStoredArray(STORAGE_KEY_ARCHIVED_IDS, nextArchived);
-            }
-
+            const finalNotifications = dedupedRemote.slice(0, Math.max(maxAmount, 100));
             saveStoredNotifications(finalNotifications);
 
-            // Reliable delivery queueing: Ensure EVERY broadcast reaches this device
+            // Rigorous delivery queueing: Ensure EVERY broadcast reaches this device
             const deliveredSet = getStoredDeliveredIds();
-            const now = Date.now();
             let queue = getStoredPendingQueue();
             let queueChanged = false;
 
-            for (const n of finalNotifications) {
+            for (const n of dedupedRemote) {
               if (!n || !n.id || isTestNotificationItem(n)) continue;
               if (deliveredSet.has(n.id)) continue;
 
-              const notifAgeHours = (now - new Date(n.createdAt).getTime()) / (1000 * 60 * 60);
-              // Queue broadcasts from the last 48 hours that haven't been delivered to this phone
-              if (isNaN(notifAgeHours) || notifAgeHours <= 48) {
-                const inQueue = queue.some((q) => q.id === n.id);
-                if (!inQueue) {
-                  queue.push({
-                    id: n.id,
-                    title: n.title,
-                    body: n.body,
-                    devotionalId: n.devotionalId,
-                    createdAt: n.createdAt,
-                    attempts: 0,
-                  });
-                  queueChanged = true;
-                }
+              const inQueue = queue.some((q) => q.id === n.id);
+              if (!inQueue) {
+                queue.push({
+                  id: n.id,
+                  title: n.title,
+                  body: n.body,
+                  devotionalId: n.devotionalId,
+                  createdAt: n.createdAt,
+                  attempts: 0,
+                });
+                queueChanged = true;
               }
             }
 
@@ -1450,16 +1421,19 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
               set({ pendingDeliveriesCount: queue.length });
             }
 
-            // Immediately attempt delivery flush
+            // Flush pending deliveries silently without recurring chime
             flushPendingDeliveries().then(({ remaining }) => {
               set({ pendingDeliveriesCount: remaining });
             });
 
             isInitialSnapshot = false;
 
-            const unread = finalNotifications.filter((n) => !n.read && !currentArchived.has(n.id) && !isTestNotificationItem(n)).length;
+            // In-app notifications are ALWAYS updated and shown regardless of device notification permission!
+            const unread = dedupedRemote.filter(
+              (n) => !n.read && !currentArchived.has(n.id) && !isTestNotificationItem(n)
+            ).length;
             set({
-              notifications: finalNotifications,
+              notifications: dedupedRemote,
               unreadCount: unread,
             });
           } else {
@@ -1617,7 +1591,7 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         const res = await flushPendingDeliveries();
         set({ pendingDeliveriesCount: res.remaining });
       }
-    }, 15000);
+    }, 30000);
 
     return () => {
       unsubNotifications();

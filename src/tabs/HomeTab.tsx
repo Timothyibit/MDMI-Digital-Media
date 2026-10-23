@@ -40,8 +40,20 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
   const { isBookmarked, toggleBookmark } = useBookmarkStore();
   const { config, getFeaturedDevotional } = useLayoutStore();
   const { user } = useAuthStore();
-  const { permission, pendingDeliveriesCount, setShowTroubleshooterModal } = useNotificationStore();
+  const {
+    notifications,
+    unreadCount,
+    openNotificationDetail,
+    permission,
+    pendingDeliveriesCount,
+    setShowTroubleshooterModal,
+  } = useNotificationStore();
   const [feedPage, setFeedPage] = useState(1);
+
+  // Latest broadcast for in-app notifications bar (shows whether device OS notifications are allowed or not)
+  const latestBroadcast = React.useMemo(() => {
+    return notifications.find((n) => !n.read) || notifications[0] || null;
+  }, [notifications]);
 
   const sortedDevotionals = React.useMemo(() => sortDevotionalsByLatest(devotionals), [devotionals]);
   const published = sortedDevotionals.filter((d) => isDevotionalLive(d));
@@ -157,6 +169,47 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
               </button>
             )}
 
+            {/* In-App Broadcasts Bar (Always visible whether device OS notification setting is allowed or not) */}
+            {latestBroadcast && (
+              <div className="w-full sm:col-span-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => openNotificationDetail(latestBroadcast)}
+                  className="w-full p-2.5 sm:p-3 rounded-2xl bg-gradient-to-r from-[#5E72E4]/12 to-[#5E72E4]/5 hover:from-[#5E72E4]/18 hover:to-[#5E72E4]/10 border border-[#5E72E4]/30 flex items-center justify-between text-left transition-all cursor-pointer shadow-2xs group"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="w-7 h-7 rounded-xl bg-[#5E72E4] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                      <Bell className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#5E72E4] dark:text-[#889af7]">
+                          In-App Notification
+                        </span>
+                        {!latestBroadcast.read && (
+                          <span className="w-2 h-2 rounded-full bg-[#5E72E4] animate-ping shrink-0" />
+                        )}
+                        {unreadCount > 0 && (
+                          <span className="px-1.5 py-0.2 rounded-full bg-[#5E72E4] text-white text-[9px] font-extrabold">
+                            {unreadCount} unread
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs font-bold text-neutral-900 dark:text-neutral-50 truncate mt-0.5">
+                        {latestBroadcast.title}
+                      </p>
+                      <p className="text-[11px] text-neutral-600 dark:text-neutral-300 truncate">
+                        {latestBroadcast.body}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-white px-2.5 py-1 rounded-xl bg-[#5E72E4] shrink-0 ml-2 group-hover:bg-[#485ec4] transition-colors shadow-2xs">
+                    View
+                  </span>
+                </button>
+              </div>
+            )}
+
             {/* Notification Delivery Notice Chip (Shown when notifications are blocked on phone or pending deliveries exist) */}
             {(permission === 'denied' || pendingDeliveriesCount > 0) && (
               <div className="w-full sm:col-span-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
@@ -169,7 +222,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
                     <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
                     <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 truncate">
                       {permission === 'denied'
-                        ? 'Devotional broadcasts are muted on this phone. Tap to allow notifications.'
+                        ? 'Device notifications blocked. Tap to configure Android / Browser settings.'
                         : `${pendingDeliveriesCount} broadcast alert(s) queued. Tap to deliver now.`}
                     </p>
                   </div>

@@ -81,10 +81,22 @@ export default function App() {
 
   const [previousTab, setPreviousTab] = useState<TabType>('home');
 
-  // First-launch opening flow: prioritize onboarding for first-time users or ?onboarding param
+  // First-launch opening flow & deep link routing for notifications
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
+
+      // Deep link to devotional reader or notification screen
+      if (urlParams.has('devotionalId')) {
+        const dId = urlParams.get('devotionalId')!;
+        setActiveDevotionalId(dId);
+        setActiveTab('reader');
+      } else if (urlParams.has('notificationId')) {
+        const nId = urlParams.get('notificationId')!;
+        useNotificationStore.getState().openNotificationDetail(nId);
+        setActiveTab('notifications');
+      }
+
       if (urlParams.has('onboarding') || urlParams.has('welcome')) {
         openOnboarding();
         return;
@@ -103,7 +115,7 @@ export default function App() {
     } catch {
       // ignore
     }
-  }, [openIntroSplash, openOnboarding]);
+  }, [openIntroSplash, openOnboarding, setActiveDevotionalId, setActiveTab]);
 
   const handleFinishIntro = () => {
     closeIntroSplash();
@@ -123,8 +135,54 @@ export default function App() {
     initializeLayout();
     const unsubNotifs = initializeNotifications();
 
-    // 1. Native Android notification permission and daily offline alarm via Capacitor
+    let actionListener: any = null;
+    let appStateListener: any = null;
+
+    // 1. Native Android notification click handler: Routes user directly to that specific notification/devotional
     try {
+      LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+        const extra = action.notification?.extra || {};
+        const devotionalId = extra.devotionalId;
+        const notifId = extra.notificationId || extra.id;
+
+        if (devotionalId) {
+          setActiveDevotionalId(devotionalId);
+          setActiveTab('reader');
+        } else if (notifId) {
+          const found = useNotificationStore.getState().notifications.find((n) => n.id === notifId);
+          if (found) {
+            useNotificationStore.getState().openNotificationDetail(found);
+          } else {
+            useNotificationStore.getState().openNotificationDetail({
+              id: notifId,
+              title: action.notification.title || 'Ministry Broadcast',
+              body: action.notification.body || '',
+              type: extra.type || 'broadcast',
+              createdAt: new Date().toISOString(),
+              read: true,
+              createdBy: extra.createdBy || 'Ministry Overseer',
+            });
+          }
+          setActiveTab('notifications');
+        } else {
+          setActiveTab('notifications');
+        }
+      }).then((handle) => {
+        actionListener = handle;
+      }).catch(() => {});
+
+      // 2. Rigorous background & minimized lifecycle management:
+      // When app resumes from background or screen is unlocked, catch up on broadcasts immediately
+      CapApp.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) {
+          useNotificationStore.getState().checkAndSyncPermissions().catch(() => {});
+          useNotificationStore.getState().retryPendingDeliveries().catch(() => {});
+        }
+      }).then((handle) => {
+        appStateListener = handle;
+      }).catch(() => {});
+
+      // Daily morning offline alarm check via Capacitor LocalNotifications
       LocalNotifications.checkPermissions().then((status) => {
         if (status.display !== 'granted') {
           LocalNotifications.requestPermissions().then((res) => {
@@ -142,21 +200,34 @@ export default function App() {
       // ignore
     }
 
-    // 2. Web browser fallback
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      try {
-        if (Notification.permission === 'default') {
-          Notification.requestPermission().catch(() => {});
+    // 3. Web browser postMessage notification click listener
+    const handleWindowMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'MDMI_NOTIFICATION_CLICKED' && event.data.data) {
+        const data = event.data.data;
+        if (data.devotionalId) {
+          setActiveDevotionalId(data.devotionalId);
+          setActiveTab('reader');
+        } else if (data.notificationId || data.id) {
+          useNotificationStore.getState().openNotificationDetail(data.notificationId || data.id);
+          setActiveTab('notifications');
+        } else {
+          setActiveTab('notifications');
         }
-      } catch {
-        // Notification permission notice
       }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('message', handleWindowMessage);
     }
 
     return () => {
       unsubNotifs?.();
+      actionListener?.remove?.();
+      appStateListener?.remove?.();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('message', handleWindowMessage);
+      }
     };
-  }, [initAuth, initializeDevotionals, initializeLayout, initializeNotifications]);
+  }, [initAuth, initializeDevotionals, initializeLayout, initializeNotifications, setActiveDevotionalId, setActiveTab]);
 
   // Native Android Hardware / Gesture Back Button Handling
   useEffect(() => {
