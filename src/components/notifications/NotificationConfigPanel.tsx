@@ -60,6 +60,9 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
     maxStoredAmount,
     setMaxStoredAmount,
     pruneOldNotifications,
+    pendingDeliveriesCount,
+    setShowTroubleshooterModal,
+    testDeviceDelivery,
   } = useNotificationStore();
 
   const { user, updateNotificationSettings } = useAuthStore();
@@ -86,10 +89,25 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
     setTimeout(() => setSoundTested(false), 2000);
   };
 
-  const handleTriggerTest = () => {
+  const [testDeliveryFeedback, setTestDeliveryFeedback] = useState<string | null>(null);
+
+  const handleTriggerTest = async () => {
     playNotificationSound();
     setTestSent(true);
-    setTimeout(() => setTestSent(false), 2500);
+    try {
+      const res = await testDeviceDelivery();
+      if (res.success) {
+        setTestDeliveryFeedback('Delivered to device!');
+      } else {
+        setTestDeliveryFeedback(res.diagnostic || 'Blocked by phone');
+      }
+    } catch {
+      setTestDeliveryFeedback('Delivery test failed');
+    }
+    setTimeout(() => {
+      setTestSent(false);
+      setTestDeliveryFeedback(null);
+    }, 3500);
   };
 
   const handleTimeChange = (newTime: string) => {
@@ -410,7 +428,7 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
             {permission !== 'granted' ? (
               <button
                 type="button"
@@ -426,14 +444,29 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
                 className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
               >
                 <Send className="w-3 h-3 text-[#5E72E4] dark:text-[#889af7]" />
-                <span>{testSent ? 'Chimed!' : 'Preview Alert'}</span>
+                <span>{testSent ? (testDeliveryFeedback || 'Chimed!') : 'Preview Alert'}</span>
               </button>
             )}
 
             <button
               type="button"
+              onClick={() => setShowTroubleshooterModal(true)}
+              className="px-2.5 py-1 text-[11px] font-bold rounded-lg border border-amber-300/80 dark:border-amber-700/80 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+              title="Phone Notification Diagnostics & Delivery"
+            >
+              <Smartphone className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+              <span>Troubleshoot</span>
+              {pendingDeliveriesCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 bg-amber-500 text-white rounded-full text-[10px] font-extrabold">
+                  {pendingDeliveriesCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowPlatformGuide((p) => !p)}
-              className="text-xs font-bold text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white flex items-center gap-0.5 cursor-pointer ml-1"
+              className="text-xs font-bold text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white flex items-center gap-0.5 cursor-pointer ml-0.5"
             >
               <span>Guide</span>
               <ChevronDown
@@ -444,6 +477,12 @@ export const NotificationConfigPanel: React.FC<NotificationConfigPanelProps> = (
             </button>
           </div>
         </div>
+
+        {testDeliveryFeedback && !testSent && (
+          <p className="text-[11px] text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 p-2 rounded-lg">
+            {testDeliveryFeedback}
+          </p>
+        )}
 
         {/* Collapsible Device Push Guide */}
         {showPlatformGuide && (

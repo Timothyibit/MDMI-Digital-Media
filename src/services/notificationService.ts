@@ -298,7 +298,7 @@ export function getDeviceNotificationPermission(): NotificationPermission {
   return Notification.permission;
 }
 
-export function showDeviceNotification(
+export async function showDeviceNotification(
   title: string,
   options: {
     body: string;
@@ -307,13 +307,32 @@ export function showDeviceNotification(
     data?: any;
     onClick?: () => void;
   }
-) {
+): Promise<boolean> {
   playNotificationSound();
 
   // 1. Native Android notification banner via Capacitor LocalNotifications
   if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
     try {
-      LocalNotifications.schedule({
+      // Ensure notification channel is active with high importance
+      await LocalNotifications.createChannel({
+        id: 'mdmi_channel',
+        name: 'MDMI Devotionals',
+        description: 'Daily devotional alerts and ministry announcements',
+        importance: 5,
+        visibility: 1,
+        vibration: true,
+      }).catch(() => {});
+
+      const perm = await LocalNotifications.checkPermissions();
+      if (perm.display !== 'granted') {
+        const req = await LocalNotifications.requestPermissions();
+        if (req.display !== 'granted') {
+          console.warn('Native notification permission not granted on device.');
+          return false;
+        }
+      }
+
+      await LocalNotifications.schedule({
         notifications: [
           {
             id: Math.floor(Math.random() * 100000) + 1,
@@ -322,38 +341,44 @@ export function showDeviceNotification(
             channelId: 'mdmi_channel',
             smallIcon: 'ic_launcher_round',
             iconColor: '#5E72E4',
+            schedule: {
+              at: new Date(Date.now() + 100),
+              allowWhileIdle: true,
+            },
           },
         ],
-      }).catch((e) => console.warn('Native notification schedule notice:', e));
-      return;
-    } catch {
-      // fallback
+      });
+      return true;
+    } catch (nativeErr) {
+      console.warn('Native notification schedule notice:', nativeErr);
+      return false;
     }
   }
 
-  if (Notification.permission === 'granted') {
+  // 2. Web Push / Window Notification
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      // If service worker is ready, prefer showNotification for lock screen / background persistence
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then((reg) => {
-          reg.showNotification(title, {
-            body: options.body,
-            icon: options.icon || '/logo.svg',
-            badge: '/logo.svg',
-            tag: options.tag || 'mdmi-daily',
-            data: options.data,
-          });
-        }).catch(() => {
-          // Fallback to standard window Notification
-          createWindowNotification(title, options);
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification(title, {
+          body: options.body,
+          icon: options.icon || '/logo.svg',
+          badge: '/logo.svg',
+          tag: options.tag || 'mdmi-daily',
+          data: options.data,
         });
+        return true;
       } else {
         createWindowNotification(title, options);
+        return true;
       }
     } catch (err) {
       console.warn('System notification launch notice:', err);
+      return false;
     }
   }
+
+  return false;
 }
 
 function createWindowNotification(
@@ -381,6 +406,52 @@ function createWindowNotification(
   } catch (err) {
     console.warn('Window notification fallback notice:', err);
   }
+}
+
+/**
+ * Diagnostic helper to test end-to-end device notification delivery
+ * and provide actionable instructions if the device OS blocks alerts.
+ */
+export async function testDeviceNotificationDelivery(): Promise<{
+  success: boolean;
+  message: string;
+  diagnostic?: string;
+}> {
+  const perm = getDeviceNotificationPermission();
+  const platform = detectPlatform();
+
+  if (perm !== 'granted') {
+    if (Capacitor.isNativePlatform()) {
+      return {
+        success: false,
+        message: 'Notification permission is blocked on this Android phone.',
+        diagnostic: 'To fix: Open your Phone Settings → Apps → MDMI Devotionals → Notifications → Turn ON, then return here.',
+      };
+    }
+    return {
+      success: false,
+      message: 'Browser notification permission is not enabled.',
+      diagnostic: 'Please tap "Allow Notifications" when prompted by your browser or tap the lock icon in the address bar.',
+    };
+  }
+
+  const delivered = await showDeviceNotification("Test Alert • The Master's Ministry 🕊️", {
+    body: "Your device is verified and ready! You will receive daily devotional broadcasts immediately.",
+    tag: "test_delivery_verify",
+  });
+
+  if (delivered) {
+    return {
+      success: true,
+      message: 'Notification delivered successfully to your device with chime!',
+    };
+  }
+
+  return {
+    success: false,
+    message: 'Delivery was not completed by the operating system.',
+    diagnostic: 'Device may be in strict Do Not Disturb mode or battery optimization is restricting background notifications.',
+  };
 }
 
 /**

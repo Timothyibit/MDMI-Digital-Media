@@ -35,6 +35,7 @@ import {
   clearBackendTestNotifications,
   scheduleNativeDailyReminder,
   checkAndSyncNotificationPermission,
+  testDeviceNotificationDelivery,
 } from '../services/notificationService';
 export { playNotificationSound } from '../services/notificationService';
 import {
@@ -94,6 +95,14 @@ export interface NotificationStoreState {
     data: Omit<AppNotification, 'id' | 'createdAt'>
   ) => Promise<{ success: boolean; error?: string }>;
 
+  // Guaranteed Device Notification Delivery & Diagnostics
+  pendingDeliveriesCount: number;
+  showTroubleshooterModal: boolean;
+  setShowTroubleshooterModal: (show: boolean) => void;
+  checkAndSyncPermissions: () => Promise<NotificationPermission>;
+  retryPendingDeliveries: () => Promise<{ delivered: number; remaining: number }>;
+  testDeviceDelivery: () => Promise<{ success: boolean; message: string; diagnostic?: string }>;
+
   // Schedulers, Timers & Automatic Notification Actions
   addTimerTrigger: (data: {
     title: string;
@@ -144,7 +153,101 @@ const STORAGE_KEY_REMINDER_TIME = 'mdmi_notif_reminder_time';
 const STORAGE_KEY_CATEGORIES = 'mdmi_notif_categories';
 const STORAGE_KEY_NOTIFICATIONS_CACHE = 'mdmi_notifications_cache';
 const STORAGE_KEY_MAX_AMOUNT = 'mdmi_notification_max_amount';
+const STORAGE_KEY_DELIVERED_IDS = 'mdmi_delivered_notif_ids';
+const STORAGE_KEY_PENDING_QUEUE = 'mdmi_pending_delivery_queue';
 export const DEFAULT_MAX_NOTIFICATIONS = 30;
+
+export interface PendingBroadcastDelivery {
+  id: string;
+  title: string;
+  body: string;
+  devotionalId?: string;
+  createdAt: string;
+  attempts: number;
+  lastAttemptAt?: number;
+}
+
+export function getStoredDeliveredIds(): Set<string> {
+  return new Set(getStoredArray(STORAGE_KEY_DELIVERED_IDS));
+}
+
+export function recordDeliveredId(id: string) {
+  if (!id) return;
+  const current = getStoredArray(STORAGE_KEY_DELIVERED_IDS);
+  if (!current.includes(id)) {
+    const next = [...current, id];
+    saveStoredArray(STORAGE_KEY_DELIVERED_IDS, next.slice(-250));
+  }
+}
+
+export function getStoredPendingQueue(): PendingBroadcastDelivery[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PENDING_QUEUE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveStoredPendingQueue(queue: PendingBroadcastDelivery[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY_PENDING_QUEUE, JSON.stringify(queue));
+  } catch {
+    // ignore
+  }
+}
+
+export async function flushPendingDeliveries(): Promise<{ delivered: number; remaining: number }> {
+  const queue = getStoredPendingQueue();
+  if (queue.length === 0) {
+    return { delivered: 0, remaining: 0 };
+  }
+
+  const deliveredIds = getStoredDeliveredIds();
+  const nextQueue: PendingBroadcastDelivery[] = [];
+  let deliveredCount = 0;
+  const now = Date.now();
+
+  for (const item of queue) {
+    if (deliveredIds.has(item.id)) {
+      continue;
+    }
+
+    try {
+      const success = await showDeviceNotification(item.title, {
+        body: item.body,
+        tag: item.id,
+      });
+
+      if (success) {
+        recordDeliveredId(item.id);
+        deliveredCount++;
+      } else {
+        const attempts = (item.attempts || 0) + 1;
+        const itemAgeHours = (now - new Date(item.createdAt).getTime()) / (1000 * 60 * 60);
+        // Persistently retry broadcasts up to 50 attempts or within 72 hours
+        if (attempts < 50 && (isNaN(itemAgeHours) || itemAgeHours < 72)) {
+          nextQueue.push({
+            ...item,
+            attempts,
+            lastAttemptAt: now,
+          });
+        }
+      }
+    } catch {
+      nextQueue.push({
+        ...item,
+        attempts: (item.attempts || 0) + 1,
+        lastAttemptAt: now,
+      });
+    }
+  }
+
+  saveStoredPendingQueue(nextQueue);
+  return { delivered: deliveredCount, remaining: nextQueue.length };
+}
 
 function getStoredNotifications(): AppNotification[] {
   try {
@@ -407,6 +510,33 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
   dailyReminderTime: getStoredString(STORAGE_KEY_REMINDER_TIME, '07:00'),
   categoryPreferences: getStoredCategories(),
   selectedNotificationDetail: null,
+  pendingDeliveriesCount: getStoredPendingQueue().length,
+  showTroubleshooterModal: false,
+  setShowTroubleshooterModal: (show: boolean) => set({ showTroubleshooterModal: show }),
+
+  checkAndSyncPermissions: async () => {
+    const perm = await checkAndSyncNotificationPermission();
+    set({ permission: perm });
+    if (perm === 'granted') {
+      const res = await flushPendingDeliveries();
+      set({ pendingDeliveriesCount: res.remaining });
+    }
+    return perm;
+  },
+
+  retryPendingDeliveries: async () => {
+    const res = await flushPendingDeliveries();
+    set({ pendingDeliveriesCount: res.remaining });
+    return res;
+  },
+
+  testDeviceDelivery: async () => {
+    const res = await testDeviceNotificationDelivery();
+    if (!res.success && res.diagnostic) {
+      set({ showTroubleshooterModal: true });
+    }
+    return res;
+  },
 
   setMaxStoredAmount: (max: number) => {
     const val = Math.max(5, Math.min(200, max));
@@ -523,6 +653,10 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         body: "You'll receive daily devotional alerts and ministry announcements.",
       });
       playNotificationSound();
+      const res = await flushPendingDeliveries();
+      set({ pendingDeliveriesCount: res.remaining });
+    } else if (perm === 'denied') {
+      set({ showTroubleshooterModal: true });
     }
     return perm;
   },
@@ -1190,13 +1324,36 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
     // Asynchronously verify and sync persistent notification permission with OS (Android & Web)
     checkAndSyncNotificationPermission().then((perm) => {
       set({ permission: perm });
+      if (perm === 'granted') {
+        flushPendingDeliveries().then(({ remaining }) => {
+          set({ pendingDeliveriesCount: remaining });
+        });
+      }
     }).catch(() => {});
+
+    // Listen for app visibility changes (e.g. user toggles permissions in phone settings and returns)
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        checkAndSyncNotificationPermission().then((perm) => {
+          set({ permission: perm });
+          if (perm === 'granted') {
+            flushPendingDeliveries().then(({ remaining }) => {
+              set({ pendingDeliveriesCount: remaining });
+            });
+          }
+        }).catch(() => {});
+      }
+    };
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     set({
       permission: getDeviceNotificationPermission(),
       platform: detectPlatform(),
       archivedIds: Array.from(archivedSet),
       resolvedActions: getStoredRecord(STORAGE_KEY_RESOLVED_ACTIONS),
+      pendingDeliveriesCount: getStoredPendingQueue().length,
     });
 
     // Auto purge any test notifications and test text from Firestore & local storage
@@ -1260,21 +1417,44 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
 
             saveStoredNotifications(finalNotifications);
 
-            // Check if there are newly arrived notifications to trigger a device popup across all users
-            if (!isInitialSnapshot) {
-              const previousIds = new Set(get().notifications.map((n) => n.id));
-              const newArrivals = finalNotifications.filter(
-                (n) => !previousIds.has(n.id) && !currentReadIds.has(n.id) && !isTestNotificationItem(n)
-              );
-              if (newArrivals.length > 0) {
-                const newest = newArrivals[0];
-                showDeviceNotification(newest.title, {
-                  body: newest.body,
-                  tag: newest.id,
-                });
-                playNotificationSound();
+            // Reliable delivery queueing: Ensure EVERY broadcast reaches this device
+            const deliveredSet = getStoredDeliveredIds();
+            const now = Date.now();
+            let queue = getStoredPendingQueue();
+            let queueChanged = false;
+
+            for (const n of finalNotifications) {
+              if (!n || !n.id || isTestNotificationItem(n)) continue;
+              if (deliveredSet.has(n.id)) continue;
+
+              const notifAgeHours = (now - new Date(n.createdAt).getTime()) / (1000 * 60 * 60);
+              // Queue broadcasts from the last 48 hours that haven't been delivered to this phone
+              if (isNaN(notifAgeHours) || notifAgeHours <= 48) {
+                const inQueue = queue.some((q) => q.id === n.id);
+                if (!inQueue) {
+                  queue.push({
+                    id: n.id,
+                    title: n.title,
+                    body: n.body,
+                    devotionalId: n.devotionalId,
+                    createdAt: n.createdAt,
+                    attempts: 0,
+                  });
+                  queueChanged = true;
+                }
               }
             }
+
+            if (queueChanged) {
+              saveStoredPendingQueue(queue);
+              set({ pendingDeliveriesCount: queue.length });
+            }
+
+            // Immediately attempt delivery flush
+            flushPendingDeliveries().then(({ remaining }) => {
+              set({ pendingDeliveriesCount: remaining });
+            });
+
             isInitialSnapshot = false;
 
             const unread = finalNotifications.filter((n) => !n.read && !currentArchived.has(n.id) && !isTestNotificationItem(n)).length;
@@ -1430,11 +1610,21 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
           }
         }
       }
+
+      // C) Retry Engine: Continuously flush pending deliveries if any are queued
+      const currentQueue = getStoredPendingQueue();
+      if (currentQueue.length > 0) {
+        const res = await flushPendingDeliveries();
+        set({ pendingDeliveriesCount: res.remaining });
+      }
     }, 15000);
 
     return () => {
       unsubNotifications();
       unsubSchedules();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       if (globalTickerInterval) {
         clearInterval(globalTickerInterval);
         globalTickerInterval = null;

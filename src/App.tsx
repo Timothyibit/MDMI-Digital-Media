@@ -38,6 +38,7 @@ import { VerseShareCard } from './components/share/VerseShareCard';
 import { VoiceSelectorModal } from './components/ui/VoiceSelectorModal';
 import { StreakConfetti } from './components/celebration/StreakConfetti';
 import { NotificationDrawer } from './components/notifications/NotificationDrawer';
+import { NotificationDeliveryTroubleshooterModal } from './components/notifications/NotificationDeliveryTroubleshooterModal';
 import { DiagnosticLogsModal } from './components/debug/DiagnosticLogsModal';
 import { NotificationsScreen } from './components/notifications/NotificationsScreen';
 import { IntroLoadingScreen } from './components/onboarding/IntroLoadingScreen';
@@ -293,12 +294,10 @@ export default function App() {
       {/* Global Streak Confetti Celebration */}
       <StreakConfetti />
 
-      {/* Persistent Narration Player (Docked cleanly above bottom navigation on primary tabs) */}
-      {activeTab !== 'reader' && (
-        <AudioErrorBoundary>
-          <AudioPlayer />
-        </AudioErrorBoundary>
-      )}
+      {/* Persistent Narration Player (Audio engine active across all tabs including devotional reader) */}
+      <AudioErrorBoundary>
+        <AudioPlayer />
+      </AudioErrorBoundary>
 
       {/* Intro Loading Screen & Craft Onboarding Tour */}
       <IntroLoadingScreen isOpen={introSplashOpen} onFinish={handleFinishIntro} />
@@ -310,6 +309,7 @@ export default function App() {
       <VerseShareCard />
       <VoiceSelectorModal />
       <NotificationDrawer />
+      <NotificationDeliveryTroubleshooterModal />
       <DiagnosticLogsModal isOpen={diagnosticLogsOpen} onClose={closeDiagnosticLogs} />
 
       {/* App Header (Primary tabs only; reader has its own dedicated header) */}

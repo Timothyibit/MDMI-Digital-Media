@@ -7,12 +7,14 @@ import {
   Sparkles,
   Flame,
   BookOpen,
+  Bell,
 } from 'lucide-react';
 import { useDevotionalStore, sortDevotionalsByLatest } from '../store/useDevotionalStore';
 import { useUIStore } from '../store/useUIStore';
 import { useBookmarkStore } from '../store/useBookmarkStore';
 import { useLayoutStore } from '../store/useLayoutStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useNotificationStore } from '../store/useNotificationStore';
 import { Devotional } from '../types';
 import { isDevotionalLive } from '../services/schedulingService';
 import { MdmiLogo } from '../components/ui/MdmiLogo';
@@ -38,6 +40,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
   const { isBookmarked, toggleBookmark } = useBookmarkStore();
   const { config, getFeaturedDevotional } = useLayoutStore();
   const { user } = useAuthStore();
+  const { permission, pendingDeliveriesCount, setShowTroubleshooterModal } = useNotificationStore();
   const [feedPage, setFeedPage] = useState(1);
 
   const sortedDevotionals = React.useMemo(() => sortDevotionalsByLatest(devotionals), [devotionals]);
@@ -152,6 +155,29 @@ export const HomeTab: React.FC<HomeTabProps> = ({ onSelectDevotional }) => {
                   </span>
                 </div>
               </button>
+            )}
+
+            {/* Notification Delivery Notice Chip (Shown when notifications are blocked on phone or pending deliveries exist) */}
+            {(permission === 'denied' || pendingDeliveriesCount > 0) && (
+              <div className="w-full sm:col-span-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setShowTroubleshooterModal(true)}
+                  className="w-full p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/25 flex items-center justify-between text-left transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 truncate">
+                      {permission === 'denied'
+                        ? 'Devotional broadcasts are muted on this phone. Tap to allow notifications.'
+                        : `${pendingDeliveriesCount} broadcast alert(s) queued. Tap to deliver now.`}
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-md bg-amber-500/20 shrink-0 ml-2">
+                    {permission === 'denied' ? 'Settings' : 'Deliver'}
+                  </span>
+                </button>
+              </div>
             )}
           </View>
         );

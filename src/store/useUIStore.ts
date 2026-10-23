@@ -9,6 +9,7 @@ import {
   normalizeAudioUrl,
 } from '../services/aiAudioService';
 import { useDevotionalStore } from './useDevotionalStore';
+import { nativeSpeech } from '../services/nativeSpeechService';
 
 interface UIState {
   activeTab: TabType;
@@ -206,6 +207,13 @@ export const useUIStore = create<UIState>((set, get) => {
       const normalizedUrl = rawAudio ? normalizeAudioUrl(rawAudio) : null;
       const hasAudioUrl = Boolean(normalizedUrl);
 
+      // Warm up audio context synchronously inside the user gesture
+      try {
+        nativeSpeech.playOpeningChime();
+      } catch {
+        // ignore
+      }
+
       let exactDuration = 0;
       if (hasAudioUrl) {
         if (devotional.audioDurationSeconds && devotional.audioDurationSeconds > 0) {
@@ -243,10 +251,18 @@ export const useUIStore = create<UIState>((set, get) => {
 
     toggleAudioPlayback: () => {
       const current = get().audioState;
+      const nextPlaying = !current.isPlaying;
+      if (nextPlaying) {
+        try {
+          nativeSpeech.playOpeningChime();
+        } catch {
+          // ignore
+        }
+      }
       set({
         audioState: {
           ...current,
-          isPlaying: !current.isPlaying,
+          isPlaying: nextPlaying,
         },
       });
     },

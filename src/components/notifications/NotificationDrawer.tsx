@@ -9,6 +9,7 @@ import {
   Minimize2,
   ExternalLink,
   Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 import { useNotificationStore, isTestNotificationItem, playNotificationSound } from '../../store/useNotificationStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -38,6 +39,8 @@ export const NotificationDrawer: React.FC = () => {
     platform,
     triggerTestNotification,
     openNotificationDetail,
+    pendingDeliveriesCount,
+    setShowTroubleshooterModal,
   } = useNotificationStore();
 
   const { setActiveTab } = useUIStore();
@@ -257,6 +260,29 @@ export const NotificationDrawer: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Delivery & Permission Assistant Banner */}
+          {(permission !== 'granted' || pendingDeliveriesCount > 0) && (
+            <div className="mx-2 sm:mx-3.5 mt-2.5 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/80 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <p className="text-[11px] font-semibold text-amber-900 dark:text-amber-200 truncate">
+                  {permission === 'denied'
+                    ? 'Broadcast alerts are blocked in phone settings.'
+                    : pendingDeliveriesCount > 0
+                    ? `${pendingDeliveriesCount} broadcast alert(s) waiting for delivery.`
+                    : 'Turn on notifications to receive daily broadcasts.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTroubleshooterModal(true)}
+                className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+              >
+                {permission === 'denied' ? 'Fix Settings' : 'Troubleshoot'}
+              </button>
+            </div>
+          )}
 
           {/* Collapsible Configurations Section */}
           {showSettings ? (
