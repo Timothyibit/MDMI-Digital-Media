@@ -35,7 +35,10 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Default Notification Small Icon: MDMI App Logo with theme tinting -->
+        <!-- Default Notification Small Icon & Channel: MDMI App Logo with theme tinting & High-Priority Channel -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="mdmi_channel" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_stat_mdmi_logo" />
@@ -54,4 +57,5 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 </manifest>

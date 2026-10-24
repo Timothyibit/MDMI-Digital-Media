@@ -18,7 +18,7 @@ import { useBookmarkStore } from './store/useBookmarkStore';
 import { Devotional, TabType } from './types';
 import { App as CapApp } from '@capacitor/app';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { scheduleNativeDailyReminder, initPushNotifications } from './services/notificationService';
+import { scheduleNativeDailyReminder, initPushNotifications, ensureNotificationChannels } from './services/notificationService';
 
 // Components & Tabs
 import { HomeTab } from './tabs/HomeTab';
@@ -134,6 +134,7 @@ export default function App() {
     initializeDevotionals();
     initializeLayout();
     const unsubNotifs = initializeNotifications();
+    ensureNotificationChannels().catch(() => {});
 
     let actionListener: any = null;
     let appStateListener: any = null;

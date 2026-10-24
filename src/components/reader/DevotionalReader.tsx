@@ -713,60 +713,120 @@ export const DevotionalReader: React.FC<DevotionalReaderProps> = ({ devotional, 
           )}
         </div>
 
-        {/* Mobile Interaction Action Bar (Clean touch-friendly row) */}
-        <div className="my-6 pt-5 border-t border-black/10 dark:border-white/10 flex flex-wrap items-center justify-between gap-3">
-          <LikeButton devotionalId={devotional.id} count={devotional.likeCount} variant="pill" />
+        {/* Responsive Interaction Action Bar (Properly aligned & sized, modeled after devotional card icons) */}
+        <div className="my-6 pt-5 border-t border-black/10 dark:border-white/10">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            {/* Primary Disciple Actions (Like, Reflections, Journal, Bookmark, Share) */}
+            <div className="flex flex-wrap items-center gap-2">
+              <LikeButton devotionalId={devotional.id} count={devotional.likeCount} variant="pill" />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              id="reader-journal-action-btn"
-              type="button"
-              onClick={handleOpenJournal}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border shadow-xs transition-all active:scale-95 cursor-pointer ${
-                existingJournal
-                  ? isDark
-                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-                    : 'bg-amber-500/10 border-amber-500/30 text-amber-700'
-                  : isDark
-                  ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800'
-                  : 'bg-white border-[#CAD1D7] text-neutral-700 hover:bg-neutral-50'
-              }`}
-            >
-              <BookHeart className={`w-3.5 h-3.5 ${existingJournal ? 'text-amber-500' : 'text-neutral-500 dark:text-neutral-400'}`} />
-              <span className="text-xs font-bold">
-                {existingJournal ? 'Edit Journal' : 'Journal'}
-              </span>
-            </button>
+              <button
+                id="open-comments-action-btn"
+                type="button"
+                onClick={() => openCommentsSheet(devotional.id)}
+                className="inline-flex items-center gap-1.5 h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl border border-slate-200/90 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                title="View Discipleship Reflections"
+              >
+                <MessageSquare className="w-4 h-4 text-[#5E72E4]" />
+                <span className="text-xs font-semibold tabular-nums">{commentsCount}</span>
+                <span className="text-xs font-semibold hidden xs:inline">Reflections</span>
+              </button>
 
-            <button
-              id="open-comments-action-btn"
-              type="button"
-              onClick={() => openCommentsSheet(devotional.id)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border border-slate-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 shadow-xs transition-all active:scale-95 cursor-pointer"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-[#5E72E4]" />
-              <span className="text-xs font-bold">Reflections {commentsCount > 0 ? `(${commentsCount})` : ''}</span>
-            </button>
+              <button
+                id="reader-journal-action-btn"
+                type="button"
+                onClick={handleOpenJournal}
+                className={`inline-flex items-center gap-1.5 h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl border shadow-2xs transition-all active:scale-95 cursor-pointer ${
+                  existingJournal
+                    ? isDark
+                      ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                      : 'bg-amber-500/10 border-amber-500/30 text-amber-700'
+                    : isDark
+                    ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800'
+                    : 'bg-white border-slate-200/90 text-neutral-700 hover:bg-neutral-50'
+                }`}
+                title={existingJournal ? 'Edit Personal Journal Reflection' : 'Write Journal Reflection'}
+              >
+                <BookHeart className={`w-4 h-4 ${existingJournal ? 'text-amber-500' : 'text-neutral-500 dark:text-neutral-400'}`} />
+                <span className="text-xs font-semibold">
+                  {existingJournal ? 'Journaled' : 'Journal'}
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                openVerseShare({
-                  scripture: devotional.scripture,
-                  scriptureText: devotional.scriptureText,
-                  title: devotional.title,
-                  author: devotional.authorName,
-                })
-              }
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl border shadow-xs transition-all active:scale-95 cursor-pointer ${
-                isDark
-                  ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800'
-                  : 'bg-white border-[#CAD1D7] text-neutral-700 hover:bg-neutral-50'
-              }`}
-            >
-              <Share2 className="w-3.5 h-3.5 text-neutral-700 dark:text-neutral-300" />
-              <span className="text-xs font-bold">Share</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => toggleBookmark(devotional.id)}
+                className={`inline-flex items-center gap-1.5 h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl border shadow-2xs transition-all active:scale-95 cursor-pointer ${
+                  isBookmarked(devotional.id)
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold'
+                    : isDark
+                    ? 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800'
+                    : 'bg-white border-slate-200/90 text-neutral-700 hover:bg-neutral-50'
+                }`}
+                title={isBookmarked(devotional.id) ? 'Saved in Library' : 'Save to Library'}
+              >
+                <Bookmark className={`w-4 h-4 ${isBookmarked(devotional.id) ? 'fill-amber-500 text-amber-500' : 'text-neutral-500 dark:text-neutral-400'}`} />
+                <span className="text-xs font-semibold hidden sm:inline">
+                  {isBookmarked(devotional.id) ? 'Saved' : 'Save'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  openVerseShare({
+                    scripture: devotional.scripture,
+                    scriptureText: devotional.scriptureText,
+                    title: devotional.title,
+                    author: devotional.authorName,
+                  })
+                }
+                className="inline-flex items-center gap-1.5 h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl border border-slate-200/90 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                title="Share Scripture Card"
+              >
+                <Share2 className="w-4 h-4 text-neutral-600 dark:text-neutral-400" />
+                <span className="text-xs font-semibold hidden xs:inline">Share</span>
+              </button>
+            </div>
+
+            {/* Admin Controls (Properly aligned, distinct visual styling) */}
+            {isAdmin && (
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsEditingDevotional(true)}
+                  className="inline-flex items-center gap-1.5 h-9 sm:h-10 px-3.5 rounded-xl border border-[#5E72E4]/40 bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 text-[#5E72E4] text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                  title="Admin: Edit Devotional"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTogglePublish}
+                  disabled={isUpdatingStatus}
+                  className={`inline-flex items-center gap-1.5 h-9 sm:h-10 px-3.5 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer text-white shadow-2xs ${
+                    currentDevotional.publishedAt
+                      ? 'bg-neutral-700 hover:bg-neutral-800'
+                      : 'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
+                  title={currentDevotional.publishedAt ? 'Revert to Draft' : 'Publish Live to Disciples'}
+                >
+                  {currentDevotional.publishedAt ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Draft</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Publish</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

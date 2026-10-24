@@ -99,13 +99,13 @@ export function playNotificationSound(force = false) {
   }
 }
 
-/** Ensure both audible and silent notification channels are initialized on native Android */
+/** Ensure both audible and silent notification channels are initialized on native Android (Local & FCM Push) */
 export async function ensureNotificationChannels(): Promise<void> {
   if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) {
     return;
   }
   try {
-    // 1. Audible Channel with Temple Sound & Vibration
+    // 1. Audible Channel for Local Notifications (Importance 5 = High Priority)
     await LocalNotifications.createChannel({
       id: 'mdmi_channel',
       name: 'MDMI Devotionals (Audible)',
@@ -113,9 +113,24 @@ export async function ensureNotificationChannels(): Promise<void> {
       importance: 5,
       visibility: 1,
       vibration: true,
+      lights: true,
+      lightColor: '#5E72E4',
     }).catch(() => {});
 
-    // 2. Silent Channel (Guaranteed zero sound / vibration when user disables sound)
+    // 2. Audible Channel for Native FCM Push Notifications (High Priority, Sound, Vibration)
+    await PushNotifications.createChannel({
+      id: 'mdmi_channel',
+      name: 'MDMI Devotionals (Audible)',
+      description: 'Daily devotional alerts and ministry announcements with sound and vibration',
+      importance: 5,
+      visibility: 1,
+      sound: 'default',
+      vibration: true,
+      lights: true,
+      lightColor: '#5E72E4',
+    }).catch(() => {});
+
+    // 3. Silent Channel for Local Notifications
     await LocalNotifications.createChannel({
       id: 'mdmi_channel_silent',
       name: 'MDMI Devotionals (Silent)',
@@ -124,6 +139,17 @@ export async function ensureNotificationChannels(): Promise<void> {
       visibility: 1,
       vibration: false,
       sound: undefined,
+    }).catch(() => {});
+
+    // 4. Silent Channel for Native FCM Push Notifications
+    await PushNotifications.createChannel({
+      id: 'mdmi_channel_silent',
+      name: 'MDMI Devotionals (Silent)',
+      description: 'Quiet devotional alerts without chime or vibration',
+      importance: 3,
+      visibility: 1,
+      sound: undefined,
+      vibration: false,
     }).catch(() => {});
   } catch (e) {
     console.warn('Channel creation notice:', e);
@@ -161,6 +187,7 @@ export async function syncDeviceRegistration(
 
     const savedToken = token || localStorage.getItem('mdmi_fcm_token') || undefined;
 
+    // 1. Sync to backend API endpoint
     const res = await fetch('/api/notifications/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -173,6 +200,22 @@ export async function syncDeviceRegistration(
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
       }),
     });
+
+    // 2. Also record in Firestore device_tokens collection for permanent cloud persistence
+    try {
+      const { db, doc, setDoc, serverTimestamp } = await import('../lib/firebase');
+      await setDoc(doc(db, 'device_tokens', deviceId), {
+        deviceId,
+        token: savedToken || null,
+        platform,
+        permission,
+        userId: userId || null,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    } catch {
+      // offline fallback
+    }
 
     if (!res.ok) throw new Error('Registration failed');
     const data = await res.json();
@@ -192,6 +235,8 @@ export async function initPushNotifications(
   }
 
   try {
+    await ensureNotificationChannels();
+
     let permStatus = await PushNotifications.checkPermissions();
     if (permStatus.receive === 'prompt') {
       permStatus = await PushNotifications.requestPermissions();
@@ -606,16 +651,21 @@ export async function scheduleNativeDailyReminder(
       if (req.display !== 'granted') return false;
     }
 
+    await ensureNotificationChannels();
+
     // Cancel existing reminder alarm ID 1001
     await LocalNotifications.cancel({ notifications: [{ id: 1001 }] }).catch(() => {});
 
-    // Schedule persistent native daily alarm
+    const soundOn = isNotificationSoundEnabled();
+
+    // Schedule persistent native daily alarm with High Priority channel
     await LocalNotifications.schedule({
       notifications: [
         {
           id: 1001,
           title,
           body,
+          channelId: soundOn ? 'mdmi_channel' : 'mdmi_channel_silent',
           schedule: {
             on: {
               hour,

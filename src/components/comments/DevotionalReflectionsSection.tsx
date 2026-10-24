@@ -14,6 +14,7 @@ import {
   ExternalLink,
   ChevronRight,
   Maximize2,
+  BookOpen,
   X,
 } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
@@ -55,6 +56,8 @@ export const DevotionalReflectionsSection: React.FC<DevotionalReflectionsSection
   const newCommentInputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [showAllInline, setShowAllInline] = useState(false);
+
   const devotionalComments = useMemo(() => {
     if (!devotionalId) return [];
     const list = comments.filter((c) => c.devotionalId === devotionalId);
@@ -66,7 +69,7 @@ export const DevotionalReflectionsSection: React.FC<DevotionalReflectionsSection
     });
   }, [comments, devotionalId]);
 
-  const displayedComments = devotionalComments.slice(0, maxInitial);
+  const displayedComments = showAllInline ? devotionalComments : devotionalComments.slice(0, maxInitial);
   const remainingCount = Math.max(0, devotionalComments.length - maxInitial);
 
   const handleDeviceImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -195,10 +198,10 @@ export const DevotionalReflectionsSection: React.FC<DevotionalReflectionsSection
           type="button"
           onClick={triggerOpenPopup}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#5E72E4] bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 border border-[#5E72E4]/20 transition-all cursor-pointer shadow-2xs"
-          title="Open reflections popup"
+          title="Read all reflections in focused reader sheet"
         >
-          <Maximize2 className="w-3.5 h-3.5" />
-          <span>Full Modal</span>
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Read More</span>
         </button>
       </div>
 
@@ -231,45 +234,45 @@ export const DevotionalReflectionsSection: React.FC<DevotionalReflectionsSection
                 key={`reader-comm-${comment.id}-${idx}`}
                 className="p-4 rounded-xl bg-[#F7FAFC] dark:bg-neutral-800/60 border border-[#E9ECEF] dark:border-neutral-800 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
                     {authorPhoto ? (
                       <img
                         src={authorPhoto}
                         alt={authorName}
-                        className="w-7 h-7 rounded-full object-cover shadow-sm ring-1 ring-neutral-300 dark:ring-neutral-700"
+                        className="w-7 h-7 rounded-full object-cover shadow-sm ring-1 ring-neutral-300 dark:ring-neutral-700 shrink-0"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-[#5E72E4] text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                      <div className="w-7 h-7 rounded-full bg-[#5E72E4] text-white flex items-center justify-center text-xs font-bold shadow-sm shrink-0">
                         {authorName.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <span className="text-xs font-bold text-[#172B4D] dark:text-neutral-200">
+                    <span className="text-xs font-bold text-[#172B4D] dark:text-neutral-200 truncate max-w-[140px] sm:max-w-none">
                       {authorName}
                     </span>
                     {isAuthor && (
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#5E72E4]/10 text-[#5E72E4] border border-[#5E72E4]/20">
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#5E72E4]/10 text-[#5E72E4] border border-[#5E72E4]/20 shrink-0">
                         You
                       </span>
                     )}
-                    <span className="text-[10px] text-[#8898AA]">
+                    <span className="text-[10px] text-[#8898AA] shrink-0">
                       {new Date(comment.createdAt).toLocaleDateString()}
                     </span>
                     {comment.updatedAt && (
-                      <span className="text-[10px] text-neutral-400 italic">
+                      <span className="text-[10px] text-neutral-400 italic shrink-0">
                         (edited)
                       </span>
                     )}
                   </div>
 
-                  {/* Action buttons (Edit, Delete & Report) */}
-                  <div className="flex items-center gap-1.5">
+                  {/* Responsive Action buttons (Edit, Delete & Report) */}
+                  <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                     {canEdit && !isEditingThis && (
                       <button
                         type="button"
                         onClick={() => handleStartEdit(comment)}
                         title="Edit your reflection"
-                        className="px-2 py-1 rounded-md text-[11px] font-bold text-[#5E72E4] bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 border border-[#5E72E4]/25 flex items-center gap-1 transition-colors cursor-pointer"
+                        className="h-7 sm:h-8 px-2.5 rounded-lg text-xs font-semibold text-[#5E72E4] bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 border border-[#5E72E4]/25 flex items-center gap-1 transition-colors cursor-pointer"
                       >
                         <Edit2 className="w-3 h-3" />
                         <span>Edit</span>
@@ -280,7 +283,7 @@ export const DevotionalReflectionsSection: React.FC<DevotionalReflectionsSection
                         type="button"
                         onClick={() => removeComment(comment.id, devotionalId)}
                         title="Delete reflection"
-                        className="p-1 text-neutral-400 hover:text-rose-500 rounded-md transition-colors cursor-pointer"
+                        className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center text-neutral-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -289,7 +292,7 @@ export const DevotionalReflectionsSection: React.FC<DevotionalReflectionsSection
                       id={`report-reader-comment-btn-${comment.id}`}
                       onClick={() => handleReport(comment.id)}
                       title="Report reflection"
-                      className="p-1 text-neutral-400 hover:text-[#F5365C] rounded-md transition-colors cursor-pointer"
+                      className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center text-neutral-400 hover:text-[#F5365C] hover:bg-rose-500/10 transition-colors cursor-pointer"
                     >
                       <Flag className="w-3.5 h-3.5" />
                     </button>
@@ -402,21 +405,43 @@ export const DevotionalReflectionsSection: React.FC<DevotionalReflectionsSection
           })
         )}
 
-        {/* Click More to Open Full Popup Button */}
-        {remainingCount > 0 && (
+        {/* User-friendly Read More Controls */}
+        {remainingCount > 0 && !showAllInline && (
+          <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowAllInline(true)}
+              className="w-full sm:flex-1 py-3 px-4 rounded-xl border border-neutral-200/90 dark:border-neutral-800 hover:border-[#5E72E4]/40 bg-neutral-50 hover:bg-neutral-100/80 dark:bg-neutral-800/50 dark:hover:bg-neutral-800 flex items-center justify-between text-xs font-bold text-[#5E72E4] transition-all cursor-pointer shadow-2xs group"
+            >
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-[#5E72E4]" />
+                <span>Read More Reflections</span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-neutral-500 group-hover:text-[#5E72E4] transition-colors">
+                <span>+{remainingCount} more</span>
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={triggerOpenPopup}
+              className="w-full sm:w-auto py-3 px-4 rounded-xl border border-[#5E72E4]/30 bg-[#5E72E4]/10 hover:bg-[#5E72E4]/20 text-[#5E72E4] text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              title="Open all reflections in focused reader sheet"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Open Reader Sheet</span>
+            </button>
+          </div>
+        )}
+
+        {showAllInline && remainingCount > 0 && (
           <button
             type="button"
-            onClick={triggerOpenPopup}
-            className="w-full py-3 px-4 rounded-xl border border-neutral-200/90 dark:border-neutral-800 hover:border-[#5E72E4]/40 bg-neutral-50 hover:bg-neutral-100/80 dark:bg-neutral-800/50 dark:hover:bg-neutral-800 flex items-center justify-between text-xs font-bold text-[#5E72E4] transition-all cursor-pointer shadow-2xs group"
+            onClick={() => setShowAllInline(false)}
+            className="w-full py-2.5 text-center text-xs font-semibold text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors cursor-pointer"
           >
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              <span>View all {devotionalComments.length} reflections in full popup</span>
-            </div>
-            <div className="flex items-center gap-1 text-[11px] font-semibold text-neutral-500 group-hover:text-[#5E72E4] transition-colors">
-              <span>+{remainingCount} more</span>
-              <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-            </div>
+            Show fewer reflections
           </button>
         )}
       </div>

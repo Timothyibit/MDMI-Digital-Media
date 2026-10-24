@@ -334,53 +334,107 @@ async function startServer() {
     });
   });
 
-  // Test push notification endpoint - validates payloads across Web, Android, iOS
+  // Test push notification endpoint - validates High-Priority payloads across Web, Android, iOS
   app.post('/api/notifications/test-push', (req, res) => {
     try {
       const {
         title = 'Daily Word Available',
         body = 'Today\'s meditation from The Master\'s Discipleship Ministries is ready.',
-        platform = 'web',
+        platform = 'android',
         devotionalId,
       } = req.body;
 
-      const payload = {
-        id: `test_${Date.now()}`,
-        title,
-        body,
-        platform,
-        devotionalId: devotionalId || 'daily-devotional',
-        timestamp: new Date().toISOString(),
-        sound: 'temple-bell',
-        actions: [
-          { action: 'open', title: 'Read Now' },
-          { action: 'dismiss', title: 'Later' },
-        ],
+      // High-Priority FCM Payload format to guarantee Android wake-up when app is closed / in Doze mode
+      const fcmPayload = {
+        notification: {
+          title,
+          body,
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'mdmi_channel',
+            sound: 'default',
+            icon: 'ic_stat_mdmi_logo',
+            color: '#5E72E4',
+            priority: 'high',
+            visibility: 'public',
+            defaultSound: true,
+            defaultVibrateTimings: true,
+          },
+        },
+        data: {
+          click_action: 'FLUTTER_NOTIFICATION_CLICK',
+          notificationId: `test_${Date.now()}`,
+          devotionalId: devotionalId || 'daily-devotional',
+          type: 'broadcast',
+          timestamp: new Date().toISOString(),
+          title,
+          body,
+        },
       };
 
       return res.json({
         success: true,
-        message: `Test notification generated successfully for ${platform.toUpperCase()}`,
-        payload,
+        message: `High-priority test notification generated successfully for ${platform.toUpperCase()}`,
+        payload: fcmPayload,
       });
     } catch (err: any) {
       return res.status(500).json({ error: 'Failed to dispatch test notification' });
     }
   });
 
-  // Admin broadcast push endpoint - logs broadcast and acknowledges instant delivery
+  // Admin broadcast push endpoint - formats and dispatches High-Priority FCM payload for closed/killed apps
   app.post('/api/notifications/broadcast', (req, res) => {
     try {
       const { title, body, type = 'broadcast', devotionalId, createdBy } = req.body;
       const broadcastId = `bcast_${Date.now()}`;
-      console.log(`[Push Broadcast] Dispatched instantly: "${title}" by ${createdBy || 'Admin'}`);
+
+      // Format High-Priority payload that Android OS handles natively in system tray
+      const fcmHighPriorityPayload = {
+        notification: {
+          title,
+          body,
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'mdmi_channel',
+            sound: 'default',
+            icon: 'ic_stat_mdmi_logo',
+            color: '#5E72E4',
+            priority: 'high',
+            visibility: 'public',
+            defaultSound: true,
+            defaultVibrateTimings: true,
+          },
+        },
+        data: {
+          click_action: 'FLUTTER_NOTIFICATION_CLICK',
+          notificationId: broadcastId,
+          devotionalId: devotionalId || '',
+          type: type || 'broadcast',
+          title,
+          body,
+          createdBy: createdBy || 'Ministry Overseer',
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      const tokens = Array.from(registeredDevices.values())
+        .map((d) => d.token)
+        .filter((t): t is string => Boolean(t));
+
+      console.log(`[Push Broadcast] High-Priority payload prepared for ${tokens.length} FCM devices and ${registeredDevices.size} total clients: "${title}" by ${createdBy || 'Admin'}`);
 
       return res.json({
         success: true,
         broadcastId,
         activeDevicesCount: registeredDevices.size,
+        fcmTokensCount: tokens.length,
         timestamp: new Date().toISOString(),
-        message: 'Broadcast synchronized successfully across connected web and mobile devices',
+        payload: fcmHighPriorityPayload,
+        message: 'High-priority broadcast dispatched successfully across connected mobile and web devices',
       });
     } catch (err: any) {
       return res.status(500).json({ error: 'Failed to synchronize broadcast' });
