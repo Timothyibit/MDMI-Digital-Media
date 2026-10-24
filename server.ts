@@ -425,6 +425,99 @@ async function startServer() {
         .map((d) => d.token)
         .filter((t): t is string => Boolean(t));
 
+      // Asynchronously dispatch real FCM push to all registered device tokens
+      if (tokens.length > 0) {
+        (async () => {
+          try {
+            const { GoogleAuth } = await import('google-auth-library');
+            const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+            let auth: any;
+
+            if (serviceAccountKey) {
+              const parsed = typeof serviceAccountKey === 'string' && serviceAccountKey.startsWith('{')
+                ? JSON.parse(serviceAccountKey)
+                : null;
+              if (parsed) {
+                auth = new GoogleAuth({
+                  credentials: {
+                    client_email: parsed.client_email,
+                    private_key: parsed.private_key,
+                  },
+                  projectId: parsed.project_id || 'gen-lang-client-0398777759',
+                  scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+                });
+              }
+            }
+
+            if (!auth) {
+              auth = new GoogleAuth({
+                scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+              });
+            }
+
+            const client = await auth.getClient();
+            const tokenObj = await client.getAccessToken();
+            const accessToken = typeof tokenObj === 'string' ? tokenObj : tokenObj?.token;
+
+            if (accessToken) {
+              let deliveredCount = 0;
+              for (const deviceToken of tokens) {
+                try {
+                  const fcmRes = await fetch('https://fcm.googleapis.com/v1/projects/gen-lang-client-0398777759/messages:send', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${accessToken}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      message: {
+                        token: deviceToken,
+                        notification: {
+                          title,
+                          body,
+                        },
+                        android: {
+                          priority: 'high',
+                          notification: {
+                            channelId: 'mdmi_channel',
+                            sound: 'default',
+                            icon: 'ic_stat_mdmi_logo',
+                            color: '#5E72E4',
+                            priority: 'high',
+                            visibility: 'public',
+                            defaultSound: true,
+                            defaultVibrateTimings: true,
+                          },
+                        },
+                        data: {
+                          notificationId: broadcastId,
+                          devotionalId: devotionalId || '',
+                          type: type || 'broadcast',
+                          title,
+                          body,
+                        },
+                      },
+                    }),
+                  });
+
+                  if (fcmRes.ok) {
+                    deliveredCount++;
+                  } else {
+                    const errBody = await fcmRes.text();
+                    console.info(`[FCM] Delivery response (${fcmRes.status}):`, errBody.slice(0, 160));
+                  }
+                } catch (pushErr: any) {
+                  console.info('[FCM] Send error:', pushErr?.message);
+                }
+              }
+              console.log(`[FCM Dispatch] Successfully pushed to ${deliveredCount}/${tokens.length} devices.`);
+            }
+          } catch (authErr: any) {
+            console.info('[FCM] Auth note:', authErr?.message);
+          }
+        })().catch(() => {});
+      }
+
       console.log(`[Push Broadcast] High-Priority payload prepared for ${tokens.length} FCM devices and ${registeredDevices.size} total clients: "${title}" by ${createdBy || 'Admin'}`);
 
       return res.json({
