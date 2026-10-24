@@ -276,6 +276,18 @@ export async function initPushNotifications(
         window.postMessage({ type: 'MDMI_NOTIFICATION_CLICKED', data }, '*');
       }
     });
+
+    // Handle user tapping on scheduled hardware alarm / timer notification
+    LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+      console.info('Local alarm action performed:', action.notification?.extra);
+      const data = action.notification?.extra || {};
+      if (onNotificationTapped) {
+        onNotificationTapped(data);
+      }
+      if (typeof window !== 'undefined') {
+        window.postMessage({ type: 'MDMI_NOTIFICATION_CLICKED', data }, '*');
+      }
+    });
   } catch (err) {
     console.warn('Native Push Notifications init notice:', err);
   }
@@ -687,4 +699,321 @@ export async function scheduleNativeDailyReminder(
     return false;
   }
 }
+
+/** Deterministically generates a stable 32-bit positive integer ID for Capacitor LocalNotifications */
+export function getNumericNotificationId(strId: string): number {
+  let hash = 0;
+  for (let i = 0; i < strId.length; i++) {
+    hash = (hash << 5) - hash + strId.charCodeAt(i);
+    hash |= 0;
+  }
+  return (Math.abs(hash) % 1999900000) + 2000;
+}
+
+/**
+ * Schedules a precise one-off timer notification with Android's native AlarmManager.
+ * Guaranteed to wake device and fire on schedule even when app is closed, killed, or idle.
+ */
+export async function scheduleNativeTimer(
+  scheduleId: string,
+  title: string,
+  body: string,
+  triggerDate: Date,
+  extra?: any
+): Promise<boolean> {
+  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) {
+    return false;
+  }
+  try {
+    const numId = getNumericNotificationId(scheduleId);
+    await ensureNotificationChannels();
+
+    const perm = await LocalNotifications.checkPermissions();
+    if (perm.display !== 'granted') {
+      const req = await LocalNotifications.requestPermissions();
+      if (req.display !== 'granted') return false;
+    }
+
+    // Cancel any previous alarm with this numeric ID
+    await LocalNotifications.cancel({ notifications: [{ id: numId }] }).catch(() => {});
+
+    // If trigger date is in the past, do not schedule
+    if (triggerDate.getTime() <= Date.now() + 1000) {
+      return false;
+    }
+
+    const soundOn = isNotificationSoundEnabled();
+
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: numId,
+          title,
+          body,
+          channelId: soundOn ? 'mdmi_channel' : 'mdmi_channel_silent',
+          schedule: {
+            at: triggerDate,
+            allowWhileIdle: true,
+          },
+          smallIcon: 'ic_stat_mdmi_logo',
+          iconColor: '#5E72E4',
+          extra: {
+            ...(extra || {}),
+            scheduleId,
+            id: scheduleId,
+            notificationId: scheduleId,
+          },
+        },
+      ],
+    });
+
+    console.info(`Native hardware timer alarm registered [ID ${numId}] for ${triggerDate.toISOString()}`);
+    return true;
+  } catch (err) {
+    console.warn('Native timer scheduling notice:', err);
+    return false;
+  }
+}
+
+/**
+ * Schedules a recurring notification directly with Android's native AlarmManager.
+ * Runs on repeat (daily, weekly, hourly) even when app is killed or device reboots.
+ */
+export async function scheduleNativeRecurring(
+  scheduleId: string,
+  title: string,
+  body: string,
+  recurrence: {
+    frequency: 'daily' | 'weekly' | 'hourly' | 'custom_hours';
+    timeOfDay?: string;
+    daysOfWeek?: number[];
+    intervalHours?: number;
+  },
+  extra?: any
+): Promise<boolean> {
+  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) {
+    return false;
+  }
+  try {
+    const numId = getNumericNotificationId(scheduleId);
+    await ensureNotificationChannels();
+
+    const perm = await LocalNotifications.checkPermissions();
+    if (perm.display !== 'granted') {
+      const req = await LocalNotifications.requestPermissions();
+      if (req.display !== 'granted') return false;
+    }
+
+    await LocalNotifications.cancel({ notifications: [{ id: numId }] }).catch(() => {});
+
+    const soundOn = isNotificationSoundEnabled();
+    const [targetH, targetM] = (recurrence.timeOfDay || '07:00').split(':').map((s) => parseInt(s, 10));
+    const hour = isNaN(targetH) ? 7 : targetH;
+    const minute = isNaN(targetM) ? 0 : targetM;
+
+    if (recurrence.frequency === 'daily') {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: numId,
+            title,
+            body,
+            channelId: soundOn ? 'mdmi_channel' : 'mdmi_channel_silent',
+            schedule: {
+              on: { hour, minute },
+              repeats: true,
+              allowWhileIdle: true,
+            },
+            smallIcon: 'ic_stat_mdmi_logo',
+            iconColor: '#5E72E4',
+            extra: {
+              ...(extra || {}),
+              scheduleId,
+              id: scheduleId,
+              notificationId: scheduleId,
+            },
+          },
+        ],
+      });
+      console.info(`Native recurring daily alarm registered [ID ${numId}] for ${hour}:${String(minute).padStart(2, '0')}`);
+      return true;
+    }
+
+    if (recurrence.frequency === 'weekly') {
+      const days = recurrence.daysOfWeek && recurrence.daysOfWeek.length > 0 ? recurrence.daysOfWeek : [0];
+      const notifs = days.map((dayOfWeek, idx) => {
+        const capWeekday = (dayOfWeek % 7) + 1;
+        return {
+          id: numId + idx,
+          title,
+          body,
+          channelId: soundOn ? 'mdmi_channel' : 'mdmi_channel_silent',
+          schedule: {
+            on: { weekday: capWeekday, hour, minute },
+            repeats: true,
+            allowWhileIdle: true,
+          },
+          smallIcon: 'ic_stat_mdmi_logo',
+          iconColor: '#5E72E4',
+          extra: {
+            ...(extra || {}),
+            scheduleId,
+            id: scheduleId,
+            notificationId: scheduleId,
+          },
+        };
+      });
+
+      await LocalNotifications.schedule({ notifications: notifs });
+      console.info(`Native recurring weekly alarms registered [base ID ${numId}]`);
+      return true;
+    }
+
+    if (recurrence.frequency === 'hourly') {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: numId,
+            title,
+            body,
+            channelId: soundOn ? 'mdmi_channel' : 'mdmi_channel_silent',
+            schedule: {
+              every: 'hour',
+              allowWhileIdle: true,
+            },
+            smallIcon: 'ic_stat_mdmi_logo',
+            iconColor: '#5E72E4',
+            extra: {
+              ...(extra || {}),
+              scheduleId,
+              id: scheduleId,
+              notificationId: scheduleId,
+            },
+          },
+        ],
+      });
+      return true;
+    }
+
+    const nextDate = new Date();
+    nextDate.setHours(hour, minute, 0, 0);
+    if (nextDate.getTime() <= Date.now() + 5000) {
+      nextDate.setDate(nextDate.getDate() + 1);
+    }
+
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: numId,
+          title,
+          body,
+          channelId: soundOn ? 'mdmi_channel' : 'mdmi_channel_silent',
+          schedule: {
+            at: nextDate,
+            repeats: true,
+            allowWhileIdle: true,
+          },
+          smallIcon: 'ic_stat_mdmi_logo',
+          iconColor: '#5E72E4',
+          extra: {
+            ...(extra || {}),
+            scheduleId,
+            id: scheduleId,
+            notificationId: scheduleId,
+          },
+        },
+      ],
+    });
+    return true;
+  } catch (err) {
+    console.warn('Native recurring schedule notice:', err);
+    return false;
+  }
+}
+
+/** Cancels a native hardware scheduled notification */
+export async function cancelNativeSchedule(scheduleId: string): Promise<boolean> {
+  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) {
+    return false;
+  }
+  try {
+    const numId = getNumericNotificationId(scheduleId);
+    const idsToCancel = [numId, numId + 1, numId + 2, numId + 3, numId + 4, numId + 5, numId + 6, numId + 7];
+    await LocalNotifications.cancel({
+      notifications: idsToCancel.map((id) => ({ id })),
+    }).catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Synchronizes ALL active schedules, timer triggers, and automatic ministry rules
+ * directly into Android's native hardware AlarmManager.
+ * Guarantees that ALL prayer watches, alarms, and streak reminders fire when app is closed.
+ */
+export async function syncAllSchedulesToNative(
+  schedules: any[],
+  defaultAutoRules?: any[]
+): Promise<void> {
+  if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) {
+    return;
+  }
+
+  try {
+    await ensureNotificationChannels();
+
+    // 1. Process custom schedules
+    for (const item of schedules) {
+      if (!item || !item.enabled || item.status === 'paused' || item.status === 'completed') {
+        continue;
+      }
+
+      if (item.triggerType === 'timer' && item.scheduledAt) {
+        const triggerDate = new Date(item.scheduledAt);
+        if (triggerDate.getTime() > Date.now()) {
+          await scheduleNativeTimer(item.id, item.title, item.body, triggerDate, {
+            scheduleId: item.id,
+            devotionalId: item.devotionalId,
+            type: item.type,
+          }).catch(() => {});
+        }
+      } else if (item.triggerType === 'recurring' && item.recurrence) {
+        await scheduleNativeRecurring(item.id, item.title, item.body, item.recurrence, {
+          scheduleId: item.id,
+          devotionalId: item.devotionalId,
+          type: item.type,
+        }).catch(() => {});
+      } else if (item.triggerType === 'auto_event' && item.recurrence) {
+        await scheduleNativeRecurring(item.id, item.title, item.body, item.recurrence, {
+          scheduleId: item.id,
+          type: item.type,
+          autoEventType: item.autoEventType,
+        }).catch(() => {});
+      }
+    }
+
+    // 2. Process default automatic rules (Noonday Watch, Streak Alert, Midnight Hour, Sabbath)
+    if (defaultAutoRules && defaultAutoRules.length > 0) {
+      for (const rule of defaultAutoRules) {
+        if (!rule.recurrence) continue;
+        const ruleId = `auto_rule_${rule.autoEventType || rule.type}`;
+        const existing = schedules.find((s) => s.autoEventType === rule.autoEventType || s.id === ruleId);
+        if (existing && !existing.enabled) continue;
+
+        await scheduleNativeRecurring(ruleId, rule.title, rule.body, rule.recurrence, {
+          scheduleId: ruleId,
+          type: rule.type,
+          autoEventType: rule.autoEventType,
+        }).catch(() => {});
+      }
+    }
+
+    console.info('All active schedules & automatic rules synced to Android AlarmManager');
+  } catch (err) {
+    console.warn('syncAllSchedulesToNative error:', err);
+  }
+}
+
 

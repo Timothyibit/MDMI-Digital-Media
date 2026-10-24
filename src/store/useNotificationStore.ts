@@ -34,6 +34,10 @@ import {
   deleteScheduleFromBackend,
   clearBackendTestNotifications,
   scheduleNativeDailyReminder,
+  scheduleNativeTimer,
+  scheduleNativeRecurring,
+  cancelNativeSchedule,
+  syncAllSchedulesToNative,
   checkAndSyncNotificationPermission,
   testDeviceNotificationDelivery,
   setNotificationSoundEnabled,
@@ -1064,6 +1068,15 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         id: assignedId,
       };
 
+      // Schedule directly into Android Native AlarmManager so it wakes and triggers even when app is closed, idle or killed
+      await scheduleNativeTimer(
+        assignedId,
+        data.title,
+        data.body,
+        scheduledMoment,
+        { devotionalId: data.devotionalId, type: data.type || 'broadcast' }
+      ).catch((e) => console.warn('Native timer registration note:', e));
+
       // Sync to backend server runner too
       syncScheduleToBackend(fullSchedule).catch(() => {});
 
@@ -1114,6 +1127,15 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         ...scheduleData,
         id: assignedId,
       };
+
+      // Schedule directly into Android Native AlarmManager with allowWhileIdle: true
+      await scheduleNativeRecurring(
+        assignedId,
+        data.title,
+        data.body,
+        data.recurrence,
+        { devotionalId: data.devotionalId, type: data.type || 'daily' }
+      ).catch((e) => console.warn('Native recurring registration note:', e));
 
       // Sync to backend server runner too
       syncScheduleToBackend(fullSchedule).catch(() => {});
@@ -1166,6 +1188,17 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         id: assignedId,
       };
 
+      // If rule has daily time or recurrence, register directly in Android AlarmManager
+      if (scheduleData.recurrence && scheduleData.enabled) {
+        await scheduleNativeRecurring(
+          assignedId,
+          data.title,
+          data.body,
+          scheduleData.recurrence,
+          { type: data.type || 'devotional', autoEventType: data.autoEventType }
+        ).catch((e) => console.warn('Native auto rule registration note:', e));
+      }
+
       // Sync to backend runner
       syncScheduleToBackend(fullSchedule).catch(() => {});
 
@@ -1190,6 +1223,27 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         console.info('Local fallback for schedule update:', err);
       }
 
+      // Sync native hardware alarm state
+      if (updates.enabled === false || updates.status === 'paused' || updates.status === 'completed') {
+        await cancelNativeSchedule(id).catch(() => {});
+      } else {
+        const schedule = get().schedules.find((s) => s.id === id);
+        const merged = { ...schedule, ...updates };
+        if (merged.enabled && merged.status === 'active' && merged.title) {
+          if (merged.triggerType === 'timer' && merged.scheduledAt) {
+            await scheduleNativeTimer(id, merged.title, merged.body || '', new Date(merged.scheduledAt), {
+              devotionalId: merged.devotionalId,
+              type: merged.type,
+            }).catch(() => {});
+          } else if (merged.recurrence) {
+            await scheduleNativeRecurring(id, merged.title, merged.body || '', merged.recurrence, {
+              devotionalId: merged.devotionalId,
+              type: merged.type,
+            }).catch(() => {});
+          }
+        }
+      }
+
       set((state) => {
         const updated = state.schedules.map((s) => (s.id === id ? { ...s, ...updates } : s));
         saveStoredSchedules(updated);
@@ -1210,6 +1264,9 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
         console.info('Local fallback for delete schedule:', err);
       }
 
+      // Cancel Android native hardware alarm
+      await cancelNativeSchedule(id).catch(() => {});
+
       // Sync deletion to backend
       deleteScheduleFromBackend(id).catch(() => {});
 
@@ -1229,6 +1286,10 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
     const current = get().schedules.find((s) => s.id === id);
     if (!current) return { success: false };
 
+    if (!enabled) {
+      await cancelNativeSchedule(id).catch(() => {});
+    }
+
     const updates: Partial<NotificationSchedule> = {
       enabled,
       status: enabled ? 'active' : 'paused',
@@ -1236,6 +1297,15 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
 
     if (enabled && current.recurrence) {
       updates.nextTriggerAt = computeNextRecurrence(current.recurrence, new Date()).toISOString();
+      await scheduleNativeRecurring(id, current.title, current.body, current.recurrence, {
+        devotionalId: current.devotionalId,
+        type: current.type,
+      }).catch(() => {});
+    } else if (enabled && current.triggerType === 'timer' && current.scheduledAt) {
+      await scheduleNativeTimer(id, current.title, current.body, new Date(current.scheduledAt), {
+        devotionalId: current.devotionalId,
+        type: current.type,
+      }).catch(() => {});
     }
 
     return get().updateSchedule(id, updates);
@@ -1344,6 +1414,9 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       resolvedActions: getStoredRecord(STORAGE_KEY_RESOLVED_ACTIONS),
       pendingDeliveriesCount: getStoredPendingQueue().length,
     });
+
+    // Immediately sync all stored schedules & preset rules into native Android hardware AlarmManager
+    syncAllSchedulesToNative(get().schedules, DEFAULT_AUTOMATIC_RULES).catch(() => {});
 
     // Auto purge any test notifications and test text from Firestore & local storage
     get().clearTestNotifications().catch(() => {});
@@ -1489,6 +1562,8 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
             const deduped = deduplicateSchedules(list);
             saveStoredSchedules(deduped);
             set({ schedules: deduped });
+            // Sync all active schedules and auto rules straight to native Android AlarmManager
+            syncAllSchedulesToNative(deduped, DEFAULT_AUTOMATIC_RULES).catch(() => {});
           } else {
             // Seed default automatic rules into Firestore if collection is empty
             const seedSchedules: NotificationSchedule[] = DEFAULT_AUTOMATIC_RULES.map((rule, idx) => ({
@@ -1504,6 +1579,7 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
 
             saveStoredSchedules(seedSchedules);
             set({ schedules: seedSchedules });
+            syncAllSchedulesToNative(seedSchedules, DEFAULT_AUTOMATIC_RULES).catch(() => {});
           }
         },
         (err) => {
@@ -1512,6 +1588,7 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
           const cached = getStoredSchedules();
           if (cached.length > 0) {
             set({ schedules: cached });
+            syncAllSchedulesToNative(cached, DEFAULT_AUTOMATIC_RULES).catch(() => {});
           } else {
             const seedSchedules: NotificationSchedule[] = DEFAULT_AUTOMATIC_RULES.map((rule, idx) => ({
               ...rule,
@@ -1519,11 +1596,13 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
               createdAt: new Date().toISOString(),
             }));
             set({ schedules: seedSchedules });
+            syncAllSchedulesToNative(seedSchedules, DEFAULT_AUTOMATIC_RULES).catch(() => {});
           }
         }
       );
     } catch (err) {
       console.info('Using local schedules cache:', err);
+      syncAllSchedulesToNative(get().schedules, DEFAULT_AUTOMATIC_RULES).catch(() => {});
     }
 
     // 3. Background Engine Ticker (Runs every 15 seconds to check active timers & schedules)
