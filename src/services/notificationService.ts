@@ -171,6 +171,14 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 }
 
+/** Returns the live backend API base URL when running in native Capacitor on Android */
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+    return 'https://ais-dev-noshvwsdf4lvq2c2pvcajb-458537113715.europe-west3.run.app';
+  }
+  return '';
+}
+
 /** Sync device notification state and registration with backend server */
 export async function syncDeviceRegistration(
   permission: NotificationPermission,
@@ -187,8 +195,26 @@ export async function syncDeviceRegistration(
 
     const savedToken = token || localStorage.getItem('mdmi_fcm_token') || undefined;
 
-    // 1. Sync to backend API endpoint
-    const res = await fetch('/api/notifications/register', {
+    // 1. Record directly in Firestore device_tokens collection for permanent cloud persistence
+    try {
+      const { db, doc, setDoc, serverTimestamp } = await import('../lib/firebase');
+      await setDoc(doc(db, 'device_tokens', deviceId), {
+        deviceId,
+        token: savedToken || null,
+        platform,
+        permission,
+        userId: userId || null,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      console.info('Device token successfully recorded in Firestore device_tokens:', deviceId, Boolean(savedToken));
+    } catch (dbErr) {
+      console.info('Firestore device token write notice:', dbErr);
+    }
+
+    // 2. Sync to backend API endpoint (using Cloud Run URL on mobile)
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/notifications/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -201,23 +227,7 @@ export async function syncDeviceRegistration(
       }),
     });
 
-    // 2. Also record in Firestore device_tokens collection for permanent cloud persistence
-    try {
-      const { db, doc, setDoc, serverTimestamp } = await import('../lib/firebase');
-      await setDoc(doc(db, 'device_tokens', deviceId), {
-        deviceId,
-        token: savedToken || null,
-        platform,
-        permission,
-        userId: userId || null,
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-    } catch {
-      // offline fallback
-    }
-
-    if (!res.ok) throw new Error('Registration failed');
+    if (!res.ok) throw new Error('Registration HTTP status ' + res.status);
     const data = await res.json();
     return { success: true, data };
   } catch (err: any) {
@@ -237,29 +247,24 @@ export async function initPushNotifications(
   try {
     await ensureNotificationChannels();
 
-    let permStatus = await PushNotifications.checkPermissions();
-    if (permStatus.receive === 'prompt') {
-      permStatus = await PushNotifications.requestPermissions();
-    }
-    if (permStatus.receive === 'granted') {
-      await PushNotifications.register();
-    }
+    // 1. Remove stale listeners to prevent duplicate triggers
+    await PushNotifications.removeAllListeners().catch(() => {});
+    await LocalNotifications.removeAllListeners().catch(() => {});
 
-    // Capture FCM device registration token
+    // 2. Attach ALL listeners BEFORE calling register() so no events are dropped
     PushNotifications.addListener('registration', (token) => {
-      console.info('Native FCM push token registered:', token.value);
+      console.info('Native FCM push token registered successfully:', token.value);
       localStorage.setItem('mdmi_fcm_token', token.value);
       syncDeviceRegistration('granted', undefined, token.value).catch(() => {});
     });
 
     PushNotifications.addListener('registrationError', (err) => {
-      console.warn('Native FCM push registration notice:', err.error);
+      console.warn('Native FCM push registration error:', err.error);
     });
 
     // Handle incoming push notification when app is open or minimized
     PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.info('Push notification received:', notification.title);
-      // Trigger instant in-app update
+      console.info('Push notification received in foreground/minimized:', notification.title);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('mdmi:notification-received', { detail: notification }));
       }
@@ -288,6 +293,21 @@ export async function initPushNotifications(
         window.postMessage({ type: 'MDMI_NOTIFICATION_CLICKED', data }, '*');
       }
     });
+
+    // 3. Immediately sync already-cached token if device has registered previously
+    const existingToken = localStorage.getItem('mdmi_fcm_token');
+    if (existingToken) {
+      syncDeviceRegistration('granted', undefined, existingToken).catch(() => {});
+    }
+
+    // 4. Check & Request Permissions
+    let permStatus = await PushNotifications.checkPermissions();
+    if (permStatus.receive === 'prompt') {
+      permStatus = await PushNotifications.requestPermissions();
+    }
+    if (permStatus.receive === 'granted') {
+      await PushNotifications.register();
+    }
   } catch (err) {
     console.warn('Native Push Notifications init notice:', err);
   }
@@ -300,7 +320,8 @@ export async function triggerBackendTestPush(
 ): Promise<{ success: boolean; message?: string }> {
   try {
     const platform = detectPlatform();
-    const res = await fetch('/api/notifications/test-push', {
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/notifications/test-push`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -321,7 +342,8 @@ export async function triggerBackendTestPush(
 /** Sync a schedule / timer / auto rule to the backend server */
 export async function syncScheduleToBackend(schedule: any): Promise<boolean> {
   try {
-    const res = await fetch('/api/notifications/schedules', {
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/notifications/schedules`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(schedule),
@@ -335,7 +357,8 @@ export async function syncScheduleToBackend(schedule: any): Promise<boolean> {
 /** Delete a schedule from backend server */
 export async function deleteScheduleFromBackend(id: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/notifications/schedules/${id}`, {
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/notifications/schedules/${id}`, {
       method: 'DELETE',
     });
     return res.ok;
@@ -347,7 +370,8 @@ export async function deleteScheduleFromBackend(id: string): Promise<boolean> {
 /** Clear test notifications on backend server */
 export async function clearBackendTestNotifications(): Promise<{ success: boolean; removedCount?: number }> {
   try {
-    const res = await fetch('/api/notifications/clear-tests', {
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/notifications/clear-tests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });

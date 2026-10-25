@@ -552,6 +552,44 @@ async function startServer() {
     }
   });
 
+  // Automatically watch Firestore notifications to guarantee any new document triggers High-Priority FCM
+  let lastDispatchedNotifTime = Date.now();
+  setInterval(async () => {
+    try {
+      const authData = await getFcmAuth();
+      if (!authData) return;
+
+      const url = `https://firestore.googleapis.com/v1/projects/${authData.projectId}/databases/ai-studio-mdmidevotionals-67aa3489-e34b-4eff-bbe2-7bcb09ef2d19/documents/notifications?pageSize=5`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${authData.accessToken}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.documents || !Array.isArray(data.documents)) return;
+
+      for (const doc of data.documents) {
+        const createTimeStr = doc.createTime;
+        const createTime = new Date(createTimeStr).getTime();
+        if (createTime > lastDispatchedNotifTime) {
+          lastDispatchedNotifTime = createTime;
+          const title = doc.fields?.title?.stringValue || 'New Devotional Update';
+          const body = doc.fields?.body?.stringValue || '';
+          const devotionalId = doc.fields?.devotionalId?.stringValue || '';
+          const notifId = doc.name?.split('/').pop() || '';
+
+          console.log(`[Firestore Auto-Push] Detected new broadcast "${title}". Dispatching High-Priority FCM to devices...`);
+          await dispatchFcmToAllDevices(title, body, {
+            notificationId: notifId,
+            devotionalId,
+            type: 'broadcast',
+          });
+        }
+      }
+    } catch {
+      // quiet
+    }
+  }, 5000);
+
   // -------------------------------------------------------------
   // Backend Notification Timer & Recurring Scheduler Engine
   // -------------------------------------------------------------

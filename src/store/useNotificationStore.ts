@@ -42,6 +42,7 @@ import {
   testDeviceNotificationDelivery,
   setNotificationSoundEnabled,
   isNotificationSoundEnabled,
+  getApiBaseUrl,
 } from '../services/notificationService';
 export { playNotificationSound, isNotificationSoundEnabled, setNotificationSoundEnabled } from '../services/notificationService';
 import {
@@ -928,7 +929,8 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
       });
 
       // Sync to backend notification registry for connected clients
-      fetch('/api/notifications/broadcast', {
+      const baseUrl = getApiBaseUrl();
+      fetch(`${baseUrl}/api/notifications/broadcast`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
