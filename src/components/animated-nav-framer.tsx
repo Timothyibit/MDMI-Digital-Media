@@ -184,8 +184,8 @@ export function AnimatedNavFramer({
     <div
       aria-label="Navigation Container"
       className={cn(
-        // CRITICAL: pointer-events-none on outer wrapper ensures full click-through everywhere around the pill
-        "fixed left-1/2 -translate-x-1/2 z-50 pointer-events-none flex justify-center w-full max-w-[calc(100vw-1rem)] sm:max-w-max px-1",
+        // Pointer-events-none on outer wrapper ensures full click-through everywhere around the dock
+        "fixed left-1/2 -translate-x-1/2 z-50 pointer-events-none flex justify-center w-full max-w-[calc(100vw-1rem)] sm:max-w-fit px-2",
         isTop ? "top-3 sm:top-5" : "bottom-2 sm:bottom-5 pb-[max(env(safe-area-inset-bottom),0.25rem)]",
         className
       )}
@@ -203,7 +203,7 @@ export function AnimatedNavFramer({
         className={cn(
           "pointer-events-auto relative flex items-center overflow-hidden rounded-full border border-neutral-300/80 dark:border-neutral-700/80 bg-white/95 dark:bg-neutral-900/95 shadow-[0_10px_35px_rgba(0,0,0,0.18)] dark:shadow-[0_14px_40px_rgba(0,0,0,0.65)] backdrop-blur-md select-none transition-all duration-200",
           isExpanded
-            ? "w-[94%] max-w-md sm:w-auto h-14 sm:h-12 justify-around sm:justify-center px-2 sm:px-3"
+            ? "w-[96%] max-w-lg sm:w-auto sm:max-w-none h-14 sm:h-13 justify-around sm:justify-center px-2.5 sm:px-4"
             : "cursor-pointer justify-center w-12 h-12 ring-2 ring-[#84CC16]/40 hover:ring-[#84CC16]/70"
         )}
       >

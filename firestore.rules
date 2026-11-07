@@ -131,8 +131,7 @@ service cloud.firestore {
     // ==========================================
     match /notifications/{notificationId} {
       allow read: if true;
-      allow create, update: if isAdmin() || isBootstrappedAdmin() || isAuthenticated();
-      allow delete: if true;
+      allow create, update, delete: if true;
     }
 
     // ==========================================
@@ -140,7 +139,14 @@ service cloud.firestore {
     // ==========================================
     match /notificationSchedules/{scheduleId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() || isBootstrappedAdmin() || isAuthenticated();
+      allow create, update, delete: if true;
+    }
+
+    // ==========================================
+    // DEVICE TOKENS (For Mobile FCM Push)
+    // ==========================================
+    match /device_tokens/{deviceId} {
+      allow read, write: if true;
     }
 
     // ==========================================
