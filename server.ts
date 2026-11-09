@@ -205,14 +205,16 @@ async function startServer() {
     <h2>6. Children's Privacy</h2>
     <p>MDMI Devotionals is designed for general audiences and does not knowingly collect personal information from children under 13.</p>
 
-    <h2>7. Contact Us</h2>
-    <p>For questions or feedback regarding this policy, reach us at:</p>
+    <h2>7. Contact Us & Developer Information</h2>
+    <p>For questions, support, or privacy inquiries regarding MDMI Devotionals, please contact:</p>
     <p><strong>The Master's Discipleship Ministries Inc. (MDMI)</strong><br>
-    Email: <a href="mailto:themastersmdmi.dev@gmail.com">themastersmdmi.dev@gmail.com</a><br>
-    Website: <a href="https://ais-dev-noshvwsdf4lvq2c2pvcajb-458537113715.europe-west3.run.app">MDMI Devotionals Web Portal</a></p>
+    Email: <a href="mailto:themastersmdmi.dev@gmail.com">themastersmdmi.dev@gmail.com</a></p>
+    <p><strong>Application Engineering & Technology Partner:</strong><br>
+    Built by <strong>T-J Tech</strong><br>
+    LinkedIn: <a href="https://www.linkedin.com/company/t-j-tech" target="_blank" rel="noopener noreferrer">https://www.linkedin.com/company/t-j-tech</a></p>
   </div>
   <div class="footer">
-    &copy; 2026 The Master's Discipleship Ministries Inc. All rights reserved.
+    &copy; 2026 The Master's Discipleship Ministries Inc. Built by <a href="https://www.linkedin.com/company/t-j-tech" target="_blank" rel="noopener noreferrer" style="color: #4b5563; font-weight: 600;">T-J Tech</a>. All rights reserved.
   </div>
 </body>
 </html>`);
