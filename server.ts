@@ -150,6 +150,74 @@ async function startServer() {
     }
   });
 
+  // Dedicated Privacy Policy Route for Google Play Store Compliance
+  app.get('/privacy', (_req, res) => {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - MDMI Devotionals</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 800px; margin: 0 auto; padding: 2rem 1rem; background-color: #f9fafb; }
+    .card { background: #ffffff; border-radius: 12px; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; }
+    h1 { color: #111827; font-size: 1.75rem; margin-top: 0; }
+    h2 { color: #374151; font-size: 1.25rem; margin-top: 1.75rem; border-bottom: 1px solid #f3f4f6; padding-bottom: 0.5rem; }
+    p, li { color: #4b5563; font-size: 0.95rem; }
+    ul { padding-left: 1.5rem; }
+    .footer { margin-top: 2rem; font-size: 0.85rem; color: #6b7280; text-align: center; }
+    .badge { display: inline-block; background-color: #ecfdf5; color: #047857; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">Official Policy</span>
+    <h1>Privacy Policy for MDMI Devotionals</h1>
+    <p><strong>Effective Date:</strong> November 9, 2026</p>
+    <p>The Master's Discipleship Ministries Inc. ("MDMI", "we", "us", or "our") is dedicated to protecting your privacy and spiritual journey. This Privacy Policy explains how information is collected, used, and safeguarded when using the <strong>MDMI Devotionals</strong> mobile application and web services.</p>
+    
+    <h2>1. Information We Collect</h2>
+    <p>MDMI Devotionals is built with privacy-first principles. We collect only what is essential for application functionality:</p>
+    <ul>
+      <li><strong>Account Information:</strong> If you choose to sign in via Google Authentication or email, we receive your name, email address, and profile photo provided by Google Identity Services to sync your personal bookmarks, journal entries, and devotional reflections.</li>
+      <li><strong>Spiritual Journal & Bookmarks:</strong> Your personal prayer points, notes, and reading reflections are stored privately in your personal account partition in Google Cloud Firestore.</li>
+      <li><strong>Device Push Tokens:</strong> With your explicit consent, we register an anonymous Firebase Cloud Messaging (FCM) push token to deliver scheduled prayer watches, morning devotional alerts, and ministry announcements.</li>
+    </ul>
+
+    <h2>2. Information We Do NOT Collect</h2>
+    <ul>
+      <li>We do <strong>not</strong> sell, rent, or monetize your personal data.</li>
+      <li>We do <strong>not</strong> serve third-party commercial advertisements.</li>
+      <li>We do <strong>not</strong> track your physical location (GPS coordinates).</li>
+      <li>We do <strong>not</strong> collect financial, health, or sensitive demographic information.</li>
+    </ul>
+
+    <h2>3. Audio Narration & AI Services</h2>
+    <p>Our audio narration feature uses Google Gemini API to synthesize spoken devotionals. No personal user data or listening habits are shared with external AI training systems.</p>
+
+    <h2>4. Data Storage and Security</h2>
+    <p>All data is transmitted securely using Industry-standard Transport Layer Security (HTTPS/TLS) encryption. User profiles and private notes are protected by Google Firebase Firestore security rules, ensuring only authenticated users can access their own private journal entries.</p>
+
+    <h2>5. Data Deletion and User Rights</h2>
+    <p>You have full ownership of your data. You may delete individual journal entries, reading logs, and saved bookmarks at any time from within the app. To request permanent deletion of your account and all associated cloud records, contact our ministry administration at <strong>themastersmdmi.dev@gmail.com</strong>.</p>
+
+    <h2>6. Children's Privacy</h2>
+    <p>MDMI Devotionals is designed for general audiences and does not knowingly collect personal information from children under 13.</p>
+
+    <h2>7. Contact Us</h2>
+    <p>For questions or feedback regarding this policy, reach us at:</p>
+    <p><strong>The Master's Discipleship Ministries Inc. (MDMI)</strong><br>
+    Email: <a href="mailto:themastersmdmi.dev@gmail.com">themastersmdmi.dev@gmail.com</a><br>
+    Website: <a href="https://ais-dev-noshvwsdf4lvq2c2pvcajb-458537113715.europe-west3.run.app">MDMI Devotionals Web Portal</a></p>
+  </div>
+  <div class="footer">
+    &copy; 2026 The Master's Discipleship Ministries Inc. All rights reserved.
+  </div>
+</body>
+</html>`);
+  });
+
   // Audio Streaming Proxy Endpoint for external audio links (e.g., Google Drive, Dropbox, external CDNs)
   app.get('/api/proxy-audio', async (req, res) => {
     try {
