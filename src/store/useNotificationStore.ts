@@ -162,7 +162,47 @@ const STORAGE_KEY_NOTIFICATIONS_CACHE = 'mdmi_notifications_cache';
 const STORAGE_KEY_MAX_AMOUNT = 'mdmi_notification_max_amount';
 const STORAGE_KEY_DELIVERED_IDS = 'mdmi_delivered_notif_ids';
 const STORAGE_KEY_PENDING_QUEUE = 'mdmi_pending_delivery_queue';
+const STORAGE_KEY_FIRST_INSTALLED_AT = 'mdmi_first_installed_at';
+const STORAGE_KEY_LAST_ACTIVE_AT = 'mdmi_last_active_at';
 export const DEFAULT_MAX_NOTIFICATIONS = 30;
+
+// Maximum age in hours for a notification to pop up on user's device screen upon resumption (24 hours)
+const MAX_POPUP_ALERT_AGE_HOURS = 24;
+
+export function getOrSetFirstInstalledAt(): number {
+  if (typeof window === 'undefined') return Date.now();
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_FIRST_INSTALLED_AT);
+    if (raw) {
+      const parsed = parseInt(raw, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    const now = Date.now();
+    localStorage.setItem(STORAGE_KEY_FIRST_INSTALLED_AT, now.toString());
+    return now;
+  } catch {
+    return Date.now();
+  }
+}
+
+export function getLastActiveAt(): number {
+  if (typeof window === 'undefined') return Date.now();
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_LAST_ACTIVE_AT);
+    if (raw) {
+      const parsed = parseInt(raw, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  } catch {}
+  return Date.now();
+}
+
+export function updateLastActiveAt(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_LAST_ACTIVE_AT, Date.now().toString());
+  } catch {}
+}
 
 export interface PendingBroadcastDelivery {
   id: string;
@@ -219,6 +259,13 @@ export async function flushPendingDeliveries(): Promise<{ delivered: number; rem
 
   for (const item of queue) {
     if (deliveredIds.has(item.id)) {
+      continue;
+    }
+
+    // Drop stale items older than 24 hours silently without popping up
+    const itemCreatedTime = new Date(item.createdAt).getTime();
+    if (now - itemCreatedTime > MAX_POPUP_ALERT_AGE_HOURS * 60 * 60 * 1000) {
+      recordDeliveredId(item.id);
       continue;
     }
 
@@ -1468,14 +1515,36 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
             const finalNotifications = dedupedRemote.slice(0, Math.max(maxAmount, 100));
             saveStoredNotifications(finalNotifications);
 
-            // Rigorous delivery queueing: Ensure EVERY broadcast reaches this device
+            // Intelligent delivery queueing:
+            // 1. Maintain complete in-app notification inbox history for all broadcasts.
+            // 2. For hardware POPUPS / BANNERS:
+            //    - Never pop up notifications created before the user first installed/opened the app.
+            //    - Never spam returning/dormant users with popups for notifications older than 24 hours.
             const deliveredSet = getStoredDeliveredIds();
+            const firstInstalledAt = getOrSetFirstInstalledAt();
+            const maxAlertAgeMs = MAX_POPUP_ALERT_AGE_HOURS * 60 * 60 * 1000;
+            const nowTime = Date.now();
             let queue = getStoredPendingQueue();
             let queueChanged = false;
 
             for (const n of dedupedRemote) {
               if (!n || !n.id || isTestNotificationItem(n)) continue;
               if (deliveredSet.has(n.id)) continue;
+
+              const createdTime = new Date(n.createdAt).getTime();
+
+              // Rule A: If notification was created before the app was installed, auto-mark delivered for popups
+              // (It stays in the inbox history cleanly, but won't bombard the new user with outdated alerts).
+              if (createdTime < firstInstalledAt - 60000) {
+                recordDeliveredId(n.id);
+                continue;
+              }
+
+              // Rule B: If the notification is older than 24 hours, mark delivered without popping up on screen.
+              if (nowTime - createdTime > maxAlertAgeMs) {
+                recordDeliveredId(n.id);
+                continue;
+              }
 
               const inQueue = queue.some((q) => q.id === n.id);
               if (!inQueue) {
@@ -1490,6 +1559,9 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
                 queueChanged = true;
               }
             }
+
+            // Update user activity timestamp
+            updateLastActiveAt();
 
             if (queueChanged) {
               saveStoredPendingQueue(queue);
